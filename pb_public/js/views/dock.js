@@ -3,9 +3,9 @@
 // - mehrere Fenster je Kategorie (z. B. jede geöffnete E-Mail, jede Notiz)
 // - Klick außerhalb eines Fensters minimiert alle sichtbaren Fenster
 // - Wiederherstellen über die Taskleiste (Dock); bei mehreren Fenstern Auswahlliste
-import { onChange, fileUrl } from "../data.js?v=8.1";
-import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.1";
-import { EXAM, subtask } from "../scenario.js?v=8.1";
+import { onChange, fileUrl } from "../data.js?v=8.2";
+import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.2";
+import { EXAM, subtask } from "../scenario.js?v=8.2";
 
 let ctx = null;
 export const setCtx = (c) => { ctx = c; };
@@ -30,12 +30,16 @@ export function setTask(t) { t = t ? String(t) : null; if (t === curTask) return
 const allItems = () => (ctx ? ctx.items() : []);
 const items = () => allItems().filter((i) => !curTask || itemTask(i) === curTask);
 const addItem = (kind, folder, data, sub = "") => ctx.add(kind, folder, { ...data, task: curTask || data.task || "1" }, sub);
+// Fenstergebunden: Elemente gehören immer zur Aufgabe des Fensters (auch wenn beim Speichern schon eine andere Aufgabe geöffnet ist)
+const addItemW = (w, kind, folder, data, sub = "") => ctx.add(kind, folder, { ...data, task: w?.task || curTask || data.task || "1" }, sub);
 // Automatische Zwischenspeicherung aller Freitextfenster (alle 15 s, beim Verlassen des Fensters, beim Minimieren)
 export const AUTOSAVE_MS = 15000;
 const saveAll = () => WINS.forEach((w) => w.autosave && w.autosave().catch?.(() => {}));
 setInterval(saveAll, AUTOSAVE_MS);
 const stamp = () => new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 function showSaved(w, txt) { const s = document.querySelector(`#win-${cssId(w.key)} [data-autosaved]`); if (s) s.textContent = txt || "Automatisch gespeichert " + stamp(); }
+// Speichervorgänge eines Fensters nacheinander ausführen (verhindert doppelte Datensätze bei Autosave + Speichern)
+const serial = (w, fn) => (w.q = (w.q || Promise.resolve()).then(fn, fn));
 function rekey(w, key) { const el = document.getElementById("win-" + cssId(w.key)); WINS.delete(w.key); w.key = key; WINS.set(key, w); if (el) el.id = "win-" + cssId(key); }
 let onDockChange = () => {};
 export const setDockListener = (fn) => { onDockChange = fn; };
@@ -289,7 +293,7 @@ function filesWin(w) {
       const f = all.find((x) => x.id === b.dataset.fmenu);
       popMenu(b, f.folder === "provided" ? [
         { label: "Öffnen", icon: "eye", run: () => open("files", { fileId: f.id }) },
-        { label: "In eigene Dateien kopieren", icon: "copy", run: async () => { await addItem("file", "own", { ...f.data, changed: today() }); w.tab = "own"; w.notice = "Datei wurde in „Eigene Dateien“ kopiert."; redraw(w); } },
+        { label: "In eigene Dateien kopieren", icon: "copy", run: async () => { await addItemW(w, "file", "own", { ...f.data, changed: today() }); w.tab = "own"; w.notice = "Datei wurde in „Eigene Dateien“ kopiert."; redraw(w); } },
         { label: "Herunterladen", icon: "download", run: () => toast("Download im Klickdummy simuliert", f.data.name, "info") },
       ] : [
         { label: "Öffnen", icon: "eye", run: () => open("files", { fileId: f.id }) },
@@ -307,7 +311,7 @@ function filesWin(w) {
       if (file.size > 20 * 1048576) { toast("Datei zu groß", "Maximal 20 MB sind erlaubt.", "error"); return; }
       const meta = { name: file.name, format: ext, size: (file.size / 1048576).toFixed(1).replace(".", ",") + " MB", changed: today(), task: curTask || "1" };
       let rec;
-      try { rec = ctx.addFile ? await ctx.addFile(meta, file) : await addItem("file", "own", meta); }
+      try { rec = ctx.addFile ? await ctx.addFile(meta, file) : await addItemW(w, "file", "own", meta); }
       catch (e) { toast("Hochladen fehlgeschlagen", e?.message || "", "error"); return; }
       const st = await markDialog(rec, "Datei", w.defSt);
       w.notice = st ? "Die Datei wurde erfolgreich hochgeladen und als Abgabe markiert." : "Die Datei wurde erfolgreich hochgeladen.";
@@ -316,7 +320,7 @@ function filesWin(w) {
   } };
 }
 function fileWin(w) {
-  const f = items().find((i) => i.id === w.fileId);
+  const f = allItems().find((i) => i.id === w.fileId);
   if (!f) return { html: `<div class="empty">Datei nicht gefunden</div>` };
   const url = fileUrl(f);
   const isImg = /^(PNG|JPG|JPEG|GIF|WEBP|SVG)$/i.test(f.data.format || "");
@@ -330,7 +334,7 @@ function fileWin(w) {
     bind(el) {
       const tx = el.querySelector("[data-txt]"); if (tx) fetch(tx.dataset.txt).then((r) => r.text()).then((t) => (tx.textContent = t.slice(0, 20000))).catch(() => (tx.textContent = "Vorschau nicht verfügbar"));
       const mk = el.querySelector("[data-mk]"); if (mk) mk.onclick = () => markDialog(f, "Datei", w.defSt);
-      const cp = el.querySelector("[data-cp]"); if (cp) cp.onclick = async () => { await addItem("file", "own", { ...f.data, changed: today() }); toast("In eigene Dateien kopiert", f.data.name); };
+      const cp = el.querySelector("[data-cp]"); if (cp) cp.onclick = async () => { await addItemW(w, "file", "own", { ...f.data, changed: today() }); toast("In eigene Dateien kopiert", f.data.name); };
     } };
 }
 async function renameFile(f) {
@@ -370,7 +374,7 @@ function mailWin(w) {
     } };
 }
 function mailRead(w) {
-  const m = items().find((x) => x.id === w.mailId);
+  const m = allItems().find((x) => x.id === w.mailId);
   if (!m) return { html: `<div class="empty">E-Mail nicht gefunden</div>` };
   const quote = `<blockquote style="border-left:3px solid #ccc;margin:12px 0;padding-left:10px;color:#555">${esc(m.data.body || "").replace(/\n/g, "<br>")}</blockquote>`;
   return { html: `<div class="row between" style="align-items:flex-start"><div class="row">${icon("circle-user", "xl")}<div><div>${esc(m.data.from)} (${esc(m.data.from_mail)})</div><div class="small muted">An: ${esc(m.data.to)}</div></div></div><span class="small">${esc(m.data.date)}</span></div>
@@ -420,17 +424,17 @@ function composeWin(w) {
         if (sig === w.lastSig) return; const empty = !d.to && !d.subject && htmlToText(d.html).length < 2;
         if (!w.lastSig && empty) { w.lastSig = sig; return; }
         w.lastSig = sig;
-        if (d.draftId) await ctx.upd(d.draftId, { data: asData() }); else { const r = await addItem("mail", "draft", asData()); d.draftId = r.id; }
+        await serial(w, async () => { if (w.sent) return; if (d.draftId) await ctx.upd(d.draftId, { data: asData() }); else { const r = await addItemW(w, "mail", "draft", asData()); d.draftId = r.id; } });
         d.savedAt = stamp(); showSaved(w);
       };
       if (!w.lastSig) { collect(); w.lastSig = d.draftId ? JSON.stringify([d.to, d.subject, d.html, d.attachments]) : ""; }
       el.querySelector("[data-discard]").onclick = async () => { if (await confirmBox("Entwurf verwerfen", "Die E-Mail wird nicht gesendet und verworfen.", "Verwerfen")) { w.sent = true; if (d.draftId) ctx.del(d.draftId); close(w.key); } };
-      el.querySelector("[data-savedraft]").onclick = async () => { collect(); if (d.draftId) await ctx.upd(d.draftId, { data: asData() }); else { const r = await addItem("mail", "draft", asData()); d.draftId = r.id; } toast("Entwurf gespeichert", "", "info"); };
+      el.querySelector("[data-savedraft]").onclick = async () => { collect(); await serial(w, async () => { if (d.draftId) await ctx.upd(d.draftId, { data: asData() }); else { const r = await addItemW(w, "mail", "draft", asData()); d.draftId = r.id; } }); toast("Entwurf gespeichert", "", "info"); };
       el.querySelector("[data-send]").onclick = async () => {
         collect();
         if (!d.to.includes("@")) { el.querySelector("[data-to]").style.borderColor = "var(--red)"; toast("Bitte Empfänger angeben", "", "error"); return; }
         w.sent = true;
-        const rec = d.draftId ? await ctx.upd(d.draftId, { folder: "sent", data: asData() }) : await addItem("mail", "sent", asData());
+        const rec = await serial(w, () => (d.draftId ? ctx.upd(d.draftId, { folder: "sent", data: asData() }) : addItemW(w, "mail", "sent", asData())));
         close(w.key);
         toast("E-Mail gesendet");
         await markDialog(rec, "E-Mail", w.defSt);
@@ -488,7 +492,7 @@ async function eventDialog(ev, preset, w) {
   if (!v) return;
   if (v === "del") { if (await confirmBox("Termin löschen", "Möchten Sie den Termin wirklich löschen?", "Löschen")) ctx.del(ev.id); return; }
   const data = { ...d, title: v.title, day: +v.day, start: v.start, end: v.end, location: v.location, desc: v.desc, editable: true };
-  if (isNew) await addItem("event", "calendar", data, v.submission); else await ctx.upd(ev.id, { data, submission: v.submission });
+  if (isNew) await addItemW(w, "event", "calendar", data, v.submission); else await ctx.upd(ev.id, { data, submission: v.submission });
   toast(isNew ? "Termin angelegt" : "Termin gespeichert", v.submission ? `Als Abgabe für Teilaufgabe ${v.submission} markiert.` : "");
 }
 
@@ -504,7 +508,7 @@ function notesWin(w) {
     } };
 }
 function noteWin(w) {
-  const n = items().find((x) => x.id === w.noteId);
+  const n = allItems().find((x) => x.id === w.noteId);
   const d = n ? n.data : { title: "", html: "" };
   return { html: `<div class="row wrap mb"><input class="input grow" style="width:auto" data-title placeholder="Titel der Notiz" value="${esc(d.title)}">${n ? markChip(n) : ""}</div>
     ${rteToolbar()}<div class="rte" style="min-height:300px" contenteditable="true" data-body>${d.html || "<p><br></p>"}</div>`,
@@ -517,15 +521,30 @@ function noteWin(w) {
       w.autosave = async () => {
         if (w.deleted || !el.isConnected) return;
         const sig = sigOf(); if (sig === w.lastSig) return; w.lastSig = sig;
-        const cur = items().find((x) => x.id === w.noteId);
-        const data = { ...(cur?.data || {}), title: el.querySelector("[data-title]").value.trim() || cur?.data.title || "Notiz " + (items().filter((i) => i.kind === "note").length + (cur ? 0 : 1)), html: el.querySelector("[data-body]").innerHTML };
-        if (cur) await ctx.upd(cur.id, { data }); else { const rec = await addItem("note", "notes", data); w.noteId = rec.id; rekey(w, w.task + "|editor:" + rec.id); }
+        const title = el.querySelector("[data-title]").value.trim(), html = el.querySelector("[data-body]").innerHTML;
+        await serial(w, async () => {
+          if (w.deleted) return;
+          const cur = allItems().find((x) => x.id === w.noteId);
+          const data = { ...(cur?.data || {}), title: title || cur?.data.title || "Notiz " + (items().filter((i) => i.kind === "note").length + (cur ? 0 : 1)), html };
+          if (cur) await ctx.upd(cur.id, { data }); else { const rec = await addItemW(w, "note", "notes", data); w.noteId = rec.id; rekey(w, w.task + "|editor:" + rec.id); }
+        });
         w.savedAt = stamp(); showSaved(w);
       };
-      el.querySelector("[data-save]").onclick = async () => {
-        const data = { title: el.querySelector("[data-title]").value.trim() || "Notiz " + (items().filter((i) => i.kind === "note").length + 1), html: el.querySelector("[data-body]").innerHTML };
-        if (n) { await ctx.upd(n.id, { data }); toast("Eingabe gespeichert"); redraw(w); }
-        else { const rec = await addItem("note", "notes", data); w.noteId = rec.id; rekey(w, w.task + "|editor:" + rec.id); w.lastSig = sigOf(); redraw(w); toast("Notiz gespeichert"); await markDialog(rec, "Notiz", w.defSt); }
+      el.querySelector("[data-save]").onclick = async (ev) => {
+        const btn = ev.currentTarget; if (w.saving) return; w.saving = true; btn.disabled = true;
+        try { await saveNote(); } finally { w.saving = false; btn.disabled = false; }
+      };
+      const saveNote = async () => {
+        const title = el.querySelector("[data-title]").value.trim(), html = el.querySelector("[data-body]").innerHTML; const sig = sigOf();
+        let created = null;
+        await serial(w, async () => {
+          const cur = allItems().find((x) => x.id === w.noteId);
+          const data = { ...(cur?.data || {}), title: title || cur?.data.title || "Notiz " + (items().filter((i) => i.kind === "note").length + 1), html };
+          if (cur) await ctx.upd(cur.id, { data }); else { created = await addItemW(w, "note", "notes", data); w.noteId = created.id; rekey(w, w.task + "|editor:" + created.id); }
+          w.lastSig = sig;
+        });
+        redraw(w);
+        if (n) toast("Eingabe gespeichert"); else { toast("Notiz gespeichert"); const rec = allItems().find((x) => x.id === w.noteId); if (rec && !rec.submission) await markDialog(rec, "Notiz", w.defSt); }
       };
     } };
 }
@@ -558,7 +577,7 @@ async function newTicket(w) {
   if (!v) return;
   const used = new Set(items().filter((i) => i.kind === "ticket").map((i) => +i.data.no));
   let no = 4800 + Math.floor(Math.random() * 150); while (used.has(no)) no++;
-  const rec = await addItem("ticket", "tickets", { no: String(no), subject: v.subject, desc: v.desc, prio: v.prio, requester: v.requester, status: "offen", created: new Date().toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }), answers: [], own: true });
+  const rec = await addItemW(w, "ticket", "tickets", { no: String(no), subject: v.subject, desc: v.desc, prio: v.prio, requester: v.requester, status: "offen", created: new Date().toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }), answers: [], own: true });
   toast("Ticket angelegt", `#${no} ${v.subject}`);
   open("tickets", { ticketId: rec.id, subtask: w.defSt });
 }
@@ -648,7 +667,7 @@ function ideWin(w) {
       el.querySelector("[data-newfile]").onclick = async () => {
         const n = await modal({ title: "Neue Datei", size: "narrow", body: `<label class="lbl">Dateiname</label><input class="input" data-n placeholder="z. B. loesung.py">`, footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Anlegen</button>`, onMount: (m, c) => (m.querySelector("[data-ok]").onclick = () => c(m.querySelector("[data-n]").value.trim())) });
         if (!n) return;
-        const r = await addItem("code", "ide", { name: n, lang: LANG(n), code: LANG(n) === "python" ? "# " + n + "\n" : LANG(n) === "javascript" ? "// " + n + "\n" : "" });
+        const r = await addItemW(w, "code", "ide", { name: n, lang: LANG(n), code: LANG(n) === "python" ? "# " + n + "\n" : LANG(n) === "javascript" ? "// " + n + "\n" : "" });
         w.active = r.id; redraw(w);
       };
       if (!f) return;

@@ -1,9 +1,9 @@
 // Raumaufsicht: Übersicht der Raumaufsichten und Steuerkonsole eines Raums
-import { D, byId, upd, create, log, demoApi } from "../data.js?v=8.1";
-import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=8.1";
-import { navigate, redraw, session, directHelp } from "../app.js?v=8.1";
-import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, KIND, members } from "../access.js?v=8.1";
-import { LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=8.1";
+import { D, byId, upd, create, log, demoApi } from "../data.js?v=8.2";
+import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=8.2";
+import { navigate, redraw, session, directHelp } from "../app.js?v=8.2";
+import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, KIND, members } from "../access.js?v=8.2";
+import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=8.2";
 
 const MR = { status: "", q: "" }; // Filter „Mein Raum“ (Großraum)
 const pending = new Set();
@@ -101,7 +101,7 @@ export async function newRoomDialog(courseId = "") {
       <div class="field"><label class="lbl" for="nr-d">Datum</label><input id="nr-d" class="input" type="date" data-v="date" value="${v.date}"></div>
       <div class="field"><label class="lbl" for="nr-t">Frühester Start</label><input id="nr-t" class="input" type="time" data-v="time" value="${v.time}"></div>
       <div class="field"><label class="lbl" for="nr-du">Bearbeitungszeit (Minuten)</label><input id="nr-du" class="input" type="number" min="5" data-v="duration_min" value="${v.duration_min}"></div></div>
-      ${lesson ? `<div class="notice info small mb">${icon("info")}<span>Im Unterricht wird <b>kein realer Raum</b> gebucht. Legen Sie Anzahl und Anordnung der Sitzplätze so fest, wie Sie sie gerade benötigen – änderbar bis zum Start.</span></div><div data-seathost>${seatingForm(v.seat)}</div>`
+      ${lesson ? `<div data-seathost>${seatingForm(v.seat)}</div>`
         : `<div class="notice info small mb">${icon("info")}<span>Reale Räume Ihrer Schule können je Zeitraum nur <b>einmal</b> belegt werden (Bearbeitungszeit zzgl. 30 Minuten). Belegte Räume sind ausgegraut.</span></div>
           ${ven ? `<div class="seating"><div class="seating-l small"><b>${esc(ven.name)}</b>${ven.building ? ` · ${esc(ven.building)}` : ""}<br>${esc(describe(ven))}</div><div class="seating-r">${previewHtml(ven)}</div></div>` : `<p class="small muted">Wählen Sie einen freien Raum aus.</p>`}`}
       <p class="xs muted mt-s">${p?.kind === "lehrkraft" ? "Sie werden automatisch als Aufsichtsperson eingetragen." : "Aufsichtspersonen und Teilnehmende ordnen Sie anschließend aus den Mitgliedern der Prüfung Ihrer Schule zu."}</p>`;
@@ -134,7 +134,10 @@ export function room(id, tab) {
   const r = byId("rooms", id);
   if (!r) return { shell: "staff", rail: "schule", title: "Raum", render: () => `<div class="empty">Raum nicht gefunden. <a href="#/app/raumaufsicht">Zur Übersicht</a></div>` };
   if (!canSeeRoom(r)) return { shell: "staff", rail: "schule", title: "Kein Zugriff", render: () => `<div class="empty">${icon("lock")}<h2>Kein Zugriff auf diese Raumaufsicht</h2><p>Die Raumaufsicht betrifft Ihr Konto bzw. Ihre Organisation nicht.</p><a class="btn" href="#/app/raumaufsicht">Zur Übersicht</a></div>` };
-  const tabs = [["pruefung", "Prüfung"], ["meinraum", "Mein Raum"], ["teilnehmende", "Teilnehmende"], ["aufsicht", "Aufsichtspersonen"], ["protokoll", "Prüfungsprotokoll"]];
+  // Unterricht: kein Prüfungsprotokoll (nur bei Prüfungen)
+  const lesson = courseOf(r)?.kind === "unterricht";
+  const tabs = [["pruefung", "Prüfung"], ["meinraum", "Mein Raum"], ["teilnehmende", "Teilnehmende"], ["aufsicht", "Aufsichtspersonen"], ...(lesson ? [] : [["protokoll", "Prüfungsprotokoll"]])];
+  if (lesson && tab === "protokoll") tab = "meinraum";
   return {
     shell: "staff", rail: "schule", title: r.name,
     render() {
@@ -144,7 +147,7 @@ export function room(id, tab) {
       return `<div class="breadcrumb"><a href="#/app/raumaufsicht">Übersicht Raumaufsicht</a>${icon("chevron-right")}<b>${esc(room.name)}</b></div><div class="pagehead"><div><h1>${esc(room.name)}</h1><div class="sub">${esc(room.exam_name || "Noch keine Prüfung zugeordnet")}</div>
         <div class="row mt-s small">${stateBadge(room)}<span>Geplanter Start: <b>${fmtDateTime(parseDate(room.planned_start))}</b></span>${room.started_at ? `<span>Gestartet: <b>${fmtTime(parseDate(room.started_at))}</b></span>` : ""}${room.global_extra ? `<span class="badge yellowb">+${room.global_extra} Min. global</span>` : ""}</div></div>
         <div class="actions-bar">
-          <button class="btn" data-incident>${icon("message-square-warning", "red")} Besondere Vorkommnisse</button>
+          ${lesson ? "" : `<button class="btn" data-incident>${icon("message-square-warning", "red")} Besondere Vorkommnisse</button>`}
           ${tab === "protokoll" ? `<button class="btn" data-download ${room.state === "TERMINATED" ? "" : `disabled title="Erst nach Beendigung der Prüfung verfügbar"`}>${icon("download")} Protokoll herunterladen (PDF)</button>${room.state === "TERMINATED" ? "" : `<span class="xs muted" style="align-self:center">Download nach Prüfungsende</span>`}` : ""}
           ${tab !== "aufsicht" && tab !== "protokoll" ? `${room.state === "CREATED" ? `<button class="btn primary" data-start>${icon("play")} Prüfung starten</button>` : room.state === "RUNNING" ? `<button class="btn primary" data-pause>${icon("pause")} Prüfung pausieren</button>` : room.state === "PAUSED" ? `<button class="btn primary" data-resume>${icon("play")} Prüfung fortsetzen</button>` : ""}
           <button class="btn" data-collect ${room.state === "RUNNING" || room.state === "PAUSED" ? "" : "disabled"}>${icon("download")} Prüfung einsammeln</button>
@@ -225,7 +228,7 @@ async function resumeExam(room) {
   toast("Prüfung fortgesetzt");
 }
 async function collect(room) {
-  const act = inRoom(room).filter((p) => isCollectable(p.status)).sort((a, b) => a.seat.localeCompare(b.seat));
+  const act = inRoom(room).filter((p) => isCollectable(p.status)).sort((a, b) => seatCmp(a.seat, b.seat));
   if (!act.length) { toast("Keine aktiven Teilnehmenden", "Es gibt keine Prüfungen zum Einsammeln.", "info"); return; }
   const v = await modal({ title: "Prüfung einsammeln", warn: true, size: "wide",
     body: `<p>Die Prüfung wird für folgende Teilnehmende unwiderruflich eingesammelt und beendet:</p>
@@ -467,7 +470,8 @@ async function addParticipants(room, seat) {
 function tabTeilnehmende(room) {
   const st = S.tn; const ps = inRoom(room);
   const key = { seat: (p) => p.seat, lastname: (p) => p.lastname, firstname: (p) => p.firstname, status: (p) => p.status, end: (p) => (endTime(room, p) || plannedEnd(room, p))?.getTime() || 0 }[st.sort] || ((p) => p.seat);
-  const sorted = [...ps].sort((a, b) => (key(a) > key(b) ? 1 : -1) * st.dir);
+  const cmp = (x, y) => (typeof x === "number" ? x - y : st.sort === "seat" ? seatCmp(x, y) : String(x).localeCompare(String(y), "de", { numeric: true }));
+  const sorted = [...ps].sort((a, b) => cmp(key(a), key(b)) * st.dir);
   const page = sorted.slice((st.page - 1) * st.per, st.page * st.per);
   const th = (k, l) => `<th class="sortable" data-sort="${k}">${icon(st.sort === k ? (st.dir > 0 ? "chevron-up" : "chevron-down") : "list")} ${l}</th>`;
   return `<div class="row between wrap mb"><div class="row wrap"><button class="btn" data-addtn>${icon("plus")} Teilnehmende hinzufügen</button><div class="notice success small">${icon("circle-check")}<span>Es sind aktuell <b>${ps.length} von ${seatCount(room)} Sitzplätzen</b> im Raum belegt.</span></div></div>
@@ -561,7 +565,7 @@ function bindAufsicht(el, room) {
   el.querySelector("[data-delsv]").onclick = async () => {
     const list = [...st.sel].map((id) => byId("supervisors", id)).filter(Boolean);
     if (!(await confirmBox("Aufsichtspersonen löschen", list.map((s) => `${esc(s.lastname)}, ${esc(s.firstname)}`).join("<br>"), "Löschen"))) return;
-    const { del } = await import("../data.js?v=8.1");
+    const { del } = await import("../data.js?v=8.2");
     for (const s of list) { await del("supervisors", s.id); log(room.id, null, `Aufsichtsperson ${s.lastname} entfernt`, "", "aktion", actor()); }
     st.sel.clear(); toast("Aufsichtspersonen entfernt");
   };
@@ -593,4 +597,4 @@ function bindProtokoll(el, room) {
     if (v !== null && v !== undefined) { await upd("protocol", r.id, { comment: v }); toast("Kommentar gespeichert"); }
   }));
 }
-function downloadProtocol(room) { import("./protocolpdf.js?v=8.1").then((m) => m.protocolPdf(room)); }
+function downloadProtocol(room) { import("./protocolpdf.js?v=8.2").then((m) => m.protocolPdf(room)); }

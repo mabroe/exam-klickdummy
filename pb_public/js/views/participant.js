@@ -1,10 +1,14 @@
 // Prüfling: Wartebereich, Prüfungsmodus (Dashboard, Aufgaben, Abgaben), Endbildschirm, Kursvorschau
-import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.1";
-import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, isFinished, isActive, isConnected, isOffline, HB_MS, $ } from "../ui.js?v=8.1";
-import { EXAM, ALL_SUBTASKS, subtask, taskOf } from "../scenario.js?v=8.1";
-import { navigate, session, render, directHelp } from "../app.js?v=8.1";
-import * as W from "./dock.js?v=8.1";
-import { einsichtView } from "./results.js?v=8.1";
+import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.2";
+import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, isFinished, isActive, isConnected, isOffline, HB_MS, $ } from "../ui.js?v=8.2";
+import { EXAM, ALL_SUBTASKS, subtask, taskOf } from "../scenario.js?v=8.2";
+import { navigate, session, render, directHelp } from "../app.js?v=8.2";
+import * as W from "./dock.js?v=8.2";
+import { einsichtView } from "./results.js?v=8.2";
+// Punktebadge: grün, sobald für die (Teil-)Aufgabe eine Abgabe markiert ist, sonst grau
+const ptsBadge = (done, label, title = "") => `<span class="badge ${done ? "lime" : "gray"}" title="${title || (done ? "Abgabe markiert" : "noch nicht bearbeitet")}">${label}</span>`;
+const taskDone = (items, t) => t.subtasks.filter((s) => items.some((i) => i.submission === s.no)).length;
+
 
 let hbTimer = null, tickTimer = null, countdownUntil = 0, lastStatus = null;
 const ui = { navCollapsed: false, openAcc: { 1: true }, abgTab: "uebersicht", pdfPage: 1, openTree: { 1: true } };
@@ -179,7 +183,7 @@ function waitView(ctx) {
       el.querySelectorAll("[data-pgstep]").forEach((b) => (b.onclick = () => { ui.pdfPage = Math.max(1, Math.min(3, ui.pdfPage + +b.dataset.pgstep)); render(false); }));
       const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
       const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
-      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.1").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
+      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.2").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
       // Prüfung läuft bereits, Bestätigung fehlt
       if (room.state === "RUNNING" && !confirmedBoth && !document.querySelector(".backdrop") && !store.get("bo." + p.id)) {
         store.set("bo." + p.id, 1);
@@ -369,8 +373,8 @@ function navTree(ctx, sub) {
   <ul><li><a href="${ctx.base}/dashboard" class="${sub === "dashboard" || sub === "" ? "active" : ""}">${icon("house")} Dashboard</a></li>
   <li><a href="${ctx.base}/abgaben" class="${sub === "abgaben" ? "active" : ""}">${icon("list-checks")} Abgaben</a></li>
   <li><button data-tree="all">${icon("clipboard-list")} <span class="grow">Aufgaben</span>${icon(ui.openTree.all !== false ? "chevron-up" : "chevron-down")}</button>
-  ${ui.openTree.all !== false ? `<ul>${EXAM.tasks.map((t) => `<li><a href="${ctx.base}/aufgabe/${t.no}" class="${sub === "aufgabe/" + t.no ? "active" : ""}"><span>${t.no} ${esc(t.title)}</span><span class="badge cyan">${t.points}</span></a>
-    ${(sub.startsWith("aufgabe/" + t.no)) ? `<ul>${t.subtasks.map((s) => `<li><a href="${ctx.base}/aufgabe/${t.no}/${s.no}" class="${sub === `aufgabe/${t.no}/${s.no}` ? "active" : ""}"><span>${items.some((i) => i.submission === s.no) ? icon("check") : ""} ${s.no} ${esc(s.title)}</span><span class="badge ${s.points <= 5 ? "lime" : "gray"}">${s.points}</span></a></li>`).join("")}</ul>` : ""}</li>`).join("")}</ul>` : ""}</li></ul></aside>`;
+  ${ui.openTree.all !== false ? `<ul>${EXAM.tasks.map((t) => `<li><a href="${ctx.base}/aufgabe/${t.no}" class="${sub === "aufgabe/" + t.no ? "active" : ""}"><span>${t.no} ${esc(t.title)}</span>${ptsBadge(taskDone(items, t) > 0, t.points, `${taskDone(items, t)} von ${t.subtasks.length} Teilaufgaben mit Abgabe`)}</a>
+    ${(sub.startsWith("aufgabe/" + t.no)) ? `<ul>${t.subtasks.map((s) => `<li><a href="${ctx.base}/aufgabe/${t.no}/${s.no}" class="${sub === `aufgabe/${t.no}/${s.no}` ? "active" : ""}"><span>${items.some((i) => i.submission === s.no) ? icon("check") : ""} ${s.no} ${esc(s.title)}</span><span class="badge ${items.some((i) => i.submission === s.no) ? "lime" : "gray"}">${s.points}</span></a></li>`).join("")}</ul>` : ""}</li>`).join("")}</ul>` : ""}</li></ul></aside>`;
 }
 
 function pageBody(ctx, sub) {
@@ -421,8 +425,8 @@ function taskBody(ctx, t, st) {
   const all = ctx.items();
   const items = all.filter((i) => W.itemTask(i) === t.no); // aufgabenspezifische Materialien
   const tabs = `<div class="row between" style="align-items:flex-end"><div class="tabs small" style="margin-bottom:18px;flex:1">
-    <a href="${ctx.base}/aufgabe/${t.no}" class="${!st ? "active" : ""}">Übersicht Aufgabe ${t.no} <span class="badge cyan">${t.points}</span></a>
-    ${t.subtasks.map((s) => `<a href="${ctx.base}/aufgabe/${t.no}/${s.no}" class="${st?.no === s.no ? "active" : ""}">Aufgabe ${s.no} <span class="badge ${s.points <= 5 ? "lime" : "gray"}">${s.points}</span></a>`).join("")}</div>
+    <a href="${ctx.base}/aufgabe/${t.no}" class="${!st ? "active" : ""}">Übersicht Aufgabe ${t.no} ${ptsBadge(taskDone(all, t) > 0, t.points, `${taskDone(all, t)} von ${t.subtasks.length} Teilaufgaben mit Abgabe`)}</a>
+    ${t.subtasks.map((s) => `<a href="${ctx.base}/aufgabe/${t.no}/${s.no}" class="${st?.no === s.no ? "active" : ""}">Aufgabe ${s.no} <span class="badge ${all.some((i) => i.submission === s.no) ? "lime" : "gray"}">${s.points}</span></a>`).join("")}</div>
     <button class="helpbtn" data-help style="margin-bottom:18px" aria-label="Hilfe"><span class="q">?</span></button></div>`;
   const inbox = items.filter((i) => i.kind === "mail" && i.folder === "inbox");
   const events = items.filter((i) => i.kind === "event");
@@ -435,7 +439,7 @@ function taskBody(ctx, t, st) {
     ${st ? `<div class="assignment"><h3>${icon("clipboard-list")} Arbeitsauftrag ${st.no}</h3><p>${esc(st.text)}</p>
       <div class="row wrap between"><button class="btn primary sm" data-open="${st.tool}">${icon(toolLabel[st.tool][0])} ${toolLabel[st.tool][1]}</button>
       <span class="small">${subs.length ? `<span class="badge green">${icon("check")} ${subs.length} Abgabe${subs.length > 1 ? "n" : ""} markiert</span>` : `<span class="badge gray">noch keine Abgabe</span>`}</span></div></div>`
-    : `<div class="card pad"><h3>Teilaufgaben</h3>${t.subtasks.map((s) => `<a class="subtask mt-s" href="${ctx.base}/aufgabe/${t.no}/${s.no}"><span class="stico ${items.some((i) => i.submission === s.no) ? "done" : "todo"}">${icon(items.some((i) => i.submission === s.no) ? "check" : "square-pen")}</span><span class="grow">${s.no} ${esc(s.title)}</span><span class="badge ${s.points <= 5 ? "lime" : "gray"}">${s.points} P</span></a>`).join("")}</div>`}
+    : `<div class="card pad"><h3>Teilaufgaben</h3>${t.subtasks.map((s) => `<a class="subtask mt-s" href="${ctx.base}/aufgabe/${t.no}/${s.no}"><span class="stico ${items.some((i) => i.submission === s.no) ? "done" : "todo"}">${icon(items.some((i) => i.submission === s.no) ? "check" : "square-pen")}</span><span class="grow">${s.no} ${esc(s.title)}</span><span class="badge ${items.some((i) => i.submission === s.no) ? "lime" : "gray"}">${s.points} P</span></a>`).join("")}</div>`}
     <div class="widget"><div class="wh" style="cursor:default">${icon("app-window")} Werkzeuge für Aufgabe ${t.no}</div><div class="wb"><div class="toolwidgets">${tools.map(([k, ic, l, sub]) => `<button data-open="${k}">${icon(ic)}<span><b>${l}</b><small>${sub}</small></span></button>`).join("")}</div><p class="xs muted mt-s" style="margin-bottom:0">Alle Werkzeuge finden Sie auch in der Taskleiste am unteren Bildschirmrand (Tastatur: <kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>7</kbd>).</p></div></div>
     <div class="widget"><div class="wh" style="cursor:default">${icon("building-2")} ${esc(EXAM.company.name)}</div><div class="wb">
       <div class="tabs small" style="margin-bottom:12px">${["allgemein", "adresse", "rechtliches", "kontakt", "vorlagen"].map((k) => `<button data-ctab="${k}" class="${(ui.ctab || "allgemein") === k ? "active" : ""}">${k[0].toUpperCase() + k.slice(1)}</button>`).join("")}</div>
@@ -465,12 +469,12 @@ function abgabenBody(ctx) {
     return tabs + (bms.length ? bms.map((no) => { const s = subtask(no); const t = s ? s.task : taskOf(no); return `<a class="subtask mt-s" href="${ctx.base}/aufgabe/${t.no}${s ? "/" + s.no : ""}"><span class="stico open">${icon("bookmark")}</span><span class="grow">${s ? `Teilaufgabe ${s.no} ${esc(s.title)}` : `Aufgabe ${t.no} ${esc(t.title)}`}</span>${icon("arrow-right")}</a>`; }).join("") : `<div class="empty">${icon("bookmark")}<p>Sie haben noch keine Aufgaben gemerkt.<br>Nutzen Sie „Aufgabe merken“ in einer Aufgabe.</p></div>`);
   }
   if (ui.abgTab === "offen") {
-    return tabs + (open.length ? `<p class="muted">Zu diesen Teilaufgaben haben Sie noch nichts als Abgabe markiert:</p>` + open.map((s) => `<a class="subtask mt-s" href="${ctx.base}/aufgabe/${s.task.no}/${s.no}"><span class="stico todo">${icon("square-pen")}</span><span class="grow">${s.no} ${esc(s.title)}</span><span class="badge ${s.points <= 5 ? "lime" : "gray"}">${s.points} Punkte</span>${icon("arrow-right")}</a>`).join("") : `<div class="notice success">${icon("circle-check")}<span>Zu allen Teilaufgaben liegt mindestens eine Abgabe vor.</span></div>`);
+    return tabs + (open.length ? `<p class="muted">Zu diesen Teilaufgaben haben Sie noch nichts als Abgabe markiert:</p>` + open.map((s) => `<a class="subtask mt-s" href="${ctx.base}/aufgabe/${s.task.no}/${s.no}"><span class="stico todo">${icon("square-pen")}</span><span class="grow">${s.no} ${esc(s.title)}</span><span class="badge gray">${s.points} Punkte</span>${icon("arrow-right")}</a>`).join("") : `<div class="notice success">${icon("circle-check")}<span>Zu allen Teilaufgaben liegt mindestens eine Abgabe vor.</span></div>`);
   }
   return tabs + EXAM.tasks.map((t) => {
     const openA = ui["abgacc" + t.no] !== false;
-    return `<div class="acc"><button data-abgacc="${t.no}"><div><b>Aufgabe ${t.no} ${esc(t.title)}</b> <span class="badge cyan">${t.points} Punkte</span></div>${icon(openA ? "chevron-up" : "chevron-down")}</button>
-    ${openA ? `<div class="acc-b">${t.subtasks.map((s) => { const subs = submissionsFor(items, s.no); return `<div class="card pad soft"><div class="row between"><b>${icon("bookmark")} ${s.no} ${esc(s.title)}</b><span class="badge ${s.points <= 5 ? "lime" : "gray"}">${s.points} Punkte</span></div>
+    return `<div class="acc"><button data-abgacc="${t.no}"><div><b>Aufgabe ${t.no} ${esc(t.title)}</b> ${ptsBadge(taskDone(items, t) > 0, `${t.points} Punkte`, `${taskDone(items, t)} von ${t.subtasks.length} Teilaufgaben mit Abgabe`)}</div>${icon(openA ? "chevron-up" : "chevron-down")}</button>
+    ${openA ? `<div class="acc-b">${t.subtasks.map((s) => { const subs = submissionsFor(items, s.no); return `<div class="card pad soft"><div class="row between"><b>${icon("bookmark")} ${s.no} ${esc(s.title)}</b><span class="badge ${subs.length ? "lime" : "gray"}">${s.points} Punkte</span></div>
       ${subs.length ? `<div class="mt-s small bold">Vorschau</div>${subs.map((x) => `<div class="card pad mt-s">${W.itemPreview(x)}</div>`).join("")}<a class="btn sm block mt-s" href="${ctx.base}/aufgabe/${t.no}/${s.no}">${icon("arrow-right")} Zur Teilaufgabe – Auswahl bearbeiten</a>` : `<div class="notice warn mt-s">${icon("triangle-alert")}<span>Noch keine Abgabe markiert. <a href="${ctx.base}/aufgabe/${t.no}/${s.no}">Zur Teilaufgabe</a></span></div>`}</div>`; }).join("")}</div>` : ""}</div>`;
   }).join("");
 }
@@ -497,7 +501,7 @@ function bindPage(el, ctx, sub) {
   el.querySelectorAll("[data-open]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); W.open(b.dataset.open, { subtask: sub.split("/")[2] }); }));
   el.querySelectorAll("[data-openmail]").forEach((b) => (b.onclick = () => W.open("mail", { mailId: b.dataset.openmail, subtask: sub.split("/")[2] })));
   const fin = el.querySelector("[data-finish]"); if (fin) fin.onclick = () => finishExam(ctx);
-  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.1").then((m) => m.copyCourse(ctx.course));
+  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.2").then((m) => m.copyCourse(ctx.course));
   const bm = el.querySelector("[data-bookmark]");
   if (bm) bm.onclick = () => {
     const parts = sub.split("/"); const key = parts[2] || parts[1];

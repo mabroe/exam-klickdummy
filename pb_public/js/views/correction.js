@@ -1,21 +1,24 @@
 // Korrekturworkflow: Korrekturübersicht, Korrekturmodus, Vergleich, Erwartungshorizont
-import { D, byId, upd, create, setting, setSetting } from "../data.js?v=8.1";
-import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=8.1";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.1";
-import { navigate, redraw, session } from "../app.js?v=8.1";
-import { me, courseOf, correctorStage } from "../access.js?v=8.1";
-export { mode } from "./kmode.js?v=8.1";
+import { D, byId, upd, create, setting, setSetting } from "../data.js?v=8.2";
+import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=8.2";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.2";
+import { navigate, redraw, session } from "../app.js?v=8.2";
+import { me, courseOf, correctorStage, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses } from "../access.js?v=8.2";
+export { mode } from "./kmode.js?v=8.2";
 
 const S = { view: "aufgaben", collapsed: {} };
-export const corr = () => +session.corrector || 1;
-export const corrName = (c) => CORRECTORS[c]?.label || "Korrektur";
+// Lehrkraft (Unterrichtsebene): genau eine Korrektur; Korrektor:in (Prüfungsebene): Erst-, Zweit-, Drittkorrektur
+export const lessonMode = () => session.role === "lehrkraft";
+export const corr = () => (lessonMode() ? 1 : +session.corrector || 1);
+export const corrName = (c) => (lessonMode() ? "Korrektur" : CORRECTORS[c]?.label || "Korrektur");
 
 // Teilnehmende mit Abgaben (Korrekturgegenstand)
 // Zu korrigierende Arbeiten: nur aus Kursen, in denen das Konto korrigieren darf (Prüfung: Korrektor:in, Unterricht: Lehrkraft des Kurses)
 export function candidates() {
   const withSubs = new Set(D.items.filter((i) => i.submission && i.participant).map((i) => i.participant));
   const pe = me();
-  return D.participants.filter((p) => withSubs.has(p.id) && (!pe || correctorStage(courseOf(byId("rooms", p.room)), pe.id) > 0)).sort((a, b) => a.lastname.localeCompare(b.lastname));
+  const kind = lessonMode() ? "unterricht" : "pruefung";
+  return D.participants.filter((p) => { if (!withSubs.has(p.id)) return false; const c = courseOf(byId("rooms", p.room)); if (!pe) return !lessonMode(); return c?.kind === kind && correctorStage(c, pe.id) > 0; }).sort((a, b) => a.lastname.localeCompare(b.lastname));
 }
 export const grading = (pid, c = corr()) => D.gradings.find((g) => g.participant === pid && g.corrector === c);
 export function stPoints(g, st) {
@@ -57,7 +60,7 @@ export function overview(q) {
           const tot = total(p); const done = ALL_SUBTASKS.every((s) => stPoints(g, s.no) !== null);
           return `<tr><td>${esc(p.lastname)}</td><td>${esc(p.firstname)}</td>${cells}<td class="sum">${fmtP(tot)}</td><td>${done ? grade(tot) : "–"}</td><td>${g?.released ? `<span class="badge green">${icon("lock")} freigegeben</span>` : done ? `<span class="badge cyan">bewertet</span>` : `<span class="badge gray">offen</span>`}</td></tr>`;
         }).join("")}</tbody></table></div>
-        <p class="small muted mt-s">Klicken Sie auf eine Zelle, um die Teilaufgabe im Korrekturmodus zu bewerten. ${icon("message-square")} = Kommentar vorhanden · <span class="badge yellowb">gelb</span> = deutliche Abweichung zur ${corrName(other)} · n.b. = nicht bearbeitet</p>`;
+        <p class="small muted mt-s">Klicken Sie auf eine Zelle, um die Teilaufgabe im Korrekturmodus zu bewerten. ${icon("message-square")} = Kommentar vorhanden${lessonMode() ? "" : ` · <span class="badge yellowb">gelb</span> = deutliche Abweichung zur ${corrName(other)}`} · n.b. = nicht bearbeitet</p>`;
       } else {
         table = `<div class="cgrid">${ps.map((p) => {
           const g = grading(p.id); const done = ALL_SUBTASKS.filter((s) => stPoints(g, s.no) !== null).length; const tot = total(p);
@@ -69,18 +72,24 @@ export function overview(q) {
         }).join("")}</div>`;
       }
       const room = D.rooms.find((r) => r.name === "Raum 123");
-      return `<div class="pagehead"><div><h1>Korrekturübersicht</h1><div class="sub">${esc(EXAM.name)} / Gruppe FA230a</div></div>
-        <div class="row wrap"><select class="select" style="width:auto" data-corr>${[1, 2, 3].map((k) => `<option value="${k}" ${c === k ? "selected" : ""}>${CORRECTORS[k].label} (${CORRECTORS[k].name})</option>`).join("")}</select>
+      const lesson = lessonMode(); const pe = me();
+      const mine = lesson ? visibleCourses(pe).filter((x) => x.kind === "unterricht" && lessonCorrector(x) === pe?.id) : [];
+      const elsewhere = lesson ? visibleCourses(pe).filter((x) => x.kind === "unterricht" && lessonCorrector(x) && lessonCorrector(x) !== pe?.id) : [];
+      const sub = lesson ? (mine.length ? mine.map((x) => esc(x.title)).join(" · ") : "Keine Unterrichtskurse in Ihrer Korrektur") : `${esc(EXAM.name)} / Gruppe FA230a`;
+      return `<div class="pagehead"><div><h1>Korrekturübersicht</h1><div class="sub">${sub}</div></div>
+        <div class="row wrap">${lesson ? `<button class="btn" data-handoff ${mine.length ? "" : "disabled"} title="Korrektur an eine andere Lehrkraft des Kurses weitergeben">${icon("forward")} Korrektur weitergeben</button>` : `<select class="select" style="width:auto" data-corr>${[1, 2, 3].map((k) => `<option value="${k}" ${c === k ? "selected" : ""}>${CORRECTORS[k].label} (${CORRECTORS[k].name})</option>`).join("")}</select>`}
         <button class="btn primary" data-start ${ps.length ? "" : "disabled"}>${icon("play")} Korrektur starten</button></div></div>
       <div class="row between wrap"><nav class="tabs" style="flex:1"><button data-view="aufgaben" class="${S.view === "aufgaben" ? "active" : ""}">Aufgabenweise</button><button data-view="personen" class="${S.view === "personen" ? "active" : ""}">Personenweise</button></nav>
         <div class="row" style="margin-bottom:24px"><span class="small muted">${openCnt} Bewertungen offen</span><button class="btn" data-release ${released || !ps.length ? "disabled" : ""}>${icon("funnel")} ${released ? "Freigegeben" : "Alles freigeben"}</button></div></div>
+      ${lesson && elsewhere.length ? `<div class="notice info small mb">${icon("info")}<span>${elsewhere.map((x) => `Die Korrektur von „${esc(x.title)}“ liegt bei <b>${esc(personName(byId("persons", lessonCorrector(x))))}</b>.`).join(" ")}</span></div>` : ""}
       ${ps.length ? table : `<div class="card empty">${icon("file-pen-line")}<h3>Noch keine Abgaben vorhanden</h3><p>Sobald Prüflinge Abgaben markiert haben, erscheinen sie hier.</p>${room ? `<a class="btn" href="#/app/raum/${room.id}/meinraum">Zur Raumaufsicht</a>` : ""}</div>`}`;
     },
     mount(el) {
       el.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { S.view = b.dataset.view; redraw(); }));
       el.querySelectorAll("[data-grp]").forEach((b) => (b.onclick = () => { S.collapsed[b.dataset.grp] = !S.collapsed[b.dataset.grp]; redraw(); }));
       el.querySelectorAll("[data-cell]").forEach((td) => (td.onclick = () => { const [p, s] = td.dataset.cell.split("|"); navigate(`#/app/korrektur/${p}/${s}`); }));
-      el.querySelector("[data-corr]").onchange = (e) => { sessionStorage.setItem("cbw.corrector", e.target.value); redraw(); toast(corrName(+e.target.value) + " aktiv", "", "info"); };
+      const ho = el.querySelector("[data-handoff]"); if (ho) ho.onclick = () => handoff();
+      const cs = el.querySelector("[data-corr]"); if (cs) cs.onchange = (e) => { sessionStorage.setItem("cbw.corrector", e.target.value); redraw(); toast(corrName(+e.target.value) + " aktiv", "", "info"); };
       const st = el.querySelector("[data-start]");
       if (st) st.onclick = () => { for (const p of candidates()) { const s = ALL_SUBTASKS.find((x) => stPoints(grading(p.id), x.no) === null); if (s) return navigate(`#/app/korrektur/${p.id}/${s.no}`); } const p = candidates()[0]; navigate(`#/app/korrektur/${p.id}/1.1`); };
       const rel = el.querySelector("[data-release]");
@@ -96,6 +105,29 @@ export function overview(q) {
   };
 }
 
+
+// Unterricht: Korrektur an eine andere Lehrkraft des Kurses weitergeben (bisherige Bewertungen bleiben erhalten)
+async function handoff() {
+  const pe = me();
+  const courses = visibleCourses(pe).filter((x) => x.kind === "unterricht" && lessonCorrector(x) === pe?.id);
+  if (!courses.length) return;
+  const opts = (c) => lessonTeachers(c).filter((t) => t.id !== pe.id);
+  const v = await modal({ title: "Korrektur weitergeben", size: "narrow",
+    body: `<p class="small">Im Unterricht korrigiert genau eine Lehrkraft. Die Korrektur kann an eine andere Lehrkraft weitergegeben werden, die Mitglied des Kurses ist. Bisherige Bewertungen und Korrekturzeichen bleiben erhalten.</p>
+      <div class="field"><label class="lbl" for="ho-c">Unterricht (Kurs)</label><select id="ho-c" class="select" data-c>${courses.map((c) => `<option value="${c.id}">${esc(c.title)}</option>`).join("")}</select></div>
+      <div class="field"><label class="lbl" for="ho-t">An Lehrkraft</label><select id="ho-t" class="select" data-t></select><p class="xs muted" data-none hidden style="margin:6px 0 0">Diesem Kurs gehört noch keine weitere Lehrkraft an. Fügen Sie im Kurs unter „Mitglieder und Gruppen“ eine Lehrkraft hinzu.</p></div>`,
+    footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>${icon("forward")} Weitergeben</button>`,
+    onMount: (m, close) => {
+      const cs = m.querySelector("[data-c]"), ts = m.querySelector("[data-t]"), ok = m.querySelector("[data-ok]");
+      const fill = () => { const l = opts(byId("courses", cs.value)); ts.innerHTML = l.map((t) => `<option value="${t.id}">${esc(personName(t))}</option>`).join(""); ts.disabled = !l.length; ok.disabled = !l.length; m.querySelector("[data-none]").hidden = !!l.length; };
+      cs.onchange = fill; fill();
+      ok.onclick = () => close({ c: cs.value, t: ts.value });
+    } });
+  if (!v || !v.t) return;
+  const c = byId("courses", v.c), t = byId("persons", v.t);
+  await upd("courses", c.id, { corrector: t.id });
+  toast("Korrektur weitergegeben", `„${c.title}“ wird jetzt von ${personName(t)} korrigiert.`);
+}
 
 const draftKey = (pid, st) => `cdraft.${pid}.${st}`;
 export function commentsDrawer(pid, st) {

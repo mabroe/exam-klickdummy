@@ -687,7 +687,8 @@ body.tablet .kside.closed .body { display: none; }
 .skiplink { position: absolute; left: 8px; top: -60px; z-index: 1000; background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 4px; text-decoration: none; font-weight: 700; }
 .skiplink:focus { top: 8px; }
 .win:focus-within .win-h { background: #0d2230; }
-.win:focus { outline: 3px solid #4a90e2; outline-offset: 1px; }
+.win:focus { outline: none; }
+.win:focus-visible { outline: 3px solid #4a90e2; outline-offset: 1px; }
 .menu button:focus { background: var(--bg-soft); outline: 2px solid #4a90e2; outline-offset: -2px; }
 .ico.spin { animation: spin 1.2s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -755,7 +756,7 @@ details.einsicht[open] > summary .ico:last-child { transform: rotate(180deg); }
 .rolepill { z-index: 9000; }
 /* Pause, Sperre, Verbindungsabbruch, Start-Countdown: gesamter Bildschirm wird verdeckt */
 .fullgray { inset: 0; z-index: 8000; background: #3c3a38; }
-.fullgray.dim { background: rgba(60,58,56,.86); }
+.fullgray.dim { background: #3c3a38; }
 body.exam-locked #winlayer, body.exam-locked .dock { visibility: hidden; }
 .win-h .wtask { font-size: 12px; font-weight: 600; background: rgba(255,255,255,.18); border-radius: 99px; padding: 2px 10px; white-space: nowrap; }
 .win-h .wtask:empty { display: none; }
@@ -993,3 +994,10 @@ body.kfocus .shell { background: none; }
 .seatprev-grid span { background: #fff; border: 1px solid #b9b5b0; border-radius: 3px; font-size: 10px; line-height: 1; padding: 5px 2px; text-align: center; white-space: nowrap; overflow: hidden; min-width: 22px; }
 .seatprev-tafel { margin: 10px auto 0; width: 50%; background: var(--ink-2); color: #fff; font-size: 11px; text-align: center; border-radius: 2px; padding: 2px 0; }
 .seatgrid { overflow-x: auto; padding: 3px 3px 6px; }
+
+/* v8.2: Eingabefelder mit dezentem Fokus statt dickem blauen Rahmen (z. B. beim Öffnen eines Dialogs) */
+.input:focus-visible, .select:focus-visible, textarea:focus-visible, .rte:focus-visible { outline: none; border-color: var(--ink-2); box-shadow: 0 0 0 2px rgba(29,29,27,.14); }
+.modal:focus, .modal:focus-visible { outline: none; }
+.guideresume { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.guideresume .grow { min-width: 240px; }
+.modal:focus { outline: none; }

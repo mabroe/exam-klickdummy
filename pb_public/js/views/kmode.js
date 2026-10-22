@@ -2,12 +2,12 @@
 //  - Erstkorrektur: rot, rechter Rand · Zweitkorrektur: grün, linker Rand · Drittkorrektur (Endbeurteilung): braun, linker Rand außen
 //  - Unterstreichen horizontal (einfach, doppelt, gekringelt) und vertikal (Randstrich)
 //  - Stift: Gesten für Linien, handschriftliche Korrekturzeichen werden erkannt und an den Rand gesetzt
-import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=8.1";
-import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=8.1";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS } from "../scenario.js?v=8.1";
-import { navigate, redraw, session } from "../app.js?v=8.1";
-import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer } from "./correction.js?v=8.1";
-import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=8.1";
+import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=8.2";
+import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=8.2";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS } from "../scenario.js?v=8.2";
+import { navigate, redraw, session } from "../app.js?v=8.2";
+import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer, lessonMode } from "./correction.js?v=8.2";
+import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=8.2";
 
 const PW = 900, ML = 110, MR = 790;               // Papierbreite, Textspalte links/rechts
 const VX = { 1: MR + 8, 2: ML - 8, 3: ML - 16 };    // Randstrich je Korrektor
@@ -232,9 +232,9 @@ export function mode(pid, st, q, compare) {
               <span class="grow"></span>
               <button class="iconbtn boxed" data-delmark ${K.sel ? "" : "disabled"} aria-label="Markierung löschen" title="Ausgewählte Markierung löschen (Entf)">${icon("trash-2", "lg")}</button><button class="iconbtn boxed" data-zoom="-1" aria-label="Verkleinern">${icon("zoom-out", "lg")}</button><button class="iconbtn boxed" data-zoom="1" aria-label="Vergrößern">${icon("zoom-in", "lg")}</button>
             </div>
-            <div class="row wrap xs muted" style="margin-top:6px;gap:14px">${hint()}<span class="grow"></span>${[1, 2, 3].map((c) => `<span class="row" style="gap:4px"><i class="cdot" style="background:${colorOf(c)}"></i>${CORRECTORS[c].short} ${CORRECTORS[c].side === "right" ? "rechts" : c === 3 ? "links außen" : "links"}</span>`).join("")}</div>
+            <div class="row wrap xs muted" style="margin-top:6px;gap:14px">${hint()}<span class="grow"></span>${(lessonMode() ? [1] : [1, 2, 3]).map((c) => `<span class="row" style="gap:4px"><i class="cdot" style="background:${colorOf(c)}"></i>${lessonMode() ? "Korrektur" : CORRECTORS[c].short} ${CORRECTORS[c].side === "right" ? "rechts" : c === 3 ? "links außen" : "links"}</span>`).join("")}</div>
           </div>`}
-          ${locked ? `<div class="ktools row wrap xs" style="gap:14px">${icon("lock")} Schreibgeschützte Ansicht – Markierungen aller Korrekturen werden angezeigt.<span class="grow"></span>${[1, 2, 3].map((c) => `<span class="row" style="gap:4px"><i class="cdot" style="background:${colorOf(c)}"></i>${CORRECTORS[c].label}</span>`).join("")}<button class="iconbtn boxed" data-zoom="-1" aria-label="Verkleinern">${icon("zoom-out")}</button><button class="iconbtn boxed" data-zoom="1" aria-label="Vergrößern">${icon("zoom-in")}</button></div>` : ""}
+          ${locked ? `<div class="ktools row wrap xs" style="gap:14px">${icon("lock")} Schreibgeschützte Ansicht – Markierungen aller Korrekturen werden angezeigt.<span class="grow"></span>${(lessonMode() ? [1] : [1, 2, 3]).map((c) => `<span class="row" style="gap:4px"><i class="cdot" style="background:${colorOf(c)}"></i>${CORRECTORS[c].label}</span>`).join("")}<button class="iconbtn boxed" data-zoom="-1" aria-label="Verkleinern">${icon("zoom-out")}</button><button class="iconbtn boxed" data-zoom="1" aria-label="Vergrößern">${icon("zoom-in")}</button></div>` : ""}
           <div class="kpaper-wrap" data-wrap><div class="ksizer" data-sizer><div class="kpaper2 tool-${locked ? "ro" : K.tool}" data-paper style="width:${PW}px;transform:scale(${K.zoom})">
             <div class="kmargin l"></div><div class="kmargin r"></div>
             <div class="kcontent">${subs.length ? subs.map((it) => paperFor(it, p)).join('<hr class="ksep">') : `<div class="empty">${icon("file")}<h3>Keine Abgabe</h3><p>Zu dieser Teilaufgabe wurde nichts als Abgabe markiert.</p><p>Wählen Sie ggf. „Aufgabe nicht bearbeitet“.</p></div>`}</div>

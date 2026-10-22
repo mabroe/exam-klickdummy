@@ -2,10 +2,10 @@
 //  - Unterricht (Lehrkraft): Teilnehmende (Personen, vorhandene Gruppen, eigene Gruppen) und weitere Lehrkräfte (Mitbetreuung)
 //  - Prüfung (Schuladministration): Teilnehmende, Raumaufsichten, Korrektor:innen (Erst/Zweit/Dritt), Prüfungseinsicht –
 //    jeweils nur für Personen der eigenen Organisation
-import { D, byId, upd, create, del, log } from "../data.js?v=8.1";
-import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=8.1";
-import { navigate, redraw } from "../app.js?v=8.1";
-import { me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=8.1";
+import { D, byId, upd, create, del, log } from "../data.js?v=8.2";
+import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=8.2";
+import { navigate, redraw } from "../app.js?v=8.2";
+import { lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=8.2";
 
 const ROOM_STATE = { CREATED: ["In Vorbereitung", "gray"], RUNNING: ["Prüfung läuft", "cyan"], PAUSED: ["Prüfung pausiert", "yellowb"], TERMINATED: ["Prüfung beendet", "green"] };
 const UI = { q: "", addQ: "" };
@@ -50,7 +50,7 @@ export function detail(id, tab) {
     },
     mount(el) {
       const c = byId("courses", id); if (!c || !canManageCourse(c)) return;
-      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=8.1").then((m) => m.newRoomDialog(c.id))));
+      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=8.2").then((m) => m.newRoomDialog(c.id))));
       el.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => addPersons(c, b.dataset.add, b.dataset.stage)));
       el.querySelectorAll("[data-addgroup]").forEach((b) => (b.onclick = () => addGroup(c, b.dataset.addgroup)));
       const ng = el.querySelector("[data-owngroup]"); if (ng) ng.onclick = () => ownGroup(c);
@@ -80,7 +80,8 @@ function tabMembersLesson(c, p) {
   const tn = ms.filter((m) => m.role === "teilnehmer");
   return `<div class="notice info small mb">${icon("info")}<span>Unterrichtsebene: Sie fügen Schülerinnen und Schüler (einzeln oder als Gruppe) sowie weitere Lehrkräfte hinzu. Weitere Lehrkräfte erhalten die <b>Mitbetreuung</b> mit denselben Rechten wie der Besitzer.</span></div>
   <div class="card pad"><div class="row between wrap"><h3>${icon("school")} Lehrkräfte (${teachers.length})</h3><button class="btn sm" data-add="mitbetreuung">${icon("user-round-plus")} Lehrkraft hinzufügen</button></div>
-    ${personRows(teachers, c, "", { head: "Rolle", cell: (m) => `<span class="badge ${m.role === "besitzer" ? "dark" : "gray"}">${ROLE_LABEL[m.role]}</span>` })}</div>
+    ${personRows(teachers, c, "", { head: "Rolle", cell: (m) => `<span class="badge ${m.role === "besitzer" ? "dark" : "gray"}">${ROLE_LABEL[m.role]}</span>${lessonCorrector(c) === m.person ? ` <span class="badge lime" title="Korrigiert die Arbeiten dieses Kurses">${icon("file-pen-line")} Korrektur</span>` : ""}` })}
+    <p class="xs muted" style="margin-bottom:0">Im Unterricht korrigiert genau eine Lehrkraft (zunächst der Besitzer). Die Korrektur kann in der Korrekturübersicht an eine andere Lehrkraft dieses Kurses weitergegeben werden.</p></div>
   <div class="card pad mt"><div class="row between wrap"><h3>${icon("users")} Gruppen</h3><div class="row wrap"><button class="btn sm" data-addgroup="teilnehmer">${icon("users")} Klasse/Kurs hinzufügen</button><button class="btn sm" data-owngroup>${icon("plus")} Eigene Gruppe anlegen</button></div></div>
     <p class="xs muted">Klassen und Kurse stammen aus der Schulverwaltung. Eigene Gruppen legen Sie im Kurs aus einzelnen Schülerinnen und Schülern an.</p>${groupRows(c)}</div>
   <div class="card pad mt"><div class="row between wrap"><h3>${icon("graduation-cap")} Teilnehmende (${new Set(tn.map((m) => m.person)).size})</h3><button class="btn sm" data-add="teilnehmer">${icon("user-round-plus")} Schüler:innen hinzufügen</button></div>

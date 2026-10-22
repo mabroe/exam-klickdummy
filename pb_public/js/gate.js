@@ -1,5 +1,5 @@
 // Zugangsseite: Passwort vor dem Klickdummy (Zugangshürde für die Demo, kein Schutz vertraulicher Daten)
-import CFG from "./config.js?v=8.1";
+import CFG from "./config.js?v=8.2";
 
 const KEY = "checkbw.gate";
 // SHA-256 (Fallback, falls crypto.subtle nicht verfügbar ist, z. B. bei http über eine Netzwerkadresse)

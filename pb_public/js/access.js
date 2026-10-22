@@ -3,8 +3,8 @@
 //    Besitzer/Mitbetreuung des Unterrichtskurses
 //  - Raumaufsicht (Prüfungsebene): sieht nur Raumaufsichten, in denen sie als Aufsichtsperson eingetragen ist
 //  - Schuladministration (Prüfungsebene): sieht die Prüfungs-Raumaufsichten ihrer Organisation
-import { D, byId } from "./data.js?v=8.1";
-import { store } from "./ui.js?v=8.1";
+import { D, byId } from "./data.js?v=8.2";
+import { store } from "./ui.js?v=8.2";
 
 export const me = () => byId("persons", store.get("person"));
 export const orgOf = (p) => byId("orgs", p?.org);
@@ -64,9 +64,12 @@ export function roomCandidates(room, kind, p = me()) {
   if (c.kind === "pruefung" && room.org) list = list.filter((x) => x.org === room.org); // Prüfung: nur Personen der Organisation des Raums
   return list.sort((a, b) => a.lastname.localeCompare(b.lastname));
 }
-// Korrekturberechtigung: Prüfung → Korrektor:in mit Stufe, Unterricht → Lehrkraft des Kurses (Erstkorrektur)
+// Unterricht: genau eine korrigierende Lehrkraft (Standard: Besitzer); sie kann die Korrektur an eine andere Lehrkraft des Kurses weitergeben
+export const lessonCorrector = (c) => (c?.corrector && isTeacherOf(c, c.corrector) ? c.corrector : c?.owner || "");
+export const lessonTeachers = (c) => [...new Set(members(c).filter((m) => ["besitzer", "mitbetreuung"].includes(m.role)).map((m) => m.person).concat(c?.owner ? [c.owner] : []))].map((id) => byId("persons", id)).filter(Boolean);
+// Korrekturberechtigung: Prüfung → Korrektor:in mit Stufe, Unterricht → die korrigierende Lehrkraft des Kurses (eine Korrektur)
 export function correctorStage(c, pid) {
   if (!c) return 0;
-  if (c.kind === "unterricht") return isTeacherOf(c, pid) ? 1 : 0;
+  if (c.kind === "unterricht") return lessonCorrector(c) === pid ? 1 : 0;
   return rolesIn(c, pid).filter((m) => m.role === "korrektor").map((m) => +m.stage || 1)[0] || 0;
 }

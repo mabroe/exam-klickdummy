@@ -2,7 +2,7 @@
 //  - Speicherung in IndexedDB (bleibt nach dem Neuladen erhalten, getrennt je Browser/Gerät)
 //  - Live-Kopplung der Rollen über BroadcastChannel zwischen allen Tabs/Fenstern desselben Browsers
 //  - bildet die vom Klickdummy genutzten Teile der PocketBase-Client-API und der /api/demo/*-Endpunkte nach
-import { SCHEMA, normalize } from "./schema.js?v=8.1";
+import { SCHEMA, normalize } from "./schema.js?v=8.2";
 
 const DB_NAME = "checkbw-klickdummy";
 const ts = (ms = Date.now()) => new Date(ms).toISOString().replace("T", " ");
@@ -21,7 +21,7 @@ function openDb() {
 const tx = (db, store, mode, fn) => new Promise((res, rej) => { const t = db.transaction(store, mode); const s = t.objectStore(store); const out = fn(s); t.oncomplete = () => res(out?.result ?? out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); });
 const getAll = (db, store) => new Promise((res, rej) => { const t = db.transaction(store, "readonly"); const s = t.objectStore(store); const keys = s.getAllKeys(); const vals = s.getAll(); t.oncomplete = () => res(keys.result.map((k, i) => [k, vals.result[i]])); t.onerror = () => rej(t.error); });
 
-const loadSeed = async () => { await import("./seed-data.js?v=8.1"); return globalThis.CheckBWSeed; };
+const loadSeed = async () => { await import("./seed-data.js?v=8.2"); return globalThis.CheckBWSeed; };
 
 export async function createLocalBackend({ version }) {
   const db = await openDb();
@@ -149,7 +149,7 @@ export async function createLocalBackend({ version }) {
     },
     async reset() { await withLock(async () => { await seedAll(); }); post({ t: "reset" }); return { ok: true }; },
     async simulateLogin(roomId, except) {
-      const list = [...M.participants.values()].filter((p) => p.room === roomId && p.status === "nicht_eingeloggt").sort((a, b) => (a.seat > b.seat ? 1 : a.seat < b.seat ? -1 : 0));
+      const list = [...M.participants.values()].filter((p) => p.room === roomId && p.status === "nicht_eingeloggt").sort((a, b) => String(a.seat || "").localeCompare(String(b.seat || ""), "de", { numeric: true }));
       let n = 0; const now = ts();
       for (let i = 0; i < list.length; i++) {
         const p = list[i]; if (p.id === except || i % 7 === 3) continue;

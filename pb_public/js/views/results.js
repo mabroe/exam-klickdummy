@@ -1,10 +1,10 @@
 // Ergebnisse (Task 28/30/36) und Prüfungseinsicht (Task 37/38)
-import { D, byId, setting, setSetting } from "../data.js?v=8.1";
-import { icon, esc, toast, confirmBox, brand } from "../ui.js?v=8.1";
-import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.1";
-import { navigate, redraw, session } from "../app.js?v=8.1";
-import { grading, stPoints, candidates, fmtP } from "./correction.js?v=8.1";
-import { roPaper, fitRoPapers } from "./kmode.js?v=8.1";
+import { D, byId, setting, setSetting } from "../data.js?v=8.2";
+import { icon, esc, toast, confirmBox, brand } from "../ui.js?v=8.2";
+import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.2";
+import { navigate, redraw, session } from "../app.js?v=8.2";
+import { grading, stPoints, candidates, fmtP } from "./correction.js?v=8.2";
+import { roPaper, fitRoPapers } from "./kmode.js?v=8.2";
 
 // Endpunkte je Teilaufgabe: Drittkorrektur, sonst Mittelwert Erst/Zweit, sonst Erstkorrektur
 export function finalPoints(pid, st) {

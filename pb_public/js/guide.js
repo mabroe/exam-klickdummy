@@ -2,15 +2,16 @@
 //  - Unterricht: Lehrkraft (Tasks 31–36, 34 als Schüler:in)
 //  - Prüfung: Schuladministration (Tasks 52, 24, 21), Raumaufsicht (Task 22/23)
 // Der Fortschritt wird aus den Daten erkannt; der Leitfaden kann jederzeit ein- und ausgeklappt werden.
-import { D, byId, onChange } from "./data.js?v=8.1";
-import { icon, esc, store, toast } from "./ui.js?v=8.1";
-import { members, personName } from "./access.js?v=8.1";
-import { navigate, render } from "./app.js?v=8.1";
+import { D, byId, onChange } from "./data.js?v=8.2";
+import { icon, esc, store, toast } from "./ui.js?v=8.2";
+import { members, personName } from "./access.js?v=8.2";
+import { navigate, render } from "./app.js?v=8.2";
 
 const KEY = "guide";
 const st = () => store.lget(KEY, null);
 const save = (v) => store.lset(KEY, v);
-export const active = () => !!st();
+// Pausierte Klickstrecken behalten ihren Fortschritt und lassen sich an derselben Stelle fortsetzen
+export const active = () => !!st() && !st().paused;
 const P = (u) => D.persons.find((p) => p.username === u);
 const asPerson = (u, role, extra = {}) => ({ person: P(u)?.id, role, extra });
 function loginAs(a) {
@@ -40,8 +41,9 @@ function lesson(s) {
     { t: "–", title: "Sichtbarkeit prüfen", text: `Melden Sie sich als Lehrkraft ohne Bezug zum Kurs (${esc(personName(other))}) an: Diese Raumaufsicht erscheint dort nicht.${mitb ? ` Als ${esc(personName(byId("persons", mitb.person)))} (Mitbetreuung) ist sie dagegen sichtbar.` : ""} Danach als Amir Eggert weiter.`, manual: true, as: other ? asPerson(other.username, "lehrkraft") : lk, go: "#/app/raumaufsicht", done: !!s.manual?.vis },
     { t: 33, title: "Raumaufsicht durchführen: Prüfung starten", text: "Als Amir Eggert im Reiter „Mein Raum“ Anwesenheit setzen und „Prüfung starten“.", as: lk, go: room && `#/app/raum/${room.id}/meinraum`, done: !!room && room.state !== "CREATED" },
     { t: 34, title: "Als Schüler:in teilnehmen", text: `In einem zweiten Browserfenster (oder hier) als ${tns[0] ? esc(tns[0].firstname + " " + tns[0].lastname) : "Schüler:in"} anmelden, Belehrung und Gesundheitsabfrage bestätigen und eine Abgabe markieren.`, as: tns[0] ? { role: "tn", pid: tns[0].id } : null, go: "#/tn", done: tns.some((p) => ["laeuft", "zeit_beendet", "abgegeben", "eingesammelt", "beendet"].includes(p.status)) },
-    { t: 33, title: "Einsammeln und beenden", text: "Als Amir Eggert „Prüfung einsammeln“ und „Prüfung beenden“. Danach lässt sich das Protokoll als PDF herunterladen.", as: lk, go: room && `#/app/raum/${room.id}/meinraum`, done: room?.state === "TERMINATED" },
-    { t: 35, title: "Korrigieren und Ergebnisse einsehen", text: "In der Korrektur erscheinen nur Arbeiten aus Ihren Kursen. (optional)", optional: true, as: { ...lk, extra: { corrector: 1 } }, go: "#/app/korrektur", done: tns.some((p) => D.gradings.some((g) => g.participant === p.id)) },
+    { t: 33, title: "Einsammeln und beenden", text: "Als Amir Eggert „Prüfung einsammeln“ und „Prüfung beenden“. (Im Unterricht gibt es kein Prüfungsprotokoll.)", as: lk, go: room && `#/app/raum/${room.id}/meinraum`, done: room?.state === "TERMINATED" },
+    { t: 35, title: "Korrigieren", text: "Im Unterricht gibt es genau eine Korrektur. In der Korrekturübersicht erscheinen nur Arbeiten aus Kursen, die Sie korrigieren. (optional)", optional: true, as: { ...lk, extra: { corrector: 1 } }, go: "#/app/korrektur", done: tns.some((p) => D.gradings.some((g) => g.participant === p.id)) },
+    { t: 35, title: "Korrektur weitergeben", text: "„Korrektur weitergeben“ in der Korrekturübersicht: Die Korrektur geht an eine andere Lehrkraft des Kurses (z. B. die Mitbetreuung). Bisherige Bewertungen bleiben erhalten. (optional)", optional: true, as: { ...lk, extra: { corrector: 1 } }, go: "#/app/korrektur", done: !!course?.corrector && course.corrector !== course.owner },
   ];
 }
 
@@ -73,7 +75,16 @@ const NAMES = { unterricht: "Klickstrecke Unterricht (Lehrkraft)", pruefung: "Kl
 // Übersprungene optionale Schritte gelten als erledigt
 const steps = (s) => { const l = s.kind === "unterricht" ? lesson(s) : exam(s); (s.skip || []).forEach((i) => { if (l[i]) l[i].done = true; }); return l; };
 
-export function start(kind) {
+const curStep = (list) => { const i = list.findIndex((x) => !x.done && !x.optional); return i >= 0 ? i : list.findIndex((x) => !x.done); };
+export function start(kind, fresh = false) {
+  const old = st();
+  if (old && old.kind === kind && !fresh) {
+    // fortsetzen: am aktuellen Schritt weitermachen
+    old.paused = false; old.open = true; save(old);
+    const list = steps(old); const x = list[curStep(list)] || list[list.length - 1];
+    loginAs(x.as); toast(NAMES[kind] + " fortgesetzt", `Weiter mit Schritt ${list.indexOf(x) + 1}: ${x.title}`, "info");
+    navigate(x.go || "#/app/kurse"); render(); return;
+  }
   const base = { courses: D.courses.map((c) => c.id), rooms: D.rooms.map((r) => r.id) };
   if (kind === "pruefung") {
     const c = D.courses.find((x) => x.title === "FA230 - Musterprüfung"); const K = P("m.hinrichs");
@@ -85,11 +96,25 @@ export function start(kind) {
   loginAs(first.as); toast(NAMES[kind] + " gestartet", "Der Leitfaden unten rechts zeigt den nächsten Schritt.", "info");
   navigate(first.go || "#/app/kurse"); render();
 }
-export function stop() { store.lset(KEY, null); document.querySelector(".guidepanel")?.remove(); }
+// Laufende Klickstrecke: Stand für die Startseite und Fortsetzen an der letzten Stelle
+export function status() {
+  const s = st(); if (!s) return null;
+  const list = steps(s); const done = list.filter((x) => x.done).length;
+  let cur = list.findIndex((x) => !x.done && !x.optional); if (cur < 0) cur = list.findIndex((x) => !x.done);
+  return { kind: s.kind, name: NAMES[s.kind], done, total: list.length, cur, step: cur >= 0 ? list[cur] : null, paused: !!s.paused };
+}
+export function resume() {
+  const s = st(); if (!s) return; const x = status().step;
+  s.open = true; s.paused = false; save(s); store.set("guideOpenTn", true);
+  if (x) { loginAs(x.as); navigate(x.go || "#/app/kurse"); } else navigate("#/app/kurse");
+  render();
+}
+export function stop() { const s = st(); if (s) { s.paused = true; save(s); } document.querySelector(".guidepanel")?.remove(); }
+export function discard() { store.lset(KEY, null); document.querySelector(".guidepanel")?.remove(); }
 
 export function mountPanel() {
   const s = st(); const old = document.querySelector(".guidepanel");
-  if (!s || !location.hash.replace(/^#\/?/, "")) { old?.remove(); return; }
+  if (!s || s.paused || !location.hash.replace(/^#\/?/, "")) { old?.remove(); return; }
   const list = steps(s); const done = list.filter((x) => x.done).length; const cur = list.findIndex((x) => !x.done && !x.optional) >= 0 ? list.findIndex((x) => !x.done && !x.optional) : list.findIndex((x) => !x.done);
   // Prüflingsansicht: Leitfaden eingeklappt, damit er keine Bedienelemente verdeckt (pro Tab aufklappbar)
   if (store.get("role") === "tn" && !store.get("guideOpenTn")) s.open = false;
@@ -98,7 +123,7 @@ export function mountPanel() {
   el.innerHTML = `<button class="gp-head" data-gtoggle aria-expanded="${s.open}">${icon("list-checks")}<span class="grow"><b>${esc(NAMES[s.kind])}</b><span class="xs">${done} von ${list.length} Schritten erledigt</span></span>${icon(s.open ? "chevron-down" : "chevron-up")}</button>
     ${s.open ? `<div class="gp-bar"><i style="width:${Math.round((done / list.length) * 100)}%"></i></div><ol class="gp-steps">${list.map((x, i) => (!s.full && i !== cur && !(!x.done && x.optional && i < cur)) ? "" : `<li class="${x.done ? "done" : ""} ${i === cur ? "cur" : ""}"><div class="gp-row"><span class="gp-ico">${x.done ? icon("check") : i + 1}</span><span class="grow"><b>${esc(x.title)}</b>${x.optional ? ' <span class="xs muted">optional</span>' : ""}<span class="xs muted"> · Task ${x.t}</span></span></div>
       ${i === cur || (!x.done && x.optional && i < cur) ? `<p class="small">${x.text}</p><div class="row wrap" style="gap:6px">${x.go ? `<button class="btn primary xs" data-ggo="${i}">${icon("arrow-right")} ${x.as ? "Anmelden und öffnen" : "Öffnen"}</button>` : ""}${x.manual ? `<button class="btn xs" data-gman>${icon("check")} Geprüft</button>` : ""}${x.optional ? `<button class="btn xs ghost" data-gskip="${i}">überspringen</button>` : ""}</div>` : ""}</li>`).join("")}</ol>
-    ${done === list.length || cur < 0 ? `<div class="notice success small">${icon("circle-check")}<span>Klickstrecke abgeschlossen.</span></div>` : ""}<div class="row between gp-foot"><button class="link xs" data-gfull>${s.full ? "Nur aktuellen Schritt" : `Alle Schritte anzeigen`}</button><a class="xs" href="#/">Personen wechseln</a><button class="link xs" data-gstop>Beenden</button></div>` : ""}`;
+    ${done === list.length || cur < 0 ? `<div class="notice success small">${icon("circle-check")}<span>Klickstrecke abgeschlossen.</span></div>` : ""}<div class="row between gp-foot"><button class="link xs" data-gfull>${s.full ? "Nur aktuellen Schritt" : `Alle Schritte anzeigen`}</button><a class="xs" href="#/">Personen wechseln</a><button class="link xs" data-gstop title="Die Klickstrecke wird angehalten und kann auf der Startseite an derselben Stelle fortgesetzt werden">Pausieren</button></div>` : ""}`;
   if (!old) document.body.appendChild(el);
   el.querySelector("[data-gtoggle]").onclick = () => { if (store.get("role") === "tn") { store.set("guideOpenTn", !store.get("guideOpenTn")); const v = st(); v.open = true; save(v); } else { const v = st(); v.open = !v.open; save(v); } mountPanel(); };
   el.querySelectorAll("[data-ggo]").forEach((b) => (b.onclick = () => { const x = steps(st())[+b.dataset.ggo]; loginAs(x.as); if (location.hash === x.go) render(); else navigate(x.go); }));

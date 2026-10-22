@@ -16,7 +16,7 @@ export const SCHEMA = {
   orgs: F(`name:${t} short:${t} city:${t}`),
   persons: F(`lastname:${t} firstname:${t} username:${t} org:${t} kind:${t} short:${t} email:${t}`),
   groups: F(`name:${t} org:${t} kind:${t} source:${t} course:${t} members:${j}`),
-  courses: F(`title:${t} kind:${t} catalog:${t} org:${t} orgs:${j} owner:${t} members:${j} groups:${j} status:${t} exam_code:${t} description:${t}`),
+  courses: F(`title:${t} kind:${t} catalog:${t} org:${t} orgs:${j} owner:${t} members:${j} groups:${j} status:${t} exam_code:${t} description:${t} corrector:${t}`),
   venues: F(`org:${t} name:${t} building:${t} rows:${n} cols:${n} capacity:${n} layout:${t}`),
 };
 const DEF = { text: "", number: 0, bool: false, json: null, date: "", file: "" };

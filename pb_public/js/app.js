@@ -1,19 +1,19 @@
 // CheckBW Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.1";
-import { lock as lockGate } from "./gate.js?v=8.1";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus } from "./ui.js?v=8.1";
-import * as TN from "./views/participant.js?v=8.1";
-import * as PR from "./views/proctor.js?v=8.1";
-import * as KO from "./views/correction.js?v=8.1";
-import * as LK from "./views/teacher.js?v=8.1";
-import * as RS from "./views/results.js?v=8.1";
-import * as KU from "./views/courses.js?v=8.1";
-import * as GD from "./guide.js?v=8.1";
-import { CORRECTORS } from "./scenario.js?v=8.1";
-import { me, personName, orgShort, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.1";
-import { seatCount } from "./seats.js?v=8.1";
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.2";
+import { lock as lockGate } from "./gate.js?v=8.2";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.2";
+import * as TN from "./views/participant.js?v=8.2";
+import * as PR from "./views/proctor.js?v=8.2";
+import * as KO from "./views/correction.js?v=8.2";
+import * as LK from "./views/teacher.js?v=8.2";
+import * as RS from "./views/results.js?v=8.2";
+import * as KU from "./views/courses.js?v=8.2";
+import * as GD from "./guide.js?v=8.2";
+import { CORRECTORS } from "./scenario.js?v=8.2";
+import { me, personName, orgShort, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.2";
+import { seatCount, seatCmp } from "./seats.js?v=8.2";
 
-export const VERSION = "8.1";
+export const VERSION = "8.2";
 export const VERSION_LABEL = `Version ${VERSION} · 22.10.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },
@@ -193,7 +193,7 @@ function startView() {
   const room = D.rooms.find((r) => r.name === "Raum 123") || D.rooms[0];
   // Prüflinge: Teilnahmen je Raumaufsicht (ohne Großraum-Testfall)
   const rooms = D.rooms.filter((r) => seatCount(r) <= 60 && D.participants.some((p) => p.room === r.id)).sort((a, b) => (a.name === "Raum 123" ? -1 : b.name === "Raum 123" ? 1 : a.name.localeCompare(b.name)));
-  const tnOpts = rooms.map((r) => `<optgroup label="${esc(r.name)} – ${esc(r.exam_name)}">${D.participants.filter((p) => p.room === r.id).sort((a, b) => (a.seat || "").localeCompare(b.seat || "")).map((p) => `<option value="${p.id}" ${p.username === "n.froehlke" ? "selected" : ""}>${esc(p.lastname)}, ${esc(p.firstname)}${p.seat ? ` (Platz ${esc(p.seat)})` : ""}</option>`).join("")}</optgroup>`).join("");
+  const tnOpts = rooms.map((r) => `<optgroup label="${esc(r.name)} – ${esc(r.exam_name)}">${D.participants.filter((p) => p.room === r.id).sort((a, b) => seatCmp(a.seat, b.seat)).map((p) => `<option value="${p.id}" ${p.username === "n.froehlke" ? "selected" : ""}>${esc(p.lastname)}, ${esc(p.firstname)}${p.seat ? ` (Platz ${esc(p.seat)})` : ""}</option>`).join("")}</optgroup>`).join("");
   const supIds = new Set(D.supervisors.map((s) => s.person).filter(Boolean));
   const correctors = [];
   D.courses.filter((c) => c.kind === "pruefung").forEach((c) => members(c).filter((m) => m.role === "korrektor").forEach((m) => { const pe = byId("persons", m.person); if (pe) correctors.push({ pe, stage: +m.stage || 1, c }); }));
@@ -204,8 +204,10 @@ function startView() {
     <div class="wrap">
       <h1>Anmelden als …</h1>
       <p class="lead mt">Wählen Sie eine Person. Zwei Schulen sind angelegt (AFS und BTS), damit die Sichtbarkeit je Konto und Organisation testbar ist. Die Rollen sind live gekoppelt – öffnen Sie z. B. Raumaufsicht und Prüfling in zwei Browserfenstern${backend.mode === "local" ? " bzw. Tabs dieses Browsers" : ""}.</p>
-      <div class="guidepick"><div><b>${icon("list-checks")} Testbare Klickstrecken</b><span class="small muted">Führen Schritt für Schritt durch die Workflows; der Fortschritt wird automatisch erkannt.</span></div>
-        <button class="btn primary" data-guide="unterricht">${icon("book-open")} Unterricht (Lehrkraft)</button><button class="btn primary" data-guide="pruefung">${icon("clipboard-list")} Prüfung (Schuladmin)</button>${GD.active() ? `<button class="btn ghost" data-guideoff>${icon("x")} Klickstrecke beenden</button>` : ""}</div>
+      ${(() => { const g = GD.status(); return g ? `<div class="guidepick guideresume"><div class="grow"><b>${icon("list-checks")} ${esc(g.name)} ${g.paused ? "pausiert" : "läuft"}</b><span class="small muted">${g.done} von ${g.total} Schritten erledigt${g.step ? ` · nächster Schritt: <b>${esc(g.step.title)}</b>` : " · abgeschlossen"}</span></div>
+        <button class="btn primary" data-guideresume>${icon("arrow-right")} An der letzten Stelle fortsetzen</button><button class="btn" data-guide="${g.kind}" data-restart>${icon("rotate-ccw")} Neu beginnen</button><button class="btn ghost" data-guideoff>${icon("x")} Beenden</button>${g.kind === "unterricht" ? `<button class="btn ghost" data-guide="pruefung" data-switch>${icon("clipboard-list")} Stattdessen: Prüfung (Schuladmin)</button>` : `<button class="btn ghost" data-guide="unterricht" data-switch>${icon("book-open")} Stattdessen: Unterricht (Lehrkraft)</button>`}</div>`
+        : `<div class="guidepick"><div><b>${icon("list-checks")} Testbare Klickstrecken</b><span class="small muted">Führen Schritt für Schritt durch die Workflows; der Fortschritt wird automatisch erkannt. Sie können jederzeit über diese Seite an der letzten Stelle weitermachen.</span></div>
+        <button class="btn primary" data-guide="unterricht">${icon("book-open")} Unterricht (Lehrkraft)</button><button class="btn primary" data-guide="pruefung">${icon("clipboard-list")} Prüfung (Schuladmin)</button></div>`; })()}
       <div class="rolegrid five">
         <div class="rolecard"><div class="rico">${icon("graduation-cap", "lg")}</div><h3>Prüfling</h3>
           <ul><li>Wartebereich, Belehrung, Gesundheitsabfrage</li><li>Prüfungsmodus mit Werkzeugen</li><li>Abgaben markieren</li></ul>
@@ -243,8 +245,9 @@ function startView() {
         if (r === "korrektor") { const [pid, st] = v("#ksel").split("|"); login(byId("persons", pid), "korrektor", { corrector: +st }); navigate("#/app/korrektur"); }
         if (r === "schuladmin") { login(byId("persons", v("#sasel")), "schuladmin"); navigate("#/app/kurse"); }
       }));
-      el.querySelectorAll("[data-guide]").forEach((b) => (b.onclick = () => GD.start(b.dataset.guide)));
-      const go = el.querySelector("[data-guideoff]"); if (go) go.onclick = () => { GD.stop(); render(); };
+      el.querySelectorAll("[data-guide]").forEach((b) => (b.onclick = async () => { if ((b.hasAttribute("data-restart") || b.hasAttribute("data-switch")) && !(await confirmBox(b.hasAttribute("data-switch") ? "Andere Klickstrecke starten" : "Klickstrecke neu beginnen", "<p>Der bisherige Fortschritt der laufenden Klickstrecke wird verworfen. Ihre angelegten Daten bleiben erhalten.</p>", b.hasAttribute("data-switch") ? "Starten" : "Neu beginnen"))) return; GD.start(b.dataset.guide, b.hasAttribute("data-restart")); }));
+      const gr = el.querySelector("[data-guideresume]"); if (gr) gr.onclick = () => GD.resume();
+      const go = el.querySelector("[data-guideoff]"); if (go) go.onclick = () => { GD.discard(); render(); };
       el.querySelector("[data-lockgate]").onclick = () => lockGate();
       el.querySelector("[data-reset]").onclick = async () => { await resetDemo(); toast("Demo zurückgesetzt", "Alle Daten wurden auf den Ausgangszustand gesetzt."); render(); };
     },

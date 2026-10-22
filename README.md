@@ -70,13 +70,13 @@ Klassen und Kurse der Schulverwaltung: FA230a, WG12a, WG12b, Informatik J1 (AFS)
 - **Lehrkraft**: nur Raumaufsichten, die ihr Konto betreffen – Eigentümer, eingetragene Aufsichtsperson oder Besitzer/Mitbetreuung des Unterrichtskurses.
 - **Raumaufsicht**: nur Raumaufsichten, in denen sie als Aufsichtsperson eingetragen ist (bei genau einer wird sie direkt geöffnet).
 - **Schuladministration**: nur die Prüfungs-Raumaufsichten der eigenen Schule. In einer schulübergreifenden Prüfung sieht und bearbeitet sie nur Mitglieder ihrer Schule.
-- **Korrektur**: nur Arbeiten aus Kursen, in denen das Konto korrigieren darf (Prüfung: Korrektor:in, Unterricht: Lehrkraft des Kurses).
+- **Korrektur**: nur Arbeiten aus Kursen, in denen das Konto korrigieren darf. Prüfung (Rolle Korrektor:in): Erst-, Zweit- und Drittkorrektur. Unterricht (Rolle Lehrkraft): **genau eine Korrektur** durch die korrigierende Lehrkraft (zunächst der Besitzer); sie kann die Korrektur an eine andere Lehrkraft des Kurses weitergeben („Korrektur weitergeben“ in der Korrekturübersicht).
 
 Zuordnungen in der Raumaufsicht erfolgen **aus den Kursmitgliedern**: Teilnehmende aus der Rolle „Teilnehmende“ (Prüfung: nur der Schule des Raums, nicht bereits in einer anderen Raumaufsicht derselben Prüfung), Aufsichtspersonen aus der Rolle „Raumaufsicht“ (Prüfung) bzw. den Lehrkräften des Unterrichts. Eine Lehrkraft, die eine Raumaufsicht erstellt, wird automatisch als Aufsichtsperson eingetragen.
 
 ## Testbare Klickstrecken
 
-Auf der Startseite starten zwei Klickstrecken. Ein **Leitfaden unten rechts** zeigt den aktuellen Schritt mit Erläuterung und der Schaltfläche „Anmelden und öffnen“ (wechselt die Person und öffnet die richtige Seite). Erledigte Schritte werden automatisch aus den Daten erkannt; „Alle Schritte anzeigen“ blendet die vollständige Liste ein.
+Auf der Startseite starten zwei Klickstrecken. Ein **Leitfaden unten rechts** zeigt den aktuellen Schritt mit Erläuterung und der Schaltfläche „Anmelden und öffnen“ (wechselt die Person und öffnet die richtige Seite). Erledigte Schritte werden automatisch aus den Daten erkannt; „Alle Schritte anzeigen“ blendet die vollständige Liste ein. „Pausieren“ hält die Klickstrecke an; auf der Startseite lässt sie sich jederzeit **an der letzten Stelle fortsetzen** oder neu beginnen – auch nach einem Personenwechsel oder Ausflug in andere Bereiche.
 
 **Unterricht (Lehrkraft Amir Eggert)**
 1. Prüfung aus dem Katalog kopieren (Task 31)
@@ -88,8 +88,9 @@ Auf der Startseite starten zwei Klickstrecken. Ein **Leitfaden unten rechts** ze
 7. Sichtbarkeit prüfen: Lehrkraft ohne Bezug sieht die Raumaufsicht nicht, Mitbetreuung schon
 8. Prüfung starten (Task 33)
 9. Als Schüler:in teilnehmen (Task 34)
-10. Einsammeln und beenden, Protokoll-PDF (Task 33)
-11. Korrigieren (Task 35, optional)
+10. Einsammeln und beenden (Task 33) – im Unterricht gibt es kein Prüfungsprotokoll
+11. Korrigieren – genau eine Korrektur (Task 35, optional)
+12. Korrektur an eine andere Lehrkraft des Kurses weitergeben (optional)
 
 **Prüfung (Schuladministration Marit Hinrichs)**
 1. Prüfung „FA230“ öffnen, Teilnehmende der eigenen Schule zuordnen (Task 52)
@@ -177,7 +178,7 @@ Ein **Nachteilsausgleich** kann nur **vor dem Prüfungsstart** gewährt oder ge�
 
 ## Prüfungsprotokoll (PDF)
 
-Der Download ist **erst nach Beendigung der Prüfung** möglich. „Protokoll herunterladen (PDF)“ im Reiter Prüfungsprotokoll erzeugt lokal im Browser ein PDF (jsPDF) mit:
+Das Prüfungsprotokoll gibt es **nur bei Prüfungen** (nicht im Unterricht). Der Download ist **erst nach Beendigung der Prüfung** möglich. „Protokoll herunterladen (PDF)“ im Reiter Prüfungsprotokoll erzeugt lokal im Browser ein PDF (jsPDF) mit:
 1. **Angaben zur Prüfung**: Prüfung, Raum, geplanter und tatsächlicher Start, Startfenster, Bearbeitungszeit, Bearbeitungsende, Pausen, Status, Vollbildmodus, Teilnehmende, Nachteilsausgleich und Zusatzzeiten
 2. **Raumaufsichten**: je Aufsichtsperson eine Zeile mit Kürzel, Anwesenheit, **allen Aufsichtszeiträumen** und **einem Unterschriftsfeld** (mehrere Zeiträume bei Aufsicht mit Unterbrechung, festzulegen im Reiter „Aufsichtspersonen“ › „Zeiträume festlegen“; Überschneidungen werden abgelehnt), zusätzlich Ort/Datum und Unterschrift Prüfungsleitung
 3. **Sitzplan** (Reihe-Platz, Name, Status, Tafel)

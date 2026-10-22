@@ -1,8 +1,8 @@
 // Sitzordnungen und reale Räume
 //  - Unterricht: kein realer Raum. Die Lehrkraft legt Anzahl der Sitzplätze und Anordnung fest.
 //  - Prüfung: realer Raum der Schule (venue); ein Raum kann je Zeitraum nur einmal belegt werden.
-import { D, byId } from "./data.js?v=8.1";
-import { esc, parseDate, fmtDateTime, fmtTime } from "./ui.js?v=8.1";
+import { D, byId } from "./data.js?v=8.2";
+import { esc, parseDate, fmtDateTime, fmtTime } from "./ui.js?v=8.2";
 
 export const LAYOUTS = {
   reihen: { label: "Reihen", hint: "Tischreihen mit Blick zur Tafel" },
@@ -41,6 +41,8 @@ export function seatMap(room, compact = false) {
   }
   return { seats, cols: tp * 11 - 3, unit: compact ? 12 : tp > 3 ? 26 : 34, gap: compact ? 3 : 6, layout: L, group: g };
 }
+// Natürliche Sortierung der Platzbezeichnungen: 1, 2, … 10 bzw. 1-2 vor 1-10
+export const seatCmp = (a, b) => (a ? 0 : 1) - (b ? 0 : 1) || String(a || "").localeCompare(String(b || ""), "de", { numeric: true });
 export const seatIds = (room) => seatMap(room).seats.map((s) => s.id);
 export const seatCount = (room) => seatMap(room).seats.length;
 export const validSeat = (room, id) => !!id && seatIds(room).includes(id);

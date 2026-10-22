@@ -1,5 +1,5 @@
 // Gemeinsame UI-Helfer
-import { ICONS } from "./icons.js?v=8.1";
+import { ICONS } from "./icons.js?v=8.2";
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const icon = (name, cls = "") => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ""}</svg>`;
@@ -105,8 +105,8 @@ export function modal({ title, body, footer = "", size = "", warn = false, info 
   return new Promise((resolve) => {
     const back = document.createElement("div");
     back.className = "backdrop";
-    back.innerHTML = `<div class="modal ${size}" role="dialog" aria-modal="true">
-      <div class="modal-h">${warn ? icon("triangle-alert", "warn") : ""}${info ? icon("info", "lg") : ""}${headIcon}<h2>${title}</h2>${closable ? `<button class="iconbtn" data-close aria-label="Schließen">${icon("x", "lg")}</button>` : ""}</div>
+    back.innerHTML = `<div class="modal ${size}" role="dialog" aria-modal="true" aria-labelledby="mh-${(modal.n = (modal.n || 0) + 1)}">
+      <div class="modal-h">${warn ? icon("triangle-alert", "warn") : ""}${info ? icon("info", "lg") : ""}${headIcon}<h2 id="mh-${modal.n}">${title}</h2>${closable ? `<button class="iconbtn" data-close aria-label="Schließen">${icon("x", "lg")}</button>` : ""}</div>
       <div class="modal-b">${body}</div>
       ${footer ? `<div class="modal-f">${footer}</div>` : ""}
     </div>`;
@@ -126,8 +126,11 @@ export function modal({ title, body, footer = "", size = "", warn = false, info 
     back.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => close(null)));
     back.querySelectorAll("[data-value]").forEach((b) => (b.onclick = () => close(b.dataset.value)));
     document.body.appendChild(back);
-    const first = back.querySelector("input,select,textarea,[contenteditable]") || back.querySelector(".modal-f .btn.primary, .modal-f button, [data-close]");
-    if (first) setTimeout(() => first.focus(), 30);
+    // Fokus auf den Dialog selbst (Bildschirmleser lesen den Titel vor), ohne sichtbaren Fokusrahmen beim Öffnen;
+    // Felder mit autofocus erhalten den Fokus direkt
+    const dlg = back.querySelector(".modal"); dlg.tabIndex = -1;
+    const auto = back.querySelector("[autofocus]");
+    setTimeout(() => { try { (auto || dlg).focus({ preventScroll: true }); } catch {} }, 30);
     onMount && onMount(back.querySelector(".modal"), close);
   });
 }
