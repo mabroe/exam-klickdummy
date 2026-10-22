@@ -1,19 +1,19 @@
 // CheckBW Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.2";
-import { lock as lockGate } from "./gate.js?v=8.2";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.2";
-import * as TN from "./views/participant.js?v=8.2";
-import * as PR from "./views/proctor.js?v=8.2";
-import * as KO from "./views/correction.js?v=8.2";
-import * as LK from "./views/teacher.js?v=8.2";
-import * as RS from "./views/results.js?v=8.2";
-import * as KU from "./views/courses.js?v=8.2";
-import * as GD from "./guide.js?v=8.2";
-import { CORRECTORS } from "./scenario.js?v=8.2";
-import { me, personName, orgShort, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.2";
-import { seatCount, seatCmp } from "./seats.js?v=8.2";
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.3";
+import { lock as lockGate } from "./gate.js?v=8.3";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.3";
+import * as TN from "./views/participant.js?v=8.3";
+import * as PR from "./views/proctor.js?v=8.3";
+import * as KO from "./views/correction.js?v=8.3";
+import * as LK from "./views/teacher.js?v=8.3";
+import * as RS from "./views/results.js?v=8.3";
+import * as KU from "./views/courses.js?v=8.3";
+import * as GD from "./guide.js?v=8.3";
+import { CORRECTORS } from "./scenario.js?v=8.3";
+import { me, personName, orgShort, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.3";
+import { seatCount, seatCmp } from "./seats.js?v=8.3";
 
-export const VERSION = "8.2";
+export const VERSION = "8.3";
 export const VERSION_LABEL = `Version ${VERSION} · 22.10.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },
@@ -196,8 +196,10 @@ function startView() {
   const tnOpts = rooms.map((r) => `<optgroup label="${esc(r.name)} – ${esc(r.exam_name)}">${D.participants.filter((p) => p.room === r.id).sort((a, b) => seatCmp(a.seat, b.seat)).map((p) => `<option value="${p.id}" ${p.username === "n.froehlke" ? "selected" : ""}>${esc(p.lastname)}, ${esc(p.firstname)}${p.seat ? ` (Platz ${esc(p.seat)})` : ""}</option>`).join("")}</optgroup>`).join("");
   const supIds = new Set(D.supervisors.map((s) => s.person).filter(Boolean));
   const correctors = [];
-  D.courses.filter((c) => c.kind === "pruefung").forEach((c) => members(c).filter((m) => m.role === "korrektor").forEach((m) => { const pe = byId("persons", m.person); if (pe) correctors.push({ pe, stage: +m.stage || 1, c }); }));
-  correctors.sort((a, b) => a.stage - b.stage);
+  // Korrektor:innen aus den Korrektorengruppen der Prüfungen (je Person und Stufe einmal)
+  const seenK = new Set();
+  D.courses.filter((c) => c.kind === "pruefung").forEach((c) => (c.corrections || []).forEach((a) => (a.correctors || []).forEach((id) => { const pe = byId("persons", id); const k = id + "|" + a.stage; if (pe && !seenK.has(k)) { seenK.add(k); correctors.push({ pe, stage: +a.stage, c }); } })));
+  correctors.sort((a, b) => a.stage - b.stage || orgShort(a.pe.org).localeCompare(orgShort(b.pe.org)) || a.pe.lastname.localeCompare(b.pe.lastname));
   return {
     title: "Rollenwahl",
     render: () => `<div class="start"><header class="topbar">${brand()}<span class="bold">Klickdummy · Prüfungsplattform Bildschirmarbeitsplatz</span></header>

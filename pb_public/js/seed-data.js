@@ -4,7 +4,7 @@
 // Alle Personennamen sind zufällig erzeugte Fantasienamen – Ähnlichkeiten mit realen Personen sind nicht beabsichtigt.
 (function (root) {
   // Stand der Demodaten. Erhöhen, wenn sich die Demodaten ändern – ältere Datenbestände werden beim Start automatisch neu aufgebaut.
-  var SEED_VERSION = 10;
+  var SEED_VERSION = 11;
   var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings"];
 
   // Bewertungskriterien je Teilaufgabe (Maximalpunkte) – muss zu js/scenario.js passen
@@ -224,21 +224,28 @@
       if (idx % 4 !== 3) add("items", { participant: pid, kind: "code", folder: "ide", submission: "1.3", data: { task: "1", name: "bestellmenge.py", lang: "python", code: "# Aufgabe 1.3 – Bestellmenge\n\ndef bestellmenge(lagerbestand, meldebestand, hoechstbestand):\n    if lagerbestand < meldebestand:\n        return hoechstbestand - lagerbestand\n" + (idx % 2 ? "    return 0\n" : "    else:\n        return 0\n") + "\n\nprint(\"Bestellmenge:\", bestellmenge(120, 150, 400))\n" } });
       add("items", { participant: pid, kind: "note", folder: "notes", submission: "2.1", data: { task: "2", title: "Anfrage", html: "<p>Sehr geehrte Damen und Herren,</p><p>wir bitten um ein Angebot über 500 Kugellager Typ 608-2RS …</p>" } });
 
-      // Erstkorrektur weitgehend fertig, Zweitkorrektur bei einigen begonnen
+      // Erstkorrektur weitgehend fertig; Zweitkorrektur bei den ersten drei vollständig (bei der ersten mit deutlicher Abweichung), bei zwei weiteren begonnen
+      var ekPts = {};
       [1, 2].forEach(function (c) {
         if (c === 2 && idx > 4) return;
         var points = {}, notDone = {};
         Object.keys(CRITERIA).forEach(function (st, si) {
           if (c === 1 && si > 5 && idx % 2) return; // einige offen
-          if (c === 2 && si > 2) return;
+          if (c === 2 && idx > 2 && si > 2) return;
           if (st === "1.3" && idx % 4 === 3) { notDone[st] = true; return; }
+          if (c === 2 && idx <= 2) { var f = idx === 0 ? 0.55 : 0.92 + rnd() * 0.12; points[st] = (ekPts[st] || CRITERIA[st]).map(function (v, k) { return Math.min(CRITERIA[st][k], Math.max(0, Math.round(v * f * 2) / 2)); }); return; }
           points[st] = CRITERIA[st].map(function (m) { return Math.max(0, Math.round(m * (0.45 + rnd() * 0.55) * 2) / 2); });
+          if (c === 1) ekPts[st] = points[st];
         });
         var marks = {};
         if (idx < 3) marks["1.1"] = c === 1
           ? [{ id: "s1" + idx, type: "sign", sign: "r", ax: 420, ay: 300 }, { id: "s2" + idx, type: "sign", sign: "Ug", ax: 360, ay: 345 }, { id: "l1" + idx, type: "hline", style: "wavy", x1: 330, x2: 560, y: 352 }]
           : [{ id: "z1" + idx, type: "sign", sign: "(r)", ax: 420, ay: 300 }, { id: "z2" + idx, type: "vline", y1: 280, y2: 360 }];
-        add("gradings", { participant: pid, corrector: c, points: points, not_done: notDone, marks: marks, released: false });
+        // Gruppenfreigabe: EK (Gesa Ohm + Lina Voigt) final bei vollständigen Bewertungen, bei einer erst 1 von 2; ZK (Ayla Steinhoff) final bei den ersten drei
+        var full = c === 1 ? !(idx % 2) : idx <= 2;
+        var approvals = c === 1 ? (full ? (idx === 4 ? [T.Ohm.id] : [T.Ohm.id, T.Voigt.id]) : []) : (full ? [T.Steinhoff.id] : []);
+        var released = c === 1 ? approvals.length === 2 : approvals.length === 1;
+        add("gradings", { participant: pid, corrector: c, points: points, not_done: notDone, marks: marks, released: released, approvals: approvals });
       });
     });
     add("comments", { participant: ids.Birkholz, subtask: "1.2", author: "Korrektor 1", body: "Kalkulationsschema vollständig, Rundungsfehler bei den Bezugskosten." });
@@ -290,7 +297,12 @@
     var btsGroups = Object.keys(groupMembers).filter(function (k) { return groupMembers[k].org === bts; }).map(function (k) { return GR(k, bts, "klasse", groupMembers[k].ids); });
     // Mitglieder der Prüfung (pflegt die Schuladministration der jeweiligen Schule) und des Unterrichts (pflegt die Lehrkraft)
     pr1.groups = [{ group: gFA.id, role: "teilnehmer" }].concat(btsGroups.map(function (g) { return { group: g.id, role: "teilnehmer" }; }));
-    pr1.members = [{ person: T["Riedmüller"].id, role: "raumaufsicht" }, { person: T.Voigt.id, role: "raumaufsicht" }, { person: T.Ohm.id, role: "korrektor", stage: 1 }, { person: T.Steinhoff.id, role: "korrektor", stage: 2 }, { person: T.Ebeling.id, role: "korrektor", stage: 3 }, { person: T.Hinrichs.id, role: "pruefungseinsicht" }, { person: T.Gaspari.id, role: "raumaufsicht" }, { person: T["Dähne"].id, role: "raumaufsicht" }];
+    pr1.members = [{ person: T["Riedmüller"].id, role: "raumaufsicht" }, { person: T.Voigt.id, role: "raumaufsicht" }, { person: T.Hinrichs.id, role: "pruefungseinsicht" }, { person: T.Gaspari.id, role: "raumaufsicht" }, { person: T["Dähne"].id, role: "raumaufsicht" }];
+    // Korrektorengruppen je Korrekturstufe (Zuweisung für die Klasse FA230a bzw. die Klassen der BTS); Endbeurteilung nur auf Anforderung
+    var K = function (stage, group, correctors, org) { return { id: rid(), stage: stage, kind: "group", target: group.id, correctors: correctors.map(function (x) { return x.id; }), org: org.id }; };
+    pr1.corrections = [K(1, gFA, [T.Ohm, T.Voigt], afs), K(2, gFA, [T.Steinhoff], afs), K(3, gFA, [T.Ebeling], afs)]
+      .concat(btsGroups.map(function (g) { return K(1, g, [T.Gaspari], bts); }), btsGroups.map(function (g) { return K(2, g, [T["Dähne"]], bts); }));
+    pr1.third = {}; pr1.korr_end = "2026-11-06"; pr1.dk_threshold = 1;
     u1.groups = [{ group: gWG.id, role: "teilnehmer" }];
 
     // ---------- Einstellungen ----------

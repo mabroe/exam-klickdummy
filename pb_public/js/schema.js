@@ -7,7 +7,7 @@ export const SCHEMA = {
   supervisors: F(`lastname:${t} firstname:${t} short:${t} username:${t} room:${t} present:${b} from:${t} to:${t} periods:${j} person:${t}`),
   protocol: F(`room:${t} ts:${d} participant:${t} username:${t} seat:${t} action:${t} comment:${t} kind:${t}`),
   items: F(`participant:${t} kind:${t} folder:${t} data:${j} submission:${t} file:${f}`),
-  gradings: F(`participant:${t} corrector:${n} points:${j} not_done:${j} marks:${j} released:${b} notes:${j}`),
+  gradings: F(`participant:${t} corrector:${n} points:${j} not_done:${j} marks:${j} released:${b} notes:${j} approvals:${j}`),
   comments: F(`participant:${t} subtask:${t} author:${t} body:${t}`),
   tasks: F(`procedure:${t} procedure_icon:${t} title:${t} icon:${t} due:${t} done:${b} is_new:${b} link:${t} role:${t} task_no:${n} closed:${b}`),
   catalog: F(`title:${t} beruf:${t} fach:${t} jahr:${t} kind:${t} description:${t} duration:${t} creator:${t} tags:${j} contents:${j} mine:${b} copied_from:${t} image:${n}`),
@@ -16,7 +16,7 @@ export const SCHEMA = {
   orgs: F(`name:${t} short:${t} city:${t}`),
   persons: F(`lastname:${t} firstname:${t} username:${t} org:${t} kind:${t} short:${t} email:${t}`),
   groups: F(`name:${t} org:${t} kind:${t} source:${t} course:${t} members:${j}`),
-  courses: F(`title:${t} kind:${t} catalog:${t} org:${t} orgs:${j} owner:${t} members:${j} groups:${j} status:${t} exam_code:${t} description:${t} corrector:${t}`),
+  courses: F(`title:${t} kind:${t} catalog:${t} org:${t} orgs:${j} owner:${t} members:${j} groups:${j} status:${t} exam_code:${t} description:${t} corrector:${t} corrections:${j} third:${j} korr_end:${t} dk_threshold:${n}`),
   venues: F(`org:${t} name:${t} building:${t} rows:${n} cols:${n} capacity:${n} layout:${t}`),
 };
 const DEF = { text: "", number: 0, bool: false, json: null, date: "", file: "" };

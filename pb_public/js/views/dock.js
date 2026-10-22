@@ -3,9 +3,9 @@
 // - mehrere Fenster je Kategorie (z. B. jede geöffnete E-Mail, jede Notiz)
 // - Klick außerhalb eines Fensters minimiert alle sichtbaren Fenster
 // - Wiederherstellen über die Taskleiste (Dock); bei mehreren Fenstern Auswahlliste
-import { onChange, fileUrl } from "../data.js?v=8.2";
-import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.2";
-import { EXAM, subtask } from "../scenario.js?v=8.2";
+import { onChange, fileUrl } from "../data.js?v=8.3";
+import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.3";
+import { EXAM, subtask } from "../scenario.js?v=8.3";
 
 let ctx = null;
 export const setCtx = (c) => { ctx = c; };
@@ -158,7 +158,7 @@ export function bindOutsideMinimize() {
     if (!WINS.size) return;
     const t = e.target;
     if (!document.getElementById("tnpage")) return; // nur im Prüfungsmodus
-    if (t.closest(".win, .dock, .backdrop, .toasts, .popmenu, .menu, .winchooser, .drawer, .drawer-back, .rolepill, .fullgray")) return;
+    if (t.closest(".win, .dock, .backdrop, .toasts, .popmenu, .menu, .winchooser, .drawer, .drawer-back, .rolepill, .fullgray, .hlpop, .guidepanel")) return;
     minimizeAll(); // jeder Klick neben ein Fenster (Seite, Kopfzeile, Hintergrund) minimiert alle sichtbaren Fenster
   }, true);
   // Tastatur: F6 wechselt zwischen Fenstern und Seite, Alt+1…6 öffnet Werkzeuge
@@ -379,7 +379,8 @@ function mailRead(w) {
   const quote = `<blockquote style="border-left:3px solid #ccc;margin:12px 0;padding-left:10px;color:#555">${esc(m.data.body || "").replace(/\n/g, "<br>")}</blockquote>`;
   return { html: `<div class="row between" style="align-items:flex-start"><div class="row">${icon("circle-user", "xl")}<div><div>${esc(m.data.from)} (${esc(m.data.from_mail)})</div><div class="small muted">An: ${esc(m.data.to)}</div></div></div><span class="small">${esc(m.data.date)}</span></div>
     <h3 class="mt">${esc(m.data.subject)}</h3>
-    <div class="mt" style="white-space:pre-line;font-size:14px">${m.data.html ? m.data.html : esc(m.data.body)}</div>
+    ${m.data.html ? `<div class="mt" style="white-space:pre-line;font-size:14px">${m.data.html}</div>` : `<div class="hltools mt" role="toolbar" aria-label="Textmarkierung">${icon("highlighter")}<span class="xs muted">Text auswählen, dann Farbe wählen:</span>${HL.map(([k, l]) => `<button type="button" class="hlbtn hl-${k}" data-hl="${k}" title="${l} markieren" aria-label="Auswahl ${l} markieren"></button>`).join("")}<button type="button" class="btn xs ghost" data-hl="none" title="Markierung der Auswahl entfernen">${icon("eraser")} Entfernen</button><span class="grow"></span><button type="button" class="btn xs ghost" data-hlclear ${hlRanges(m).length ? "" : "disabled"}>${icon("trash-2")} Alle Markierungen löschen</button></div>
+    <div class="mt mailbody" data-mbody style="white-space:pre-line;font-size:14px">${hlHtml(m.data.body || "", hlRanges(m))}</div>`}
     <div class="row wrap mt">${(m.data.attachments || []).map((a) => `<span class="attach">${icon("paperclip")} ${esc(a)}</span>`).join("")}</div>
     ${m.folder === "sent" ? `<div class="notice ${m.submission ? "success" : "info"} mt">${icon(m.submission ? "circle-check" : "info")}<span>${m.submission ? `Als Abgabe für Teilaufgabe ${esc(m.submission)} markiert.` : "Diese E-Mail ist nicht als Abgabe markiert."}</span></div>` : ""}`,
     footer: `${m.folder === "deleted" ? `<button class="btn sm" data-restore>${icon("rotate-ccw")} Wiederherstellen</button>` : `<button class="btn sm ghost" data-delmail>${icon("trash-2")} Löschen</button>`}
@@ -387,12 +388,61 @@ function mailRead(w) {
       <button class="btn sm" data-fwd>Weiterleiten</button><button class="btn sm primary" data-reply>${icon("reply")} Antworten</button>`,
     bind(el) {
       const q = (s) => el.querySelector(s);
+      bindHighlights(el, m, w);
       q("[data-delmail]") && (q("[data-delmail]").onclick = () => { ctx.upd(m.id, { folder: "deleted", data: { ...m.data, prev: m.folder } }); close(w.key); toast("E-Mail gelöscht", "Sie finden sie im Ordner „Gelöscht“.", "info"); });
       q("[data-restore]") && (q("[data-restore]").onclick = () => { ctx.upd(m.id, { folder: m.data.prev || "inbox" }); close(w.key); });
       q("[data-markmail]") && (q("[data-markmail]").onclick = () => markDialog(m, "E-Mail", w.defSt));
       q("[data-reply]").onclick = () => open("mail", { compose: { to: m.data.from_mail, subject: (m.data.subject.startsWith("AW:") ? "" : "AW: ") + m.data.subject, html: signature() + quote, attachments: [] }, subtask: w.defSt });
       q("[data-fwd]").onclick = () => open("mail", { compose: { to: "", subject: "WG: " + m.data.subject, html: "<p><br></p>" + quote, attachments: [...(m.data.attachments || [])] }, subtask: w.defSt });
     } };
+}
+// ---------- Textmarkierung in E-Mails (Selbstorganisation, wird nicht bewertet) ----------
+// Gespeichert je Prüfling und E-Mail als Element kind "hl" (data: { mail, ranges: [{ s, e, c }] }); bleibt während der Prüfung erhalten
+const HL = [["y", "Gelb"], ["g", "Grün"], ["r", "Rot"]];
+let pop = null; const hidePop = () => { pop?.remove(); pop = null; };
+document.addEventListener("mousedown", (e) => { if (pop && !pop.contains(e.target)) hidePop(); }, { capture: true });
+const hlItem = (m) => allItems().find((i) => i.kind === "hl" && i.data?.mail === m.id);
+const hlRanges = (m) => hlItem(m)?.data?.ranges || [];
+function hlHtml(text, ranges) {
+  const col = new Array(text.length).fill(""); ranges.forEach((r) => { for (let i = Math.max(0, r.s); i < Math.min(text.length, r.e); i++) col[i] = r.c; });
+  let out = "", i = 0;
+  while (i < text.length) { const c = col[i]; let j = i; while (j < text.length && col[j] === c) j++; const seg = esc(text.slice(i, j)); out += c ? `<mark class="hlm hl-${c}">${seg}</mark>` : seg; i = j; }
+  return out;
+}
+const toRanges = (col) => { const r = []; let i = 0; while (i < col.length) { if (!col[i]) { i++; continue; } let j = i; while (j < col.length && col[j] === col[i]) j++; r.push({ s: i, e: j, c: col[i] }); i = j; } return r; };
+function textOffset(root, node, off) {
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n, pos = 0;
+  while ((n = w.nextNode())) { if (n === node) return pos + off; pos += n.textContent.length; }
+  if (node === root) { let p = 0; for (let k = 0; k < off; k++) p += root.childNodes[k].textContent.length; return p; }
+  return pos;
+}
+function bindHighlights(el, m, w) {
+  const body = el.querySelector("[data-mbody]"); if (!body) return;
+  const text = m.data.body || "";
+  const save = async (ranges) => { const it = hlItem(m); if (it) await ctx.upd(it.id, { data: { ...it.data, ranges } }); else await addItemW(w, "hl", "hl", { mail: m.id, ranges }); };
+  const apply = async (c) => {
+    const sel = window.getSelection(); if (!sel.rangeCount || sel.isCollapsed) { toast("Bitte zuerst Text auswählen", "Markieren Sie mit der Maus eine Textpassage in der E-Mail.", "info"); return; }
+    const r = sel.getRangeAt(0); if (!body.contains(r.commonAncestorContainer)) return;
+    let s0 = textOffset(body, r.startContainer, r.startOffset), e0 = textOffset(body, r.endContainer, r.endOffset); if (e0 < s0) [s0, e0] = [e0, s0];
+    if (e0 <= s0) return;
+    const col = new Array(text.length).fill(""); hlRanges(m).forEach((x) => { for (let i = x.s; i < Math.min(text.length, x.e); i++) col[i] = x.c; });
+    for (let i = s0; i < Math.min(text.length, e0); i++) col[i] = c === "none" ? "" : c;
+    sel.removeAllRanges(); hidePop(); await save(toRanges(col)); redraw(w);
+  };
+  el.querySelectorAll("[data-hl]").forEach((b) => { b.addEventListener("mousedown", (e) => e.preventDefault()); b.onclick = () => apply(b.dataset.hl); });
+  const cl = el.querySelector("[data-hlclear]"); if (cl) cl.onclick = async () => { if (!(await confirmBox("Alle Markierungen löschen", "Alle farbigen Markierungen in dieser E-Mail werden entfernt.", "Löschen"))) return; await save([]); redraw(w); };
+  // „Markieren“-Leiste erscheint nach der Textauswahl
+  body.addEventListener("mouseup", () => setTimeout(() => {
+    const sel = window.getSelection(); hidePop();
+    if (!sel.rangeCount || sel.isCollapsed || !body.contains(sel.getRangeAt(0).commonAncestorContainer)) return;
+    const rc = sel.getRangeAt(0).getBoundingClientRect();
+    pop = document.createElement("div"); pop.className = "hlpop"; pop.setAttribute("role", "toolbar"); pop.setAttribute("aria-label", "Auswahl markieren");
+    pop.innerHTML = `<span class="xs">Markieren</span>${HL.map(([k, l]) => `<button type="button" class="hlbtn hl-${k}" data-c="${k}" title="${l}" aria-label="${l} markieren"></button>`).join("")}<button type="button" class="iconbtn" data-c="none" title="Markierung entfernen" aria-label="Markierung entfernen">${icon("eraser")}</button>`;
+    document.body.appendChild(pop);
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - pop.offsetWidth - 8, rc.left + rc.width / 2 - pop.offsetWidth / 2)) + "px";
+    pop.style.top = Math.max(8, rc.top - pop.offsetHeight - 8) + "px";
+    pop.querySelectorAll("[data-c]").forEach((b) => { b.addEventListener("mousedown", (e) => e.preventDefault()); b.onclick = () => apply(b.dataset.c); });
+  }, 0));
 }
 function rteToolbar() {
   const b = (cmd, ic, t) => `<button type="button" data-cmd="${cmd}" title="${t}" aria-label="${t}">${icon(ic)}</button>`;

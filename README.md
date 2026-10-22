@@ -55,7 +55,7 @@ Auf der Startseite meldet man sich als **konkrete Person** an. Zwei fiktive Schu
 | Amir Eggert | AFS | Lehrkraft, Besitzer „Zentrale Klassenarbeit HTML“ (Gruppe A in Reihen, Gruppe B in U-Form) |
 | Ilyas Morawetz | AFS | Lehrkraft, eigener Unterricht (Gruppentische, versetzte Reihen) |
 | Thea Riedmüller, Lina Voigt | AFS | Raumaufsichten der FA230-Prüfung (Raum 123) |
-| Gesa Ohm, Ayla Steinhoff, Dr. Karim Ebeling | AFS | Erst-, Zweit-, Drittkorrektur FA230 |
+| Gesa Ohm + Lina Voigt, Ayla Steinhoff, Dr. Karim Ebeling | AFS | Korrektorengruppen FA230 (FA230a): Erstkorrektur (Gruppe aus zwei Personen), Zweitkorrektur, Endbeurteilung |
 | Marit Hinrichs | AFS | Schuladministration |
 | Ilka Ammermann | BTS | Schuladministration (Raum 201, Aula) |
 | Emil Gaspari, Niklas Dähne | BTS | Lehrkräfte / Raumaufsichten BTS |
@@ -95,13 +95,14 @@ Auf der Startseite starten zwei Klickstrecken. Ein **Leitfaden unten rechts** ze
 **Prüfung (Schuladministration Marit Hinrichs)**
 1. Prüfung „FA230“ öffnen, Teilnehmende der eigenen Schule zuordnen (Task 52)
 2. Raumaufsicht (Person) zuordnen (Task 52)
-3. Korrektor:innen festlegen (Task 24)
+3. Korrektorengruppen zuweisen – je Stufe mehrere Personen, für eine Klasse oder einzelne Prüflinge (Task 24)
 4. Raumaufsicht in einem freien realen Raum erstellen – belegte Räume sind gesperrt (Task 21)
 5. Aufsichtspersonen zuordnen (Task 21)
 6. Teilnehmende zuordnen (Task 21)
 7. Sichtbarkeit prüfen: Schuladmin der BTS sieht die Raumaufsicht nicht; die Raumaufsicht sieht nur ihre Räume
 8. Raumaufsicht durchführen als zugeordnete Raumaufsicht (Task 22)
 9. Beenden und Protokoll herunterladen (Task 23)
+10. Ergebnisse prüfen und über eine Drittkorrektur entscheiden (Task 28)
 
 ## Empfohlene Demo (zwei Fenster nebeneinander)
 
@@ -115,6 +116,10 @@ Auf der Startseite starten zwei Klickstrecken. Ein **Leitfaden unten rechts** ze
 
 Über **Administration › Demo zurücksetzen** oder den Button auf der Startseite wird alles auf den Ausgangszustand gesetzt. Andere offene Fenster laden dabei automatisch neu. Der Prüfungsbeginn von Raum 123 liegt nach dem Zurücksetzen 20 Minuten in der Zukunft.
 
+## Raumaufsicht: Teilnehmende entfernen
+
+Im Reiter „Teilnehmende“ lassen sich Teilnehmende **einzeln** (Papierkorb in der Zeile), als **Auswahl** oder als **ganze Gruppe** (Klasse/Kurs, „Gruppe entfernen“) wieder aus der Raumaufsicht entfernen. Jede Entfernung wird protokolliert.
+
 ## Fenster und Taskleiste (Prüfling)
 
 - Jede geöffnete E-Mail, jeder Entwurf und jede Notiz öffnet ein **eigenes Fenster**. Fenster lassen sich verschieben, in der Größe ändern, maximieren und schließen.
@@ -124,6 +129,7 @@ Auf der Startseite starten zwei Klickstrecken. Ein **Leitfaden unten rechts** ze
 - **Aufgaben sind voneinander unabhängig:** Jede Aufgabe hat eigene Fenster (inkl. Rechner-Verlauf und IDE-Konsole). Beim Wechsel werden die Fenster der anderen Aufgabe ausgeblendet und beim Zurückkehren wiederhergestellt. Auf **Dashboard und Abgaben** sind alle Anwendungen in der Taskleiste ausgegraut und lassen sich nicht öffnen.
 - **Ticketsystem** (jede Aufgabe mit eigenen Tickets, Schwerpunkt Aufgabe 3, neue Tickets anlegbar): Ticketliste mit Priorität und Status, Ticketfenster mit Anfrage, Verlauf, Status und Lösungsfeld. Tickets werden wie andere Elemente als Abgabe markiert und in der Korrektur dargestellt.
 - **Automatische Zwischenspeicherung** aller Freitexte: E-Mail-Entwürfe, Notizen und Ticket-Lösungen alle 15 s, beim Verlassen oder Minimieren eines Fensters und beim Schließen. Der Code in der IDE wird bei jeder Eingabe gespeichert. In der Korrektur werden Begründungen (15 s, beim Verlassen) und Kommentar-Entwürfe gesichert.
+- **Textmarkierung in E-Mails**: Text in einer erhaltenen E-Mail auswählen und gelb, grün oder rot markieren; mehrere Passagen unabhängig voneinander, „Markierung entfernen“ und „Alle Markierungen löschen“. Die Markierungen bleiben während der Prüfung erhalten und werden nicht bewertet.
 - **Echte Datei-Uploads** (bis 20 MB) in „Eigene Dateien“ mit Vorschau (Bild, PDF, Text) und Download.
 - Die Aufgabenseite zeigt alle **Werkzeuge** inkl. Ticketsystem, Entwicklungsumgebung und Taschenrechner als Kacheln. Die Navigation ist auf Dashboard und Aufgabenseiten einklappbar und überdeckt beim Scrollen keine Inhalte.
 - Punkte unter einem Taskleisten-Symbol zeigen die offenen Fenster, eine Zahl steht für mehrere Fenster. Bei mehreren Fenstern einer Kategorie öffnet ein Klick eine **Auswahlliste** (wiederherstellen, alle minimieren, alle schließen, neues Fenster).
@@ -188,10 +194,18 @@ Das Prüfungsprotokoll gibt es **nur bei Prüfungen** (nicht im Unterricht). Der
 
 „Demo starten“ öffnet eine Klickstrecke in elf Schritten an einer verkleinerten Nachbildung des Prüfungsmodus: Kopfzeile, Dashboard, Navigation, gesperrte Taskleiste, Aufgabe und Arbeitsauftrag, Fenster, Ergebnis erstellen, als Abgabe markieren, Abgaben prüfen, Pause/Verbindungsabbruch, Zeitablauf und Prüfung beenden. Der jeweils anzuklickende Bereich ist markiert, alternativ „Weiter“ oder Pfeiltasten. Die Demo startet nur per Klick.
 
+## Korrektorengruppen (Prüfung)
+
+- Im Kurs der Prüfung, Reiter **„Korrektoren“**, weist die Schuladministration je Korrekturstufe (Erst-, Zweitkorrektur, Endbeurteilung) eine **Gruppe aus einer oder mehreren Korrektor:innen** zu – für eine **Klasse/einen Kurs** (gilt für alle zugehörigen Prüflinge) oder für **einzelne Prüflinge** (Einzelzuweisung hat Vorrang). Gruppen gelten nur für diese Prüfung; dieselben Personen dürfen in mehreren Stufen sein (ohne Warnung). Mitglieder lassen sich über „Bearbeiten“ austauschen oder entfernen, erteilte Freigaben bleiben erhalten.
+- Alle Mitglieder sehen die **gesamte Leistung** und erfassen **eine gemeinsame Bewertung** je Stufe; die Aufteilung regelt die Gruppe selbst.
+- **Gruppenfreigabe**: Die Bewertung ist **final**, sobald alle Mitglieder freigegeben haben; angezeigt wird der aggregierte Stand („1 von 2 freigegeben“). Bis dahin kann jedes Mitglied seine Freigabe zurückziehen – nicht mehr nach der letzten Freigabe oder nach dem Ende des Korrekturzeitraums (im Reiter „Korrektoren“ einstellbar). Finale Bewertungen sind schreibgeschützt.
+
 ## Ergebnisse und Prüfungseinsicht
 
-- **Ergebnisse** (Navigation „Ergebnisse“): Kennzahlen, Notenspiegel, Aufgabenstatistik (Ø Punkte, Erreichungsgrad, Spannweite), Ergebnisliste mit EK/ZK/DK, Endpunkten und Note, Hinweis bei Abweichung ≥ 10 % zwischen Erst- und Zweitkorrektur, **CSV-Export**.
-- Endpunkte: Drittkorrektur, sonst Mittelwert aus Erst- und Zweitkorrektur (auf halbe Punkte gerundet), sonst Erstkorrektur.
+- **Ergebnisübersicht** (Navigation „Ergebnisse“, rechtebasiert): je Prüfling Name, Vorname, Anmeldename, **Punkte und Note der Erstkorrektur, Zweitkorrektur und Endbeurteilung** sowie die **Gesamtnote**; dazu Kennzahlen, Notenspiegel, Aufgabenstatistik und **CSV-Export**. Die Schuladministration sieht alle Prüflinge ihrer Schule mit allen drei Korrekturstufen, Korrektor:innen nur die Prüflinge ihrer Korrektorengruppen, Lehrkräfte die Teilnehmenden ihres Unterrichts. Änderungen der Korrektur erscheinen sofort.
+- **Noten**: linearer Notenschlüssel bezogen auf die Maximalpunktzahl – Note = 6 − 5 · Punkte / Maximalpunkte, auf eine Nachkommastelle zugunsten des Prüflings abgerundet. Bei 100 Punkten entspricht das exakt der Tabelle „Notenschlüssel 100 P“ (geprüft gegen alle Werte der Vorlage, auch für 60 bzw. 50 Punkte); „Notenschlüssel“ zeigt die Tabelle für eine wählbare Maximalpunktzahl.
+- **Gesamtnote**: Mittelwert der Noten aus Erst- und Zweitkorrektur (auf eine Nachkommastelle abgerundet). Ist eine Endbeurteilung angefordert, gilt deren Note. Im Unterricht gibt es nur eine Korrektur.
+- **Drittkorrektur**: Weichen die Noten aus Erst- und Zweitkorrektur um mindestens die eingestellte Schwelle ab (Standard 1,0 Notenstufen, im Reiter „Korrektoren“ einstellbar), wird die Zeile hervorgehoben und „Drittkorrektur empfohlen“ angezeigt. Die **Entscheidung trifft die Schuladministration** („anfordern“ bzw. „zurücknehmen“); erst dann erhält die Korrektorengruppe der Endbeurteilung Zugriff auf den Prüfling.
 - **Prüfungseinsicht**: wird in den Ergebnissen freigegeben. Lehrkräfte öffnen sie je Prüfling, Prüflinge nach Prüfungsende über den Endbildschirm. Sie zeigt Punkte je Teilaufgabe, Begründungen und die Arbeit mit den Randzeichen aller Korrekturen (schreibgeschützt). Interne Kommentare bleiben verborgen.
 
 ## Schneller korrigieren

@@ -1001,3 +1001,23 @@ body.kfocus .shell { background: none; }
 .guideresume { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .guideresume .grow { min-width: 240px; }
 .modal:focus { outline: none; }
+
+/* ---------- v8.3: Ergebnisübersicht, Notenschlüssel ---------- */
+.restbl th.ctr { text-align: center; border-bottom: 1px solid var(--line-2); }
+.restbl .big-note { font-size: 17px; }
+.restbl tr.recrow td { background: #fff7d6; }
+.restbl tr.recrow td:first-child { box-shadow: inset 4px 0 0 #e8a400; }
+.keygrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 60vh; overflow: auto; }
+.keygrid .tbl td, .keygrid .tbl th { padding: 3px 8px; }
+/* v8.3: Textmarkierung in E-Mails */
+.hltools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 8px; background: var(--bg-softer); border: 1px solid var(--line-2); border-radius: 4px; }
+.hlbtn { width: 24px; height: 24px; border-radius: 50%; border: 2px solid rgba(0,0,0,.25); cursor: pointer; padding: 0; }
+.hlbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hlbtn.hl-y, mark.hl-y { background: #fff176; }
+.hlbtn.hl-g, mark.hl-g { background: #a5e3a1; }
+.hlbtn.hl-r, mark.hl-r { background: #f7a8a8; }
+mark.hlm { color: inherit; border-radius: 2px; padding: 0 1px; }
+.mailbody { user-select: text; }
+.hlpop { position: fixed; z-index: 6600; display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-lg); padding: 4px 8px; }
+.restbl th, .restbl td { padding-left: 8px; padding-right: 8px; }
+.restbl td .xs { white-space: nowrap; }

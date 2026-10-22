@@ -1,15 +1,18 @@
 // Korrekturworkflow: Korrekturübersicht, Korrekturmodus, Vergleich, Erwartungshorizont
-import { D, byId, upd, create, setting, setSetting } from "../data.js?v=8.2";
-import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=8.2";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.2";
-import { navigate, redraw, session } from "../app.js?v=8.2";
-import { me, courseOf, correctorStage, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses } from "../access.js?v=8.2";
-export { mode } from "./kmode.js?v=8.2";
+import { D, byId, upd, create, setting, setSetting } from "../data.js?v=8.3";
+import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=8.3";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.3";
+import { navigate, redraw, session } from "../app.js?v=8.3";
+import { me, courseOf, correctorStages, canCorrect, correctionOver, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses, STAGE_LABEL } from "../access.js?v=8.3";
+import { linearGrade, fmtNote, approvalState, approvalText } from "../grades.js?v=8.3";
+export { mode } from "./kmode.js?v=8.3";
 
 const S = { view: "aufgaben", collapsed: {} };
 // Lehrkraft (Unterrichtsebene): genau eine Korrektur; Korrektor:in (Prüfungsebene): Erst-, Zweit-, Drittkorrektur
 export const lessonMode = () => session.role === "lehrkraft";
-export const corr = () => (lessonMode() ? 1 : +session.corrector || 1);
+// Stufen, in denen die angemeldete Person in Prüfungen korrigiert
+export const myStages = () => { const pe = me(); if (!pe) return [1, 2, 3]; return [...new Set(D.courses.filter((c) => c.kind === "pruefung").flatMap((c) => correctorStages(c, pe.id)))].sort(); };
+export const corr = () => { if (lessonMode()) return 1; const st = myStages(); const k = +session.corrector || st[0] || 1; return st.length && !st.includes(k) ? st[0] : k; };
 export const corrName = (c) => (lessonMode() ? "Korrektur" : CORRECTORS[c]?.label || "Korrektur");
 
 // Teilnehmende mit Abgaben (Korrekturgegenstand)
@@ -18,7 +21,9 @@ export function candidates() {
   const withSubs = new Set(D.items.filter((i) => i.submission && i.participant).map((i) => i.participant));
   const pe = me();
   const kind = lessonMode() ? "unterricht" : "pruefung";
-  return D.participants.filter((p) => { if (!withSubs.has(p.id)) return false; const c = courseOf(byId("rooms", p.room)); if (!pe) return !lessonMode(); return c?.kind === kind && correctorStage(c, pe.id) > 0; }).sort((a, b) => a.lastname.localeCompare(b.lastname));
+  const stage = corr();
+  // Prüfung: nur Prüflinge, für die die Person der Korrektorengruppe dieser Stufe angehört (Endbeurteilung nur, wenn angefordert)
+  return D.participants.filter((p) => { if (!withSubs.has(p.id)) return false; const c = courseOf(byId("rooms", p.room)); if (!pe) return !lessonMode(); return c?.kind === kind && canCorrect(c, p, stage, pe.id); }).sort((a, b) => a.lastname.localeCompare(b.lastname));
 }
 export const grading = (pid, c = corr()) => D.gradings.find((g) => g.participant === pid && g.corrector === c);
 export function stPoints(g, st) {
@@ -28,11 +33,37 @@ export function stPoints(g, st) {
   return p.reduce((a, b) => a + (+b || 0), 0);
 }
 export const fmtP = (v) => (v === null || v === undefined ? "–" : String(Math.round(v * 10) / 10).replace(".", ","));
-const grade = (pts) => { const pct = (pts / TOTAL_POINTS) * 100; return pct >= 92 ? 1 : pct >= 81 ? 2 : pct >= 67 ? 3 : pct >= 50 ? 4 : pct >= 30 ? 5 : 6; };
+const grade = (pts) => fmtNote(linearGrade(pts));
+// Gemeinsame Bewertung freigeben bzw. Freigabe zurückziehen (Gruppenfreigabe)
+export async function setApproval(p, on) {
+  const stage = corr(); const pe = me(); const g = grading(p.id, stage); const st = approvalState(p, stage);
+  if (!on) {
+    if (st.final) { toast("Freigabe nicht zurückziehbar", "Alle Mitglieder der Korrektorengruppe haben freigegeben – die Bewertung ist final.", "error"); return false; }
+    if (correctionOver(courseOf(byId("rooms", p.room)))) { toast("Korrekturzeitraum beendet", "Die Freigabe kann nicht mehr zurückgezogen werden.", "error"); return false; }
+  }
+  const cur = new Set(g?.approvals || []); on ? cur.add(pe.id) : cur.delete(pe.id);
+  const approvals = [...cur]; const final = st.group.length > 0 && st.group.every((x) => cur.has(x));
+  if (g) await upd("gradings", g.id, { approvals, released: final });
+  else await create("gradings", { participant: p.id, corrector: stage, points: {}, not_done: {}, marks: {}, approvals, released: final });
+  return true;
+}
 export async function saveGrading(pid, patch) {
   const g = grading(pid);
   if (g) return upd("gradings", g.id, patch);
   return create("gradings", { participant: pid, corrector: corr(), points: {}, not_done: {}, marks: {}, released: false, ...patch });
+}
+
+// Status der gemeinsamen Bewertung (aggregiert, ohne Namen)
+function statusBadge(p, done) {
+  const a = approvalState(p, corr());
+  if (a.final) return `<span class="badge green">${icon("lock")} final</span>`;
+  if (a.n) return `<span class="badge yellowb" title="Freigabe der Korrektorengruppe">${esc(approvalText(a))}</span>`;
+  return done ? `<span class="badge cyan">bewertet</span>` : `<span class="badge gray">offen</span>`;
+}
+function approveBtn(p, done) {
+  const a = approvalState(p, corr()); const pe = me(); if (!pe || a.final) return "";
+  if (a.approved(pe.id)) return correctionOver(courseOf(byId("rooms", p.room))) ? "" : `<button class="btn sm ghost" data-approve="${p.id}" data-on="0">${icon("rotate-ccw")} Freigabe zurückziehen</button>`;
+  return `<button class="btn sm" data-approve="${p.id}" data-on="1" ${done ? "" : `title="Noch nicht alle Teilaufgaben bewertet"`}>${icon("circle-check")} Freigeben</button>`;
 }
 
 // ---------- Übersicht ----------
@@ -43,7 +74,9 @@ export function overview(q) {
     render() {
       const ps = candidates();
       const c = corr();
-      const released = ps.length && ps.every((p) => grading(p.id)?.released);
+      const pe0 = me();
+      const mineOpen = ps.filter((p) => !approvalState(p, c).approved(pe0?.id));
+      const mineWithdraw = ps.filter((p) => { const a = approvalState(p, c); return a.approved(pe0?.id) && !a.final && !correctionOver(courseOf(byId("rooms", p.room))); });
       const total = (p) => ALL_SUBTASKS.reduce((a, s) => a + (stPoints(grading(p.id), s.no) || 0), 0);
       const openCnt = ps.reduce((a, p) => a + ALL_SUBTASKS.filter((s) => stPoints(grading(p.id), s.no) === null).length, 0);
       let table;
@@ -58,31 +91,32 @@ export function overview(q) {
           const g = grading(p.id); const go = grading(p.id, other);
           const cells = EXAM.tasks.map((t) => { let sum = 0, any = false; const sc = t.subtasks.map((s) => { const v = stPoints(g, s.no); if (v !== null) { sum += v; any = true; } const vo = stPoints(go, s.no); const diff = v !== null && vo !== null && Math.abs(v - vo) >= s.points * 0.3; return S.collapsed[t.no] ? "" : `<td class="cell ${v === null ? "open" : ""} ${g?.not_done?.[s.no] ? "nd" : ""} ${diff ? "diff" : ""}" data-cell="${p.id}|${s.no}" title="${diff ? "Deutliche Abweichung zur " + corrName(other) : "Bewerten"}">${g?.not_done?.[s.no] ? "n.b." : fmtP(v)}${D.comments.some((x) => x.participant === p.id && x.subtask === s.no) ? " " + icon("message-square") : ""}</td>`; }).join(""); return sc + `<td class="sum">${any ? fmtP(sum) : "–"}</td>`; }).join("");
           const tot = total(p); const done = ALL_SUBTASKS.every((s) => stPoints(g, s.no) !== null);
-          return `<tr><td>${esc(p.lastname)}</td><td>${esc(p.firstname)}</td>${cells}<td class="sum">${fmtP(tot)}</td><td>${done ? grade(tot) : "–"}</td><td>${g?.released ? `<span class="badge green">${icon("lock")} freigegeben</span>` : done ? `<span class="badge cyan">bewertet</span>` : `<span class="badge gray">offen</span>`}</td></tr>`;
+          return `<tr><td>${esc(p.lastname)}</td><td>${esc(p.firstname)}</td>${cells}<td class="sum">${fmtP(tot)}</td><td>${done ? grade(tot) : "–"}</td><td>${statusBadge(p, done)}</td></tr>`;
         }).join("")}</tbody></table></div>
         <p class="small muted mt-s">Klicken Sie auf eine Zelle, um die Teilaufgabe im Korrekturmodus zu bewerten. ${icon("message-square")} = Kommentar vorhanden${lessonMode() ? "" : ` · <span class="badge yellowb">gelb</span> = deutliche Abweichung zur ${corrName(other)}`} · n.b. = nicht bearbeitet</p>`;
       } else {
         table = `<div class="cgrid">${ps.map((p) => {
           const g = grading(p.id); const done = ALL_SUBTASKS.filter((s) => stPoints(g, s.no) !== null).length; const tot = total(p);
           const next = ALL_SUBTASKS.find((s) => stPoints(g, s.no) === null) || ALL_SUBTASKS[0];
-          return `<div class="card pad"><div class="row between"><h3>${esc(p.lastname)}, ${esc(p.firstname)}</h3>${g?.released ? `<span class="badge green">${icon("lock")} freigegeben</span>` : ""}</div>
+          return `<div class="card pad"><div class="row between"><h3>${esc(p.lastname)}, ${esc(p.firstname)}</h3>${statusBadge(p, done === ALL_SUBTASKS.length)}</div>
           <div class="small muted">${esc(p.username)} · Platz ${esc(p.seat || "–")}</div>
           <div class="mt-s small">Fortschritt <span class="miniprogress" style="width:120px"><i style="width:${(done / ALL_SUBTASKS.length) * 100}%"></i></span> ${done}/${ALL_SUBTASKS.length} Teilaufgaben</div>
-          <div class="row between mt"><span><b>${fmtP(tot)}</b> / ${TOTAL_POINTS} Punkte${done === ALL_SUBTASKS.length ? ` · Note ${grade(tot)}` : ""}</span><a class="btn sm" href="#/app/korrektur/${p.id}/${next.no}">${icon("arrow-right")} Korrigieren</a></div></div>`;
+          <div class="row between mt"><span><b>${fmtP(tot)}</b> / ${TOTAL_POINTS} Punkte${done === ALL_SUBTASKS.length ? ` · Note ${grade(tot)}` : ""}</span><span class="row" style="gap:6px">${approveBtn(p, done === ALL_SUBTASKS.length)}<a class="btn sm" href="#/app/korrektur/${p.id}/${next.no}">${icon("arrow-right")} Korrigieren</a></span></div></div>`;
         }).join("")}</div>`;
       }
       const room = D.rooms.find((r) => r.name === "Raum 123");
       const lesson = lessonMode(); const pe = me();
       const mine = lesson ? visibleCourses(pe).filter((x) => x.kind === "unterricht" && lessonCorrector(x) === pe?.id) : [];
       const elsewhere = lesson ? visibleCourses(pe).filter((x) => x.kind === "unterricht" && lessonCorrector(x) && lessonCorrector(x) !== pe?.id) : [];
-      const sub = lesson ? (mine.length ? mine.map((x) => esc(x.title)).join(" · ") : "Keine Unterrichtskurse in Ihrer Korrektur") : `${esc(EXAM.name)} / Gruppe FA230a`;
+      const sub = lesson ? (mine.length ? mine.map((x) => esc(x.title)).join(" · ") : "Keine Unterrichtskurse in Ihrer Korrektur") : `${esc(EXAM.name)} · ${esc(CORRECTORS[c].label)} · Prüflinge, deren Korrektorengruppe Sie angehören`;
       return `<div class="pagehead"><div><h1>Korrekturübersicht</h1><div class="sub">${sub}</div></div>
-        <div class="row wrap">${lesson ? `<button class="btn" data-handoff ${mine.length ? "" : "disabled"} title="Korrektur an eine andere Lehrkraft des Kurses weitergeben">${icon("forward")} Korrektur weitergeben</button>` : `<select class="select" style="width:auto" data-corr>${[1, 2, 3].map((k) => `<option value="${k}" ${c === k ? "selected" : ""}>${CORRECTORS[k].label} (${CORRECTORS[k].name})</option>`).join("")}</select>`}
+        <div class="row wrap">${lesson ? `<button class="btn" data-handoff ${mine.length ? "" : "disabled"} title="Korrektur an eine andere Lehrkraft des Kurses weitergeben">${icon("forward")} Korrektur weitergeben</button>` : `${myStages().length > 1 ? `<select class="select" style="width:auto" data-corr aria-label="Korrekturstufe">${myStages().map((k) => `<option value="${k}" ${c === k ? "selected" : ""}>${CORRECTORS[k].label}</option>`).join("")}</select>` : `<span class="badge" style="background:${CORRECTORS[c].color};color:#fff">${esc(CORRECTORS[c].label)}</span>`}`}
         <button class="btn primary" data-start ${ps.length ? "" : "disabled"}>${icon("play")} Korrektur starten</button></div></div>
       <div class="row between wrap"><nav class="tabs" style="flex:1"><button data-view="aufgaben" class="${S.view === "aufgaben" ? "active" : ""}">Aufgabenweise</button><button data-view="personen" class="${S.view === "personen" ? "active" : ""}">Personenweise</button></nav>
-        <div class="row" style="margin-bottom:24px"><span class="small muted">${openCnt} Bewertungen offen</span><button class="btn" data-release ${released || !ps.length ? "disabled" : ""}>${icon("funnel")} ${released ? "Freigegeben" : "Alles freigeben"}</button></div></div>
+        <div class="row" style="margin-bottom:24px"><span class="small muted">${openCnt} Bewertungen offen</span>${mineWithdraw.length ? `<button class="btn ghost" data-withdrawall>${icon("rotate-ccw")} Meine Freigaben zurückziehen (${mineWithdraw.length})</button>` : ""}<button class="btn" data-release ${mineOpen.length ? "" : "disabled"}>${icon("funnel")} ${mineOpen.length ? `Alle freigeben (${mineOpen.length})` : "Von Ihnen freigegeben"}</button></div></div>
+      ${lesson ? "" : `<p class="xs muted" style="margin-top:-14px">Gemeinsame Bewertung je Korrekturstufe: Sie ist final, sobald alle Mitglieder der Korrektorengruppe freigegeben haben. Bis dahin kann jedes Mitglied seine Freigabe zurückziehen (bis zum Ende des Korrekturzeitraums).</p>`}
       ${lesson && elsewhere.length ? `<div class="notice info small mb">${icon("info")}<span>${elsewhere.map((x) => `Die Korrektur von „${esc(x.title)}“ liegt bei <b>${esc(personName(byId("persons", lessonCorrector(x))))}</b>.`).join(" ")}</span></div>` : ""}
-      ${ps.length ? table : `<div class="card empty">${icon("file-pen-line")}<h3>Noch keine Abgaben vorhanden</h3><p>Sobald Prüflinge Abgaben markiert haben, erscheinen sie hier.</p>${room ? `<a class="btn" href="#/app/raum/${room.id}/meinraum">Zur Raumaufsicht</a>` : ""}</div>`}`;
+      ${ps.length ? table : !lesson && c === 3 ? `<div class="card empty">${icon("file-pen-line")}<h3>Keine Endbeurteilung angefordert</h3><p>Die Schuladministration entscheidet nach Erst- und Zweitkorrektur, ob eine Drittkorrektur (Endbeurteilung) notwendig ist. Angeforderte Prüflinge erscheinen hier.</p></div>` : `<div class="card empty">${icon("file-pen-line")}<h3>Noch keine Abgaben vorhanden</h3><p>Sobald Prüflinge Abgaben markiert haben, erscheinen sie hier.</p>${room ? `<a class="btn" href="#/app/raum/${room.id}/meinraum">Zur Raumaufsicht</a>` : ""}</div>`}`;
     },
     mount(el) {
       el.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { S.view = b.dataset.view; redraw(); }));
@@ -94,13 +128,20 @@ export function overview(q) {
       if (st) st.onclick = () => { for (const p of candidates()) { const s = ALL_SUBTASKS.find((x) => stPoints(grading(p.id), x.no) === null); if (s) return navigate(`#/app/korrektur/${p.id}/${s.no}`); } const p = candidates()[0]; navigate(`#/app/korrektur/${p.id}/1.1`); };
       const rel = el.querySelector("[data-release]");
       if (rel) rel.onclick = async () => {
-        const ps = candidates();
+        const pe = me(); const ps = candidates().filter((p) => !approvalState(p, corr()).approved(pe?.id));
         const open = ps.reduce((a, p) => a + ALL_SUBTASKS.filter((s) => stPoints(grading(p.id), s.no) === null).length, 0);
-        const ok = await confirmBox("Möchten Sie alle bearbeiteten Fragen endgültig freigeben?", `${open ? `<div class="notice warn">${icon("triangle-alert")}<span>Es sind noch <b>${open}</b> Bewertungen offen. Offene Teilaufgaben werden mit 0 Punkten gewertet.</span></div>` : ""}<p>Sie sind dabei, alle bearbeiteten Fragen freizugeben. Nach der Freigabe sind keine weiteren Analysen mehr möglich, und dieser Schritt kann nicht rückgängig gemacht werden.</p>`, "Freigeben");
+        const ok = await confirmBox("Bewertungen freigeben", `${open ? `<div class="notice warn">${icon("triangle-alert")}<span>Es sind noch <b>${open}</b> Bewertungen offen. Offene Teilaufgaben werden mit 0 Punkten gewertet.</span></div>` : ""}<p>Sie geben die gemeinsame Bewertung (${esc(corrName(corr()))}) für <b>${ps.length}</b> Prüfling${ps.length === 1 ? "" : "e"} frei. Final wird sie, sobald alle Mitglieder der Korrektorengruppe freigegeben haben; bis dahin können Sie Ihre Freigabe zurückziehen.</p>`, "Freigeben");
         if (!ok) return;
-        for (const p of ps) { const g = grading(p.id); if (g) await upd("gradings", g.id, { released: true }); else await create("gradings", { participant: p.id, corrector: corr(), points: {}, not_done: {}, marks: {}, released: true }); }
-        toast("Korrektur freigegeben", `${corrName(corr())} für ${ps.length} Prüflinge freigegeben.`);
+        for (const p of ps) await setApproval(p, true);
+        toast("Freigabe erteilt", `${corrName(corr())}: ${ps.length} Prüfling${ps.length === 1 ? "" : "e"}.`);
       };
+      const wa = el.querySelector("[data-withdrawall]");
+      if (wa) wa.onclick = async () => {
+        if (!(await confirmBox("Freigaben zurückziehen", "<p>Ihre Freigaben für noch nicht finale Bewertungen werden zurückgezogen. Die Bewertungen bleiben im Entwurfsstatus.</p>", "Zurückziehen"))) return;
+        const pe = me(); for (const p of candidates()) { const a = approvalState(p, corr()); if (a.approved(pe?.id) && !a.final) await setApproval(p, false); }
+        toast("Freigaben zurückgezogen", "", "info");
+      };
+      el.querySelectorAll("[data-approve]").forEach((b) => (b.onclick = async () => { const p = byId("participants", b.dataset.approve); if (await setApproval(p, b.dataset.on === "1")) toast(b.dataset.on === "1" ? "Freigabe erteilt" : "Freigabe zurückgezogen", `${p.lastname}, ${p.firstname}`, "info"); }));
     },
   };
 }

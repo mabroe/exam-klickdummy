@@ -1,9 +1,9 @@
 // Raumaufsicht: Übersicht der Raumaufsichten und Steuerkonsole eines Raums
-import { D, byId, upd, create, log, demoApi } from "../data.js?v=8.2";
-import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=8.2";
-import { navigate, redraw, session, directHelp } from "../app.js?v=8.2";
-import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, KIND, members } from "../access.js?v=8.2";
-import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=8.2";
+import { D, byId, upd, create, log, demoApi } from "../data.js?v=8.3";
+import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=8.3";
+import { navigate, redraw, session, directHelp } from "../app.js?v=8.3";
+import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, KIND, members } from "../access.js?v=8.3";
+import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=8.3";
 
 const MR = { status: "", q: "" }; // Filter „Mein Raum“ (Großraum)
 const pending = new Set();
@@ -475,13 +475,13 @@ function tabTeilnehmende(room) {
   const page = sorted.slice((st.page - 1) * st.per, st.page * st.per);
   const th = (k, l) => `<th class="sortable" data-sort="${k}">${icon(st.sort === k ? (st.dir > 0 ? "chevron-up" : "chevron-down") : "list")} ${l}</th>`;
   return `<div class="row between wrap mb"><div class="row wrap"><button class="btn" data-addtn>${icon("plus")} Teilnehmende hinzufügen</button><div class="notice success small">${icon("circle-check")}<span>Es sind aktuell <b>${ps.length} von ${seatCount(room)} Sitzplätzen</b> im Raum belegt.</span></div></div>
-    <button class="btn" data-deltn ${st.sel.size ? "" : "disabled"}>${icon("trash-2")} Teilnehmende löschen${st.sel.size ? ` (${st.sel.size})` : ""}</button></div>
+    <div class="row wrap"><button class="btn" data-delgrp ${ps.length ? "" : "disabled"}>${icon("users")} Gruppe entfernen</button><button class="btn" data-deltn ${st.sel.size ? "" : "disabled"}>${icon("trash-2")} Ausgewählte entfernen${st.sel.size ? ` (${st.sel.size})` : ""}</button></div></div>
   ${ps.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th><input type="checkbox" data-all aria-label="Alle auswählen"></th>${th("lastname", "Name")}${th("seat", "Platz")}<th>Anwesend</th><th>Anmeldung / Verbindung</th>${th("status", "Status")}<th>Zeitgutschrift</th>${th("end", "Ende")}<th><span class="sr-only">Details</span></th></tr></thead>
   <tbody>${page.map((p) => `<tr><td><input type="checkbox" data-sel="${p.id}" ${st.sel.has(p.id) ? "checked" : ""} aria-label="${esc(p.lastname)} auswählen"></td><td><b>${esc(p.lastname)}, ${esc(p.firstname)}</b><div class="sub">${esc(p.username)}</div></td><td>${esc(p.seat)}</td>
     <td><label class="toggle"><input type="checkbox" data-present="${p.id}" ${p.present ? "checked" : ""} aria-label="Anwesenheit ${esc(p.lastname)}"><span></span></label></td>
     <td>${connChip(p)}</td>
     <td>${statusChip(p.status)}</td><td><span class="row wrap" style="gap:3px">${timeBadges(p, room) || "–"}</span></td><td class="nowrap">${fmtTime(endTime(room, p) || plannedEnd(room, p))} Uhr</td>
-    <td><button class="iconbtn" data-details="${p.id}" title="Teilnehmerdetails" aria-label="Teilnehmerdetails ${esc(p.lastname)}">${icon("arrow-right")}</button></td></tr>`).join("")}</tbody></table>${pager(ps.length, st.page, st.per, [5, 10, 25, 100])}</div>`
+    <td class="nowrap"><button class="iconbtn" data-rmtn="${p.id}" title="Aus der Raumaufsicht entfernen" aria-label="${esc(p.lastname)}, ${esc(p.firstname)} aus der Raumaufsicht entfernen">${icon("trash-2")}</button><button class="iconbtn" data-details="${p.id}" title="Teilnehmerdetails" aria-label="Teilnehmerdetails ${esc(p.lastname)}">${icon("arrow-right")}</button></td></tr>`).join("")}</tbody></table>${pager(ps.length, st.page, st.per, [5, 10, 25, 100])}</div>`
   : `<div class="tablewrap"><div class="empty">${icon("users")}<h3>Keine Einträge</h3><p>Diesem Raum sind noch keine Teilnehmenden zugeordnet.</p></div></div>`}`;
 }
 function bindTeilnehmende(el, room) {
@@ -494,13 +494,30 @@ function bindTeilnehmende(el, room) {
   el.querySelectorAll("[data-details]").forEach((b) => (b.onclick = () => detailsModal(room, byId("participants", b.dataset.details))));
   el.querySelectorAll("[data-addtn]").forEach((b) => (b.onclick = () => addParticipants(room)));
   const d = el.querySelector("[data-deltn]");
-  if (d) d.onclick = async () => {
-    const list = [...st.sel].map((id) => byId("participants", id)).filter(Boolean);
-    const ok = await confirmBox("Teilnehmende löschen", `<p>Folgende Teilnehmende werden aus der Raumaufsicht entfernt:</p><ul>${list.map((p) => `<li>${esc(p.lastname)}, ${esc(p.firstname)} (${esc(p.seat)})</li>`).join("")}</ul>${room.state !== "CREATED" ? `<div class="notice warn">${icon("triangle-alert")}<span><span>Die Prüfung wurde bereits gestartet.</span></span></div>` : ""}`, "Löschen");
-    if (!ok) return;
-    for (const p of list) { await upd("participants", p.id, { room: "", seat: "", present: false, status: "nicht_eingeloggt" }); log(room.id, p, "Teilnehmende/r aus der Raumaufsicht entfernt", "", "aktion"); }
-    st.sel.clear(); toast("Teilnehmende entfernt", `${list.length} Teilnehmende wurden entfernt.`);
-  };
+  if (d) d.onclick = () => removeParticipants(room, [...st.sel].map((id) => byId("participants", id)).filter(Boolean));
+  el.querySelectorAll("[data-rmtn]").forEach((b) => (b.onclick = () => removeParticipants(room, [byId("participants", b.dataset.rmtn)].filter(Boolean))));
+  const g = el.querySelector("[data-delgrp]"); if (g) g.onclick = () => removeGroupDialog(room);
+}
+
+// Teilnehmende einzeln, als Auswahl oder als ganze Gruppe (Klasse/Kurs) aus der Raumaufsicht entfernen
+async function removeParticipants(room, list, title = "Teilnehmende entfernen") {
+  if (!list.length) return;
+  const ok = await confirmBox(title, `<p>${list.length === 1 ? "Folgende Person wird" : `Folgende ${list.length} Teilnehmende werden`} aus der Raumaufsicht entfernt:</p><ul style="max-height:220px;overflow:auto">${list.map((p) => `<li>${esc(p.lastname)}, ${esc(p.firstname)}${p.seat ? ` (Platz ${esc(p.seat)})` : ""}</li>`).join("")}</ul>${room.state !== "CREATED" ? `<div class="notice warn">${icon("triangle-alert")}<span>Die Prüfung wurde bereits gestartet. Bisherige Eingaben bleiben erhalten; die Entfernung wird protokolliert.</span></div>` : ""}<p class="small muted">Die Personen bleiben Mitglieder des Kurses und können später wieder zugeordnet werden.</p>`, "Entfernen");
+  if (!ok) return;
+  for (const p of list) { await upd("participants", p.id, { room: "", seat: "", present: false, status: "nicht_eingeloggt" }); log(room.id, p, "Teilnehmende/r aus der Raumaufsicht entfernt", "", "aktion"); }
+  S.tn.sel.clear(); toast("Teilnehmende entfernt", `${list.length} Teilnehmende wurden aus der Raumaufsicht entfernt.`);
+}
+async function removeGroupDialog(room) {
+  const ps = inRoom(room);
+  const gs = D.groups.map((g) => ({ g, l: ps.filter((p) => p.person && (g.members || []).includes(p.person)) })).filter((x) => x.l.length).sort((a, b) => a.g.name.localeCompare(b.g.name));
+  if (!gs.length) { toast("Keine Gruppen", "Die zugeordneten Teilnehmenden gehören keiner Klasse bzw. keinem Kurs an.", "info"); return; }
+  const v = await modal({ title: "Gruppe aus der Raumaufsicht entfernen", size: "narrow",
+    body: `<p class="small">Alle Teilnehmenden der gewählten Klasse bzw. des Kurses werden aus dieser Raumaufsicht entfernt.</p>${gs.map((x, i) => `<label class="checkbox" style="display:flex;margin:8px 0"><input type="radio" name="rg" value="${x.g.id}" ${i ? "" : "checked"}> <b>${esc(x.g.name)}</b>&nbsp;<span class="muted small">${x.l.length} in diesem Raum${x.g.source === "kurs" ? " · eigene Gruppe" : ""}</span></label>`).join("")}`,
+    footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Weiter</button>`,
+    onMount: (m, close) => (m.querySelector("[data-ok]").onclick = () => close(m.querySelector("[name=rg]:checked")?.value)) });
+  if (!v) return;
+  const x = gs.find((y) => y.g.id === v);
+  await removeParticipants(room, x.l, `Gruppe „${x.g.name}“ entfernen`);
 }
 
 // ---------- Tab Aufsichtspersonen ----------
@@ -565,7 +582,7 @@ function bindAufsicht(el, room) {
   el.querySelector("[data-delsv]").onclick = async () => {
     const list = [...st.sel].map((id) => byId("supervisors", id)).filter(Boolean);
     if (!(await confirmBox("Aufsichtspersonen löschen", list.map((s) => `${esc(s.lastname)}, ${esc(s.firstname)}`).join("<br>"), "Löschen"))) return;
-    const { del } = await import("../data.js?v=8.2");
+    const { del } = await import("../data.js?v=8.3");
     for (const s of list) { await del("supervisors", s.id); log(room.id, null, `Aufsichtsperson ${s.lastname} entfernt`, "", "aktion", actor()); }
     st.sel.clear(); toast("Aufsichtspersonen entfernt");
   };
@@ -597,4 +614,4 @@ function bindProtokoll(el, room) {
     if (v !== null && v !== undefined) { await upd("protocol", r.id, { comment: v }); toast("Kommentar gespeichert"); }
   }));
 }
-function downloadProtocol(room) { import("./protocolpdf.js?v=8.2").then((m) => m.protocolPdf(room)); }
+function downloadProtocol(room) { import("./protocolpdf.js?v=8.3").then((m) => m.protocolPdf(room)); }

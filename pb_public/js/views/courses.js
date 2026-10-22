@@ -2,10 +2,10 @@
 //  - Unterricht (Lehrkraft): Teilnehmende (Personen, vorhandene Gruppen, eigene Gruppen) und weitere Lehrkräfte (Mitbetreuung)
 //  - Prüfung (Schuladministration): Teilnehmende, Raumaufsichten, Korrektor:innen (Erst/Zweit/Dritt), Prüfungseinsicht –
 //    jeweils nur für Personen der eigenen Organisation
-import { D, byId, upd, create, del, log } from "../data.js?v=8.2";
-import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=8.2";
-import { navigate, redraw } from "../app.js?v=8.2";
-import { lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=8.2";
+import { D, byId, upd, create, del, log } from "../data.js?v=8.3";
+import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=8.3";
+import { navigate, redraw } from "../app.js?v=8.3";
+import { assignments, approvalStateFor, lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=8.3";
 
 const ROOM_STATE = { CREATED: ["In Vorbereitung", "gray"], RUNNING: ["Prüfung läuft", "cyan"], PAUSED: ["Prüfung pausiert", "yellowb"], TERMINATED: ["Prüfung beendet", "green"] };
 const UI = { q: "", addQ: "" };
@@ -41,8 +41,8 @@ export function detail(id, tab) {
       const c = byId("courses", id); const p = me();
       if (!c) return `<div class="empty">Kurs nicht gefunden. <a href="#/app/kurse">Zur Übersicht</a></div>`;
       if (!canManageCourse(c, p)) return `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Dieser Kurs gehört nicht zu Ihrem Konto bzw. Ihrer Organisation.</p><a class="btn" href="#/app/kurse">Zur Übersicht</a></div>`;
-      const tabs = [["mitglieder", "Mitglieder und Gruppen"], ["raumaufsichten", "Raumaufsichten"], ["info", "Kursinformationen"]];
-      const body = tab === "raumaufsichten" ? tabRooms(c, p) : tab === "info" ? tabInfo(c) : c.kind === "pruefung" ? tabMembersExam(c, p) : tabMembersLesson(c, p);
+      const tabs = [["mitglieder", "Mitglieder und Gruppen"], ...(c.kind === "pruefung" ? [["korrektoren", "Korrektoren"]] : []), ["raumaufsichten", "Raumaufsichten"], ["info", "Kursinformationen"]];
+      const body = tab === "raumaufsichten" ? tabRooms(c, p) : tab === "info" ? tabInfo(c) : tab === "korrektoren" && c.kind === "pruefung" ? tabCorrectors(c, p) : c.kind === "pruefung" ? tabMembersExam(c, p) : tabMembersLesson(c, p);
       return `<div class="breadcrumb"><a href="#/app/kurse">${p.kind === "schuladmin" ? "Prüfungen" : "Mein Unterricht"}</a>${icon("chevron-right")}<b>${esc(c.title)}</b></div>
       <div class="pagehead"><div><h1>${esc(c.title)}</h1><div class="row mt-s small"><span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span><span>${c.kind === "pruefung" ? "Beteiligte Schulen: " + (c.orgs || []).map((o) => esc(orgShort(o))).join(", ") : "Besitzer: " + esc(personName(byId("persons", c.owner)))}</span></div></div>
         <div class="actions-bar">${c.catalog ? `<a class="btn" href="#/app/vorschau/${c.catalog}/dashboard">${icon("eye")} Vorschau</a>` : ""}<button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button></div></div>
@@ -50,13 +50,17 @@ export function detail(id, tab) {
     },
     mount(el) {
       const c = byId("courses", id); if (!c || !canManageCourse(c)) return;
-      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=8.2").then((m) => m.newRoomDialog(c.id))));
+      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=8.3").then((m) => m.newRoomDialog(c.id))));
       el.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => addPersons(c, b.dataset.add, b.dataset.stage)));
       el.querySelectorAll("[data-addgroup]").forEach((b) => (b.onclick = () => addGroup(c, b.dataset.addgroup)));
       const ng = el.querySelector("[data-owngroup]"); if (ng) ng.onclick = () => ownGroup(c);
       el.querySelectorAll("[data-rmm]").forEach((b) => (b.onclick = () => removeMember(c, b.dataset.rmm, b.dataset.role)));
       el.querySelectorAll("[data-rmg]").forEach((b) => (b.onclick = () => removeGroup(c, b.dataset.rmg)));
       el.querySelectorAll("[data-stage]").forEach((s) => s.tagName === "SELECT" && (s.onchange = () => setStage(c, s.dataset.pid, +s.value)));
+      el.querySelectorAll("[data-assign]").forEach((b) => (b.onclick = () => assignDialog(c, +b.dataset.assign, b.dataset.edit || "")));
+      el.querySelectorAll("[data-unassign]").forEach((b) => (b.onclick = () => unassign(c, b.dataset.unassign)));
+      const ke = el.querySelector("[data-korrend]"); if (ke) ke.onchange = async () => { await upd("courses", c.id, { korr_end: ke.value }); toast("Korrekturzeitraum gespeichert", ke.value ? "Ende: " + ke.value.split("-").reverse().join(".") : "ohne Ende"); };
+      const dk = el.querySelector("[data-dkth]"); if (dk) dk.onchange = async () => { await upd("courses", c.id, { dk_threshold: +dk.value }); toast("Schwelle gespeichert", `Drittkorrektur wird ab ${dk.value.replace(".", ",")} Notenstufen Abweichung empfohlen.`); };
       el.querySelectorAll("[data-gopen]").forEach((b) => (b.onclick = () => { UI["g" + b.dataset.gopen] = !UI["g" + b.dataset.gopen]; redraw(); }));
     },
   };
@@ -96,7 +100,7 @@ function tabMembersExam(c, p) {
   return `<div class="notice info small mb">${icon("info")}<span>Prüfungsebene (Task 52 / 24): Sie ordnen Personen Ihrer Schule <b>${esc(orgName(p.org))}</b> zu. ${hidden ? `${hidden} Mitglieder anderer Schulen sind ausgeblendet.` : ""}</span></div>
   ${sec("teilnehmer", "graduation-cap", "Teilnehmende", "Teilnehmende hinzufügen")}
   ${sec("raumaufsicht", "monitor", "Raumaufsichten", "Raumaufsicht hinzufügen")}
-  ${sec("korrektor", "file-pen-line", "Korrektor:innen", "Korrektor:in hinzufügen", { head: "Korrekturrolle", cell: (m) => `<select class="select" style="width:auto;min-height:30px;padding:2px 8px" data-stage data-pid="${m.person}" aria-label="Korrekturrolle">${[1, 2, 3].map((s) => `<option value="${s}" ${+m.stage === s ? "selected" : ""}>${STAGE_LABEL[s]}</option>`).join("")}</select>` })}
+  <div class="card pad mt"><div class="row between wrap"><h3>${icon("file-pen-line")} Korrektor:innen</h3><a class="btn sm" href="#/app/kurs/${c.id}/korrektoren">${icon("arrow-right")} Zu den Korrektoren</a></div><p class="small muted" style="margin:0">Korrektorengruppen werden je Korrekturstufe (Erst-, Zweitkorrektur, Endbeurteilung) für Klassen/Kurse oder einzelne Prüflinge im Reiter „Korrektoren“ zugewiesen.</p></div>
   ${sec("pruefungseinsicht", "eye", "Prüfungseinsicht", "Person hinzufügen")}`;
 }
 function tabRooms(c, p) {
@@ -111,6 +115,70 @@ function tabInfo(c) {
     <div class="kv">${icon("copy")}<div><div class="small">Grundlage</div><span class="v">${esc(k?.title || "Prüfung der Koordinierungsstelle")}</span></div></div>
     <div class="kv">${icon("building-2")}<div><div class="small">Organisation(en)</div><span class="v">${c.kind === "pruefung" ? (c.orgs || []).map((o) => esc(orgName(o))).join(", ") : esc(orgName(c.org))}</span></div></div>
     <div class="kv">${icon("info")}<div><div class="small">Beschreibung</div><span class="v">${esc(c.description || k?.description || "–")}</span></div></div></div>`;
+}
+
+// ---------- Korrektoren (Prüfung): Korrektorengruppen je Korrekturstufe ----------
+const STAGE_TXT = { 1: "Erstkorrektur", 2: "Zweitkorrektur", 3: "Endbeurteilung (Drittkorrektur)" };
+const targetLabel = (a) => a.kind === "group" ? `${icon("users")} Klasse/Kurs <b>${esc(byId("groups", a.target)?.name || "–")}</b>` : `${icon("user")} ${esc(personName(byId("persons", a.target)))}`;
+function tabCorrectors(c, p) {
+  const own = assignments(c).filter((a) => !a.org || a.org === p.org);
+  const ps = D.participants.filter((x) => byId("rooms", x.room)?.course === c.id && byId("rooms", x.room)?.org === p.org);
+  return `<div class="notice info small mb">${icon("info")}<span>Je Korrekturstufe können <b>mehrere Korrektor:innen als Gruppe</b> zugewiesen werden – für eine Klasse/einen Kurs oder für einzelne Prüflinge (Einzelzuweisung hat Vorrang). Alle Mitglieder sehen die gesamte Leistung, teilen die Korrektur eigenständig auf und erfassen <b>eine gemeinsame Bewertung</b>; sie ist final, wenn alle freigegeben haben. Gruppen gelten nur für diese Prüfung.</span></div>
+  <div class="card pad row wrap" style="gap:24px;align-items:flex-end">
+    <div class="field" style="margin:0"><label class="lbl" for="korrend">Ende des Korrekturzeitraums</label><input id="korrend" class="input" type="date" data-korrend value="${esc(c.korr_end || "")}"><p class="xs muted" style="margin:4px 0 0">Bis dahin können Freigaben zurückgezogen werden.</p></div>
+    <div class="field" style="margin:0"><label class="lbl" for="dkth">Drittkorrektur empfehlen ab Notenabweichung</label><select id="dkth" class="select" data-dkth>${[0.5, 1, 1.5, 2].map((v) => `<option value="${v}" ${(+c.dk_threshold || 1) === v ? "selected" : ""}>${v.toFixed(1).replace(".", ",")} Notenstufen</option>`).join("")}</select><p class="xs muted" style="margin:4px 0 0">Ob eine Endbeurteilung erfolgt, entscheiden Sie in den Ergebnissen.</p></div></div>
+  ${[1, 2, 3].map((st) => { const l = own.filter((a) => +a.stage === st); return `<div class="card pad mt"><div class="row between wrap"><h3>${icon("file-pen-line")} ${STAGE_TXT[st]}</h3><button class="btn sm" data-assign="${st}">${icon("user-round-plus")} Korrektorengruppe zuweisen</button></div>
+    ${st === 3 ? `<p class="xs muted">Die Endbeurteilung wird nur für Prüflinge wirksam, für die Sie nach Erst- und Zweitkorrektur eine Drittkorrektur anfordern (Ergebnisse).</p>` : ""}
+    ${l.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Zuweisung für</th><th>Korrektorengruppe</th><th class="num">Prüflinge</th><th>Freigabestand</th><th></th></tr></thead><tbody>${l.map((a) => {
+      const affected = ps.filter((x) => approvalStateFor(c, x, st).assignment?.id === a.id);
+      const fin = affected.filter((x) => approvalStateFor(c, x, st).final).length;
+      return `<tr><td>${targetLabel(a)}</td><td>${(a.correctors || []).map((id) => esc(personName(byId("persons", id)))).join("<br>") || "–"}</td><td class="num">${affected.length}</td><td class="small">${affected.length ? `${fin} von ${affected.length} final` : "–"}</td>
+      <td class="row" style="gap:4px;justify-content:flex-end"><button class="iconbtn" data-assign="${st}" data-edit="${a.id}" title="Bearbeiten" aria-label="Zuweisung bearbeiten">${icon("pencil")}</button><button class="iconbtn" data-unassign="${a.id}" title="Entfernen" aria-label="Zuweisung entfernen">${icon("trash-2")}</button></td></tr>`; }).join("")}</tbody></table></div>` : `<p class="small muted">Noch keine Korrektorengruppe zugewiesen.</p>`}</div>`; }).join("")}`;
+}
+async function assignDialog(c, stage, editId) {
+  const p = me(); const ex = assignments(c).find((a) => a.id === editId);
+  const ms = members(c).filter((m) => m.role === "teilnehmer" && byId("persons", m.person)?.org === p.org);
+  const groups = (c.groups || []).filter((g) => g.role === "teilnehmer").map((g) => byId("groups", g.group)).filter((g) => g && g.org === p.org);
+  const pupils = [...new Set(ms.map((m) => m.person))].map((id) => byId("persons", id)).filter(Boolean).sort((a, b) => a.lastname.localeCompare(b.lastname));
+  const teachers = D.persons.filter((x) => x.org === p.org && x.kind === "lehrkraft").sort((a, b) => a.lastname.localeCompare(b.lastname));
+  const v0 = { kind: ex?.kind || "group", target: ex?.target || groups[0]?.id || "", correctors: new Set(ex?.correctors || []) };
+  const res = await modal({ title: `${STAGE_TXT[stage]}: Korrektorengruppe ${ex ? "bearbeiten" : "zuweisen"}`, size: "wide",
+    body: `<div class="nrgrid"><div>
+      <fieldset class="field" style="border:0;padding:0;margin:0 0 10px"><legend class="lbl">Zuweisung für</legend>
+        <label class="checkbox" style="display:flex;margin:6px 0"><input type="radio" name="ak" value="group" ${v0.kind === "group" ? "checked" : ""} ${ex ? "disabled" : ""}> Klasse/Kurs (alle zugehörigen Prüflinge)</label>
+        <label class="checkbox" style="display:flex;margin:6px 0"><input type="radio" name="ak" value="person" ${v0.kind === "person" ? "checked" : ""} ${ex ? "disabled" : ""}> Einzelne Prüflinge</label></fieldset>
+      <div data-tg>${groups.length ? `<select class="select" data-g ${ex ? "disabled" : ""} aria-label="Klasse oder Kurs">${groups.map((g) => `<option value="${g.id}" ${g.id === v0.target ? "selected" : ""}>${esc(g.name)} (${(g.members || []).length})</option>`).join("")}</select>` : `<p class="small muted">Dieser Prüfung ist noch keine Klasse Ihrer Schule zugeordnet.</p>`}</div>
+      <div data-tp hidden><div class="tablewrap" style="max-height:260px"><table class="tbl compact"><tbody>${pupils.map((x) => `<tr><td><label class="checkbox"><input type="checkbox" data-pp="${x.id}" ${ex && ex.target === x.id ? "checked" : ""} ${ex ? "disabled" : ""}> ${esc(personName(x))}</label></td></tr>`).join("")}</tbody></table></div></div></div>
+      <div><span class="lbl">Korrektor:innen (Mehrfachauswahl)</span><div class="search mt-s"><input class="input" data-s placeholder="Lehrkraft suchen" aria-label="Lehrkraft suchen">${icon("search")}</div>
+      <div class="tablewrap mt-s" style="max-height:300px"><table class="tbl compact"><tbody>${teachers.map((t) => `<tr data-row="${esc(personName(t).toLowerCase())}"><td><label class="checkbox"><input type="checkbox" data-k="${t.id}" ${v0.correctors.has(t.id) ? "checked" : ""}> ${esc(personName(t))}</label></td><td class="xs muted">${esc(t.short || "")}</td></tr>`).join("")}</tbody></table></div>
+      <p class="xs muted">Dieselben Personen dürfen auch in der Gruppe einer anderen Korrekturstufe sein.</p></div></div>`,
+    footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Speichern</button>`,
+    onMount(m, close) {
+      const sync = () => { const k = m.querySelector("[name=ak]:checked").value; m.querySelector("[data-tg]").hidden = k !== "group"; m.querySelector("[data-tp]").hidden = k !== "person"; };
+      m.querySelectorAll("[name=ak]").forEach((r) => (r.onchange = sync)); sync();
+      const s = m.querySelector("[data-s]"); s.oninput = () => m.querySelectorAll("[data-row]").forEach((r) => (r.style.display = r.dataset.row.includes(s.value.toLowerCase()) ? "" : "none"));
+      m.querySelector("[data-ok]").onclick = () => {
+        const kind = m.querySelector("[name=ak]:checked").value;
+        const targets = ex ? [ex.target] : kind === "group" ? [m.querySelector("[data-g]")?.value].filter(Boolean) : [...m.querySelectorAll("[data-pp]:checked")].map((x) => x.dataset.pp);
+        const ks = [...m.querySelectorAll("[data-k]:checked")].map((x) => x.dataset.k);
+        if (!targets.length) return toast("Bitte Klasse oder Prüflinge auswählen", "", "error");
+        if (!ks.length) return toast("Bitte mindestens eine Korrektorin bzw. einen Korrektor auswählen", "", "error");
+        close({ kind: ex?.kind || kind, targets, ks });
+      };
+    } });
+  if (!res) return;
+  let list = assignments(c).slice();
+  for (const t of res.targets) {
+    list = list.filter((a) => !(+a.stage === stage && a.kind === res.kind && a.target === t));
+    list.push({ id: ex && ex.target === t ? ex.id : Math.random().toString(36).slice(2, 12), stage, kind: res.kind, target: t, correctors: res.ks, org: p.org });
+  }
+  await upd("courses", c.id, { corrections: list });
+  toast("Korrektorengruppe gespeichert", `${STAGE_TXT[stage]}: ${res.ks.map((id) => byId("persons", id)?.lastname).join(", ")}`);
+}
+async function unassign(c, id) {
+  const a = assignments(c).find((x) => x.id === id); if (!a) return;
+  if (!(await confirmBox("Zuweisung entfernen", `<p>Die Korrektorengruppe der ${esc(STAGE_TXT[a.stage])} für ${a.kind === "group" ? "die Klasse/den Kurs" : "den Prüfling"} wird entfernt. Bereits erfasste Bewertungen bleiben erhalten.</p>`, "Entfernen"))) return;
+  await upd("courses", c.id, { corrections: assignments(c).filter((x) => x.id !== id) });
 }
 
 // ---------- Änderungen ----------

@@ -2,10 +2,10 @@
 //  - Unterricht: Lehrkraft (Tasks 31–36, 34 als Schüler:in)
 //  - Prüfung: Schuladministration (Tasks 52, 24, 21), Raumaufsicht (Task 22/23)
 // Der Fortschritt wird aus den Daten erkannt; der Leitfaden kann jederzeit ein- und ausgeklappt werden.
-import { D, byId, onChange } from "./data.js?v=8.2";
-import { icon, esc, store, toast } from "./ui.js?v=8.2";
-import { members, personName } from "./access.js?v=8.2";
-import { navigate, render } from "./app.js?v=8.2";
+import { D, byId, onChange } from "./data.js?v=8.3";
+import { icon, esc, store, toast } from "./ui.js?v=8.3";
+import { members, personName } from "./access.js?v=8.3";
+import { navigate, render } from "./app.js?v=8.3";
 
 const KEY = "guide";
 const st = () => store.lget(KEY, null);
@@ -53,7 +53,7 @@ function exam(s) {
   const c = byId("courses", s.base.course) || D.courses.find((x) => x.title === "FA230 - Musterprüfung");
   const own = c ? members(c).filter((m) => byId("persons", m.person)?.org === K?.org) : [];
   const cnt = (role) => new Set(own.filter((m) => m.role === role).map((m) => m.person)).size;
-  const korr = JSON.stringify((c?.members || []).filter((m) => m.role === "korrektor"));
+  const korr = JSON.stringify(c?.corrections || []);
   const room = D.rooms.filter((r) => r.course === c?.id && !s.base.rooms.includes(r.id)).sort((a, b) => (a.created > b.created ? -1 : 1))[0];
   const sup = room && D.supervisors.find((x) => x.room === room.id && x.person);
   const supP = sup && byId("persons", sup.person);
@@ -61,13 +61,14 @@ function exam(s) {
   return [
     { t: 52, title: "Prüfung öffnen, Teilnehmende zuordnen", text: "Als Schuladmin Marit Hinrichs (AFS) unter „Prüfungen“ die „FA230 - Musterprüfung“ öffnen und Teilnehmende hinzufügen – einzeln oder als Klasse (z. B. WG12a). Sie sehen und bearbeiten nur Personen Ihrer Schule.", as: ad, go: c && `#/app/kurs/${c.id}/mitglieder`, done: cnt("teilnehmer") > s.base.tn },
     { t: 52, title: "Raumaufsicht (Person) zuordnen", text: "„Raumaufsicht hinzufügen“, z. B. Ilyas Morawetz.", as: ad, go: c && `#/app/kurs/${c.id}/mitglieder`, done: cnt("raumaufsicht") > s.base.ra },
-    { t: 24, title: "Korrektor:innen festlegen", text: "Korrektor:in hinzufügen oder Korrekturrolle ändern (Erst-, Zweit-, Drittkorrektur).", as: ad, go: c && `#/app/kurs/${c.id}/mitglieder`, done: korr !== s.base.korr },
+    { t: 24, title: "Korrektorengruppen zuweisen", text: "Reiter „Korrektoren“: je Korrekturstufe eine Korrektorengruppe (mehrere Personen) für eine Klasse oder einzelne Prüflinge zuweisen oder eine bestehende Gruppe bearbeiten.", as: ad, go: c && `#/app/kurs/${c.id}/korrektoren`, done: korr !== s.base.korr },
     { t: 21, title: "Raumaufsicht erstellen", text: "Reiter „Raumaufsichten“ › „Raumaufsicht erstellen“ und einen freien Raum der Schule wählen (z. B. Raum 305). Räume, die im selben Zeitraum bereits belegt sind (z. B. Raum 123 heute), sind gesperrt – so werden Doppelbelegungen verhindert.", as: ad, go: c && `#/app/kurs/${c.id}/raumaufsichten`, done: !!room },
     { t: 21, title: "Aufsichtspersonen zuordnen", text: "Im Reiter „Aufsichtspersonen“ die zugeordneten Raumaufsichten Ihrer Schule eintragen und Zeiträume festlegen.", as: ad, go: room && `#/app/raum/${room.id}/aufsicht`, done: !!sup },
     { t: 21, title: "Teilnehmende der Raumaufsicht zuordnen", text: "Im Reiter „Teilnehmende“ die Teilnehmenden der Prüfung Ihrer Schule zuordnen.", as: ad, go: room && `#/app/raum/${room.id}/teilnehmende`, done: !!room && D.participants.some((p) => p.room === room.id) },
     { t: "–", title: "Sichtbarkeit prüfen", text: `Als Schuladmin der anderen Schule (Ilka Ammermann, BTS) anmelden: Diese Raumaufsicht ist nicht sichtbar. ${supP ? `Als ${esc(personName(supP))} (Raumaufsicht) sehen Sie nur Ihre Raumaufsichten.` : ""}`, manual: true, as: asPerson("i.ammermann", "schuladmin"), go: "#/app/raumaufsicht", done: !!s.manual?.vis },
     { t: 22, title: "Raumaufsicht durchführen", text: `Als zugeordnete Raumaufsicht${supP ? " " + esc(personName(supP)) : ""} anmelden, Anwesenheit setzen und die Prüfung starten.`, as: supP ? { person: supP.id, role: "aufsicht" } : ad, go: room && `#/app/raum/${room.id}/meinraum`, done: !!room && room.state !== "CREATED" },
     { t: 23, title: "Prüfung beenden, Protokoll herunterladen", text: "Einsammeln und beenden; danach im Reiter „Prüfungsprotokoll“ das PDF herunterladen.", as: supP ? { person: supP.id, role: "aufsicht" } : ad, go: room && `#/app/raum/${room.id}/protokoll`, done: room?.state === "TERMINATED" },
+    { t: 28, title: "Ergebnisse prüfen, Drittkorrektur entscheiden", text: "Als Schuladmin unter „Ergebnisse“ die Punkte und Noten von Erst-, Zweitkorrektur und Endbeurteilung einsehen. Bei größerer Abweichung ist eine Drittkorrektur empfohlen – Sie entscheiden und fordern sie an. (optional)", optional: true, as: ad, go: "#/app/ergebnisse", done: !!c && Object.values(c.third || {}).some((x) => x.requested) },
   ];
 }
 
@@ -89,7 +90,7 @@ export function start(kind, fresh = false) {
   if (kind === "pruefung") {
     const c = D.courses.find((x) => x.title === "FA230 - Musterprüfung"); const K = P("m.hinrichs");
     const own = members(c).filter((m) => byId("persons", m.person)?.org === K?.org);
-    Object.assign(base, { course: c?.id, tn: new Set(own.filter((m) => m.role === "teilnehmer").map((m) => m.person)).size, ra: new Set(own.filter((m) => m.role === "raumaufsicht").map((m) => m.person)).size, korr: JSON.stringify((c?.members || []).filter((m) => m.role === "korrektor")) });
+    Object.assign(base, { course: c?.id, tn: new Set(own.filter((m) => m.role === "teilnehmer").map((m) => m.person)).size, ra: new Set(own.filter((m) => m.role === "raumaufsicht").map((m) => m.person)).size, korr: JSON.stringify(c?.corrections || []) });
   }
   save({ kind, base, manual: {}, open: true });
   const first = steps(st())[0];

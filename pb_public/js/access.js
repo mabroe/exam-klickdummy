@@ -3,8 +3,8 @@
 //    Besitzer/Mitbetreuung des Unterrichtskurses
 //  - Raumaufsicht (Prüfungsebene): sieht nur Raumaufsichten, in denen sie als Aufsichtsperson eingetragen ist
 //  - Schuladministration (Prüfungsebene): sieht die Prüfungs-Raumaufsichten ihrer Organisation
-import { D, byId } from "./data.js?v=8.2";
-import { store } from "./ui.js?v=8.2";
+import { D, byId } from "./data.js?v=8.3";
+import { store } from "./ui.js?v=8.3";
 
 export const me = () => byId("persons", store.get("person"));
 export const orgOf = (p) => byId("orgs", p?.org);
@@ -67,9 +67,44 @@ export function roomCandidates(room, kind, p = me()) {
 // Unterricht: genau eine korrigierende Lehrkraft (Standard: Besitzer); sie kann die Korrektur an eine andere Lehrkraft des Kurses weitergeben
 export const lessonCorrector = (c) => (c?.corrector && isTeacherOf(c, c.corrector) ? c.corrector : c?.owner || "");
 export const lessonTeachers = (c) => [...new Set(members(c).filter((m) => ["besitzer", "mitbetreuung"].includes(m.role)).map((m) => m.person).concat(c?.owner ? [c.owner] : []))].map((id) => byId("persons", id)).filter(Boolean);
-// Korrekturberechtigung: Prüfung → Korrektor:in mit Stufe, Unterricht → die korrigierende Lehrkraft des Kurses (eine Korrektur)
-export function correctorStage(c, pid) {
-  if (!c) return 0;
-  if (c.kind === "unterricht") return lessonCorrector(c) === pid ? 1 : 0;
-  return rolesIn(c, pid).filter((m) => m.role === "korrektor").map((m) => +m.stage || 1)[0] || 0;
+// ---------- Korrektur (Prüfung): Korrektorengruppen je Korrekturstufe ----------
+// course.corrections = [{ id, stage: 1|2|3, kind: "group"|"person", target: Gruppen- bzw. Personen-ID, correctors: [Personen-IDs], org }]
+//  - Zuweisung für eine Prüflingsgruppe (Klasse/Kurs) oder einzelne Prüflinge; Einzelzuweisung hat Vorrang
+//  - alle Mitglieder einer Korrektorengruppe sehen die gesamte Leistung und erfassen gemeinsam eine Bewertung je Stufe
+//  - Endbeurteilung (Stufe 3) wirkt nur, wenn die Schuladministration sie für den Prüfling angefordert hat (course.third)
+export const assignments = (c) => (c?.corrections || []).filter((a) => a && a.stage);
+export const courseOfParticipant = (p) => courseOf(byId("rooms", p?.room));
+export function assignmentFor(c, p, stage) {
+  if (!c || !p) return null;
+  const l = assignments(c).filter((a) => +a.stage === +stage);
+  return l.find((a) => a.kind === "person" && a.target === p.person) || l.find((a) => a.kind === "group" && (byId("groups", a.target)?.members || []).includes(p.person)) || null;
+}
+export const thirdRequested = (c, p) => !!(c?.third || {})[p?.id]?.requested;
+export function correctorsFor(c, p, stage) {
+  if (!c) return [];
+  if (c.kind === "unterricht") return +stage === 1 && lessonCorrector(c) ? [lessonCorrector(c)] : [];
+  return assignmentFor(c, p, stage)?.correctors || [];
+}
+export function canCorrect(c, p, stage, pid) {
+  if (!c || !pid) return false;
+  if (c.kind === "pruefung" && +stage === 3 && !thirdRequested(c, p)) return false;
+  return correctorsFor(c, p, stage).includes(pid);
+}
+// Stufen, in denen eine Person in einem Kurs korrigiert
+export function correctorStages(c, pid) {
+  if (!c) return [];
+  if (c.kind === "unterricht") return lessonCorrector(c) === pid ? [1] : [];
+  return [...new Set(assignments(c).filter((a) => (a.correctors || []).includes(pid)).map((a) => +a.stage))].sort();
+}
+// Kompatibilität: niedrigste Stufe der Person im Kurs (0 = keine)
+export const correctorStage = (c, pid) => correctorStages(c, pid)[0] || 0;
+// Korrekturzeitraum (Freigaben können nur bis zum Ende zurückgezogen werden)
+export const correctionOver = (c) => { if (!c?.korr_end) return false; const d = new Date(c.korr_end + "T23:59:59"); return Date.now() > d.getTime(); };
+// Freigabestand der gemeinsamen Bewertung eines Prüflings in einer Stufe
+export function approvalStateFor(c, p, stage) {
+  const assignment = c?.kind === "pruefung" ? assignmentFor(c, p, stage) : null;
+  const group = correctorsFor(c, p, stage);
+  const g = D.gradings.find((x) => x.participant === p.id && +x.corrector === +stage);
+  const ok = (g?.approvals || []).filter((x) => group.includes(x));
+  return { assignment, group, n: ok.length, of: group.length, final: group.length > 0 && ok.length === group.length };
 }

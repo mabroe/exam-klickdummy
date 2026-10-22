@@ -1,9 +1,9 @@
 // Lehrkraft / Schuladministration: Meine Aufgaben, Katalog, Kursdetails, Meine Prüfungen, Demo-Verwaltung
-import { D, byId, upd, create, resetDemo, demoApi } from "../data.js?v=8.2";
-import { icon, esc, modal, toast, popMenu, parseDate, mmss, pager, bindPager, ddHtml, bindDd, statusChip, toPb, isActive } from "../ui.js?v=8.2";
-import { simulateOffline } from "./proctor.js?v=8.2";
-import { navigate, redraw, render } from "../app.js?v=8.2";
-import { me, visibleCourses, visibleRooms } from "../access.js?v=8.2";
+import { D, byId, upd, create, resetDemo, demoApi } from "../data.js?v=8.3";
+import { icon, esc, modal, toast, popMenu, parseDate, mmss, pager, bindPager, ddHtml, bindDd, statusChip, toPb, isActive } from "../ui.js?v=8.3";
+import { simulateOffline } from "./proctor.js?v=8.3";
+import { navigate, redraw, render } from "../app.js?v=8.3";
+import { me, visibleCourses, visibleRooms } from "../access.js?v=8.3";
 
 const S = { tab: "active", sort: "new", q: "", open: {}, cat: { q: "", applied: "", tab: "Alle", beruf: [], fach: [], jahr: [], page: 1, per: 6 } };
 let timer = null;
@@ -108,7 +108,7 @@ export function catalog() {
   };
 }
 // Kopieren aus dem Katalog: Unterrichtsebene (Lehrkraft) – legt einen eigenen Kurs mit Mitgliederverwaltung an
-export async function copyCourse(c) { if (!c) return; const m = await import("./courses.js?v=8.2"); return m.copyToLesson(c); }
+export async function copyCourse(c) { if (!c) return; const m = await import("./courses.js?v=8.3"); return m.copyToLesson(c); }
 export function course(id) {
   const c = byId("catalog", id);
   if (!c) return { redirect: "#/app/katalog" };
@@ -171,7 +171,7 @@ export function admin() {
       el.querySelector("[data-sim]").onclick = async () => { const room = D.rooms.find((r) => r.name === "Raum 123"); const r = await demoApi.simulateLogin(room.id); toast("Simulation", `${r.count} Teilnehmende angemeldet.`, "info"); };
       const room = D.rooms.find((r) => r.name === "Raum 123");
       const off = el.querySelector("[data-off]"); if (off) off.onclick = () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-offp]").value); if (p) simulateOffline(room, p); };
-      el.querySelectorAll("[data-nta]").forEach((b) => (b.onclick = async () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-ntap]").value); await upd("participants", p.id, { nta: +b.dataset.nta }); const { log } = await import("../data.js?v=8.2"); log(p.room, p, "Nachteilsausgleich geändert", `${b.dataset.nta} Min.`, "aktion"); toast("Nachteilsausgleich gesetzt", `${p.lastname}: ${b.dataset.nta} Min.`); }));
+      el.querySelectorAll("[data-nta]").forEach((b) => (b.onclick = async () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-ntap]").value); await upd("participants", p.id, { nta: +b.dataset.nta }); const { log } = await import("../data.js?v=8.3"); log(p.room, p, "Nachteilsausgleich geändert", `${b.dataset.nta} Min.`, "aktion"); toast("Nachteilsausgleich gesetzt", `${p.lastname}: ${b.dataset.nta} Min.`); }));
       const end = el.querySelector("[data-ending]"); if (end) end.onclick = async () => {
         const start = new Date(Date.now() - ((room.duration_min || 90) + (room.global_extra || 0) - 2) * 60000);
         await upd("rooms", room.id, { state: "RUNNING", started_at: toPb(start), paused_total_s: 0, paused_at: "" });
