@@ -1,0 +1,7 @@
+pocketbase
+pocketbase.exe
+pocketbase.zip
+pb_data/
+pb_tmp/
+.DS_Store
+Thumbs.db

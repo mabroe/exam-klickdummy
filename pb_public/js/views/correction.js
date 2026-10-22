@@ -1,0 +1,144 @@
+// Korrekturworkflow: Korrekturübersicht, Korrekturmodus, Vergleich, Erwartungshorizont
+import { D, byId, upd, create, setting, setSetting } from "../data.js?v=8.1";
+import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=8.1";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.1";
+import { navigate, redraw, session } from "../app.js?v=8.1";
+import { me, courseOf, correctorStage } from "../access.js?v=8.1";
+export { mode } from "./kmode.js?v=8.1";
+
+const S = { view: "aufgaben", collapsed: {} };
+export const corr = () => +session.corrector || 1;
+export const corrName = (c) => CORRECTORS[c]?.label || "Korrektur";
+
+// Teilnehmende mit Abgaben (Korrekturgegenstand)
+// Zu korrigierende Arbeiten: nur aus Kursen, in denen das Konto korrigieren darf (Prüfung: Korrektor:in, Unterricht: Lehrkraft des Kurses)
+export function candidates() {
+  const withSubs = new Set(D.items.filter((i) => i.submission && i.participant).map((i) => i.participant));
+  const pe = me();
+  return D.participants.filter((p) => withSubs.has(p.id) && (!pe || correctorStage(courseOf(byId("rooms", p.room)), pe.id) > 0)).sort((a, b) => a.lastname.localeCompare(b.lastname));
+}
+export const grading = (pid, c = corr()) => D.gradings.find((g) => g.participant === pid && g.corrector === c);
+export function stPoints(g, st) {
+  if (!g) return null;
+  if (g.not_done?.[st]) return 0;
+  const p = g.points?.[st]; if (!p) return null;
+  return p.reduce((a, b) => a + (+b || 0), 0);
+}
+export const fmtP = (v) => (v === null || v === undefined ? "–" : String(Math.round(v * 10) / 10).replace(".", ","));
+const grade = (pts) => { const pct = (pts / TOTAL_POINTS) * 100; return pct >= 92 ? 1 : pct >= 81 ? 2 : pct >= 67 ? 3 : pct >= 50 ? 4 : pct >= 30 ? 5 : 6; };
+export async function saveGrading(pid, patch) {
+  const g = grading(pid);
+  if (g) return upd("gradings", g.id, patch);
+  return create("gradings", { participant: pid, corrector: corr(), points: {}, not_done: {}, marks: {}, released: false, ...patch });
+}
+
+// ---------- Übersicht ----------
+export function overview(q) {
+  if (q.k) session && (sessionStorage.setItem("cbw.corrector", q.k));
+  return {
+    shell: "staff", rail: "ergebnisse", title: "Korrekturübersicht",
+    render() {
+      const ps = candidates();
+      const c = corr();
+      const released = ps.length && ps.every((p) => grading(p.id)?.released);
+      const total = (p) => ALL_SUBTASKS.reduce((a, s) => a + (stPoints(grading(p.id), s.no) || 0), 0);
+      const openCnt = ps.reduce((a, p) => a + ALL_SUBTASKS.filter((s) => stPoints(grading(p.id), s.no) === null).length, 0);
+      let table;
+      if (S.view === "aufgaben") {
+        const head = EXAM.tasks.map((t) => S.collapsed[t.no] ? `<th class="sum grp" data-grp="${t.no}" title="Aufklappen">Summe A${t.no} ${icon("chevron-right")}</th>` : t.subtasks.map((s) => `<th title="${esc(s.title)}">${s.no}</th>`).join("") + `<th class="sum grp" data-grp="${t.no}" title="Zuklappen">${icon("chevron-left")} Summe A${t.no}</th>`).join("");
+        const maxRow = EXAM.tasks.map((t) => (S.collapsed[t.no] ? "" : t.subtasks.map((s) => `<td>${s.points}</td>`).join("")) + `<td class="sum">${t.points}</td>`).join("");
+        const other = c === 1 ? 2 : 1;
+        table = `<div class="tablewrap"><table class="tbl ktable"><thead><tr><th>Name</th><th>Vorname</th>${head}<th class="sum">Gesamt</th><th>Note</th><th>Status</th></tr></thead><tbody>
+        <tr class="maxrow"><td>Max. Punkte</td><td></td>${maxRow}<td class="sum">${TOTAL_POINTS}</td><td></td><td></td></tr>
+        <tr class="maxrow progrow"><td>Bewertet</td><td></td>${EXAM.tasks.map((t) => (S.collapsed[t.no] ? "" : t.subtasks.map((s) => { const n = ps.filter((p) => stPoints(grading(p.id), s.no) !== null).length; return `<td title="${n} von ${ps.length} Prüflingen bewertet"><span class="xs">${n}/${ps.length}</span><div class="hbar thin"><i style="width:${ps.length ? (n / ps.length) * 100 : 0}%"></i></div></td>`; }).join("")) + `<td class="sum"></td>`).join("")}<td class="sum"></td><td></td><td></td></tr>
+        ${ps.map((p) => {
+          const g = grading(p.id); const go = grading(p.id, other);
+          const cells = EXAM.tasks.map((t) => { let sum = 0, any = false; const sc = t.subtasks.map((s) => { const v = stPoints(g, s.no); if (v !== null) { sum += v; any = true; } const vo = stPoints(go, s.no); const diff = v !== null && vo !== null && Math.abs(v - vo) >= s.points * 0.3; return S.collapsed[t.no] ? "" : `<td class="cell ${v === null ? "open" : ""} ${g?.not_done?.[s.no] ? "nd" : ""} ${diff ? "diff" : ""}" data-cell="${p.id}|${s.no}" title="${diff ? "Deutliche Abweichung zur " + corrName(other) : "Bewerten"}">${g?.not_done?.[s.no] ? "n.b." : fmtP(v)}${D.comments.some((x) => x.participant === p.id && x.subtask === s.no) ? " " + icon("message-square") : ""}</td>`; }).join(""); return sc + `<td class="sum">${any ? fmtP(sum) : "–"}</td>`; }).join("");
+          const tot = total(p); const done = ALL_SUBTASKS.every((s) => stPoints(g, s.no) !== null);
+          return `<tr><td>${esc(p.lastname)}</td><td>${esc(p.firstname)}</td>${cells}<td class="sum">${fmtP(tot)}</td><td>${done ? grade(tot) : "–"}</td><td>${g?.released ? `<span class="badge green">${icon("lock")} freigegeben</span>` : done ? `<span class="badge cyan">bewertet</span>` : `<span class="badge gray">offen</span>`}</td></tr>`;
+        }).join("")}</tbody></table></div>
+        <p class="small muted mt-s">Klicken Sie auf eine Zelle, um die Teilaufgabe im Korrekturmodus zu bewerten. ${icon("message-square")} = Kommentar vorhanden · <span class="badge yellowb">gelb</span> = deutliche Abweichung zur ${corrName(other)} · n.b. = nicht bearbeitet</p>`;
+      } else {
+        table = `<div class="cgrid">${ps.map((p) => {
+          const g = grading(p.id); const done = ALL_SUBTASKS.filter((s) => stPoints(g, s.no) !== null).length; const tot = total(p);
+          const next = ALL_SUBTASKS.find((s) => stPoints(g, s.no) === null) || ALL_SUBTASKS[0];
+          return `<div class="card pad"><div class="row between"><h3>${esc(p.lastname)}, ${esc(p.firstname)}</h3>${g?.released ? `<span class="badge green">${icon("lock")} freigegeben</span>` : ""}</div>
+          <div class="small muted">${esc(p.username)} · Platz ${esc(p.seat || "–")}</div>
+          <div class="mt-s small">Fortschritt <span class="miniprogress" style="width:120px"><i style="width:${(done / ALL_SUBTASKS.length) * 100}%"></i></span> ${done}/${ALL_SUBTASKS.length} Teilaufgaben</div>
+          <div class="row between mt"><span><b>${fmtP(tot)}</b> / ${TOTAL_POINTS} Punkte${done === ALL_SUBTASKS.length ? ` · Note ${grade(tot)}` : ""}</span><a class="btn sm" href="#/app/korrektur/${p.id}/${next.no}">${icon("arrow-right")} Korrigieren</a></div></div>`;
+        }).join("")}</div>`;
+      }
+      const room = D.rooms.find((r) => r.name === "Raum 123");
+      return `<div class="pagehead"><div><h1>Korrekturübersicht</h1><div class="sub">${esc(EXAM.name)} / Gruppe FA230a</div></div>
+        <div class="row wrap"><select class="select" style="width:auto" data-corr>${[1, 2, 3].map((k) => `<option value="${k}" ${c === k ? "selected" : ""}>${CORRECTORS[k].label} (${CORRECTORS[k].name})</option>`).join("")}</select>
+        <button class="btn primary" data-start ${ps.length ? "" : "disabled"}>${icon("play")} Korrektur starten</button></div></div>
+      <div class="row between wrap"><nav class="tabs" style="flex:1"><button data-view="aufgaben" class="${S.view === "aufgaben" ? "active" : ""}">Aufgabenweise</button><button data-view="personen" class="${S.view === "personen" ? "active" : ""}">Personenweise</button></nav>
+        <div class="row" style="margin-bottom:24px"><span class="small muted">${openCnt} Bewertungen offen</span><button class="btn" data-release ${released || !ps.length ? "disabled" : ""}>${icon("funnel")} ${released ? "Freigegeben" : "Alles freigeben"}</button></div></div>
+      ${ps.length ? table : `<div class="card empty">${icon("file-pen-line")}<h3>Noch keine Abgaben vorhanden</h3><p>Sobald Prüflinge Abgaben markiert haben, erscheinen sie hier.</p>${room ? `<a class="btn" href="#/app/raum/${room.id}/meinraum">Zur Raumaufsicht</a>` : ""}</div>`}`;
+    },
+    mount(el) {
+      el.querySelectorAll("[data-view]").forEach((b) => (b.onclick = () => { S.view = b.dataset.view; redraw(); }));
+      el.querySelectorAll("[data-grp]").forEach((b) => (b.onclick = () => { S.collapsed[b.dataset.grp] = !S.collapsed[b.dataset.grp]; redraw(); }));
+      el.querySelectorAll("[data-cell]").forEach((td) => (td.onclick = () => { const [p, s] = td.dataset.cell.split("|"); navigate(`#/app/korrektur/${p}/${s}`); }));
+      el.querySelector("[data-corr]").onchange = (e) => { sessionStorage.setItem("cbw.corrector", e.target.value); redraw(); toast(corrName(+e.target.value) + " aktiv", "", "info"); };
+      const st = el.querySelector("[data-start]");
+      if (st) st.onclick = () => { for (const p of candidates()) { const s = ALL_SUBTASKS.find((x) => stPoints(grading(p.id), x.no) === null); if (s) return navigate(`#/app/korrektur/${p.id}/${s.no}`); } const p = candidates()[0]; navigate(`#/app/korrektur/${p.id}/1.1`); };
+      const rel = el.querySelector("[data-release]");
+      if (rel) rel.onclick = async () => {
+        const ps = candidates();
+        const open = ps.reduce((a, p) => a + ALL_SUBTASKS.filter((s) => stPoints(grading(p.id), s.no) === null).length, 0);
+        const ok = await confirmBox("Möchten Sie alle bearbeiteten Fragen endgültig freigeben?", `${open ? `<div class="notice warn">${icon("triangle-alert")}<span>Es sind noch <b>${open}</b> Bewertungen offen. Offene Teilaufgaben werden mit 0 Punkten gewertet.</span></div>` : ""}<p>Sie sind dabei, alle bearbeiteten Fragen freizugeben. Nach der Freigabe sind keine weiteren Analysen mehr möglich, und dieser Schritt kann nicht rückgängig gemacht werden.</p>`, "Freigeben");
+        if (!ok) return;
+        for (const p of ps) { const g = grading(p.id); if (g) await upd("gradings", g.id, { released: true }); else await create("gradings", { participant: p.id, corrector: corr(), points: {}, not_done: {}, marks: {}, released: true }); }
+        toast("Korrektur freigegeben", `${corrName(corr())} für ${ps.length} Prüflinge freigegeben.`);
+      };
+    },
+  };
+}
+
+
+const draftKey = (pid, st) => `cdraft.${pid}.${st}`;
+export function commentsDrawer(pid, st) {
+  const list = () => D.comments.filter((x) => x.participant === pid && x.subtask === st).sort((a, b) => (a.created < b.created ? 1 : -1));
+  drawer({ title: "Kommentare", iconName: "message-square",
+    body: `<div data-list>${list().map((c) => `<div class="comment"><b>${esc(c.author)}</b><span class="xs muted">${fmtDateTime(parseDate(c.created))}</span><p style="margin:6px 0 0">${esc(c.body)}</p></div>`).join("") || `<div class="empty small">Noch keine Kommentare zu dieser Teilaufgabe.</div>`}</div>`,
+    footer: `<label class="lbl">Kommentar</label><textarea class="input" data-c placeholder="Kommentar eingeben">${esc(store.lget(draftKey(pid, st), ""))}</textarea><div class="row between mt-s"><span class="xs muted" data-cdraft>${store.lget(draftKey(pid, st), "") ? "Entwurf wiederhergestellt" : "Entwurf wird automatisch zwischengespeichert"}</span><button class="btn primary" data-send>${icon("message-square")} Kommentieren</button></div>`,
+    onMount(d, close) {
+      // Entwurf automatisch zwischenspeichern (bei Eingabe, spätestens alle 15 s)
+      const ta = d.querySelector("[data-c]"); let dirty = false;
+      const saveDraft = () => { if (!dirty) return; dirty = false; store.lset(draftKey(pid, st), ta.value); const x = d.querySelector("[data-cdraft]"); if (x) x.textContent = "Entwurf gespeichert " + new Date().toLocaleTimeString("de-DE"); };
+      ta.oninput = () => { dirty = true; clearTimeout(ta._t); ta._t = setTimeout(saveDraft, 1500); };
+      const iv = setInterval(() => (ta.isConnected ? saveDraft() : clearInterval(iv)), 15000);
+      d.querySelector("[data-send]").onclick = async () => {
+        const t = d.querySelector("[data-c]").value.trim(); if (!t) return;
+        store.lset(draftKey(pid, st), ""); dirty = false;
+        await create("comments", { participant: pid, subtask: st, author: `Korrektor ${corr()} (${session.userName()})`, body: t });
+        close(); toast("Kommentar gespeichert"); setTimeout(() => commentsDrawer(pid, st), 50);
+      };
+    } });
+}
+export function favoritesDrawer() {
+  const favs = new Set(setting("favorites", []));
+  drawer({ title: "Favoriten verwalten", iconName: "settings",
+    body: `<div class="tree">${SIGNS.map((g, gi) => `<label class="grp"><input type="checkbox" data-g="${gi}" ${g.items.every(([k]) => favs.has(k)) ? "checked" : ""}> ${esc(g.group)}</label><div class="kids">${g.items.map(([k, t]) => `<label title="${esc(t)}"><input type="checkbox" data-k="${esc(k)}" data-gi="${gi}" ${favs.has(k) ? "checked" : ""}> <b>${esc(k)}</b> <span class="small">(${esc(t.length > 60 ? t.slice(0, 60) + "…" : t)})</span></label>`).join("")}</div>`).join("")}</div>`,
+    footer: `<div class="row end"><button class="btn primary" data-save>${icon("save")} Favoritenauswahl speichern</button></div>`,
+    onMount(d, close) {
+      d.querySelectorAll("[data-g]").forEach((g) => (g.onchange = () => d.querySelectorAll(`[data-gi="${g.dataset.g}"]`).forEach((c) => (c.checked = g.checked))));
+      d.querySelector("[data-save]").onclick = async () => { const sel = [...d.querySelectorAll("[data-k]:checked")].map((c) => c.dataset.k); await setSetting("favorites", sel); close(); toast("Favoriten gespeichert", `${sel.length} Korrekturzeichen in der Schnellauswahl.`); };
+    } });
+}
+
+// ---------- Erwartungshorizont ----------
+export function horizon(st) {
+  const s = subtask(st);
+  return {
+    shell: "plain", title: "Erwartungshorizont",
+    render: () => `<div class="breadcrumb"><button class="link" data-back>${icon("arrow-left")} Zurück</button><span class="muted">Erwartungshorizont (öffnet sich als eigener Tab)</span></div><div class="row between wrap mb"><h1>Erwartungshorizont</h1><select class="select" style="width:auto" data-st>${ALL_SUBTASKS.map((x) => `<option value="${x.no}" ${x.no === st ? "selected" : ""}>Teilaufgabe ${x.no} ${esc(x.title)}</option>`).join("")}</select></div>
+      ${s ? `<p class="lead">Teilaufgabe ${s.no} ${esc(s.title)} · ${s.points} Punkte</p><div class="card horizont mt">${s.horizon.map(([t, pt]) => `<div class="item"><div><b>${esc(t.split(" ").slice(0, 4).join(" "))} …</b><ul><li>${esc(t)}</li></ul></div><div>${esc(pt)}</div></div>`).join("")}</div>
+      <h3 class="mt-l">Bewertungskriterien</h3><div class="tablewrap mt-s"><table class="tbl"><thead><tr><th>Kriterium</th><th class="num">Max. Punkte</th></tr></thead><tbody>${s.criteria.map(([n, m]) => `<tr><td>${esc(n)}</td><td class="num">${m}</td></tr>`).join("")}</tbody></table></div>` : ""}`,
+    mount(el) {
+      el.querySelector("[data-st]").onchange = (e) => navigate(`#/erwartung/${e.target.value}`);
+      el.querySelector("[data-back]").onclick = () => { if (window.opener && history.length <= 2) window.close(); else if (history.length > 1) history.back(); setTimeout(() => { if (location.hash.startsWith("#/erwartung")) navigate("#/app/korrektur"); }, 200); };
+    },
+  };
+}

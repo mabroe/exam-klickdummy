@@ -1,0 +1,13 @@
+services:
+  checkbw-klickdummy:
+    build: .
+    container_name: checkbw-klickdummy
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./pb_data:/pb/pb_data
+      # Für Live-Änderungen am Frontend ohne Neubau:
+      - ./pb_public:/pb/pb_public:ro
+      - ./pb_hooks:/pb/pb_hooks:ro
+      - ./pb_migrations:/pb/pb_migrations:ro
+    restart: unless-stopped
