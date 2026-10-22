@@ -1,4 +1,4 @@
-// CheckBW Klickdummy – Demodaten in PocketBase laden
+// Exam Klickdummy – Demodaten in PocketBase laden
 // Die Datensätze selbst stehen in pb_public/js/seed-data.js (gemeinsame Quelle für Server- und Browser-Modus).
 const S = require(`${__hooks}/../pb_public/js/seed-data.js`);
 

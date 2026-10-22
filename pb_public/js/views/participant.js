@@ -1,10 +1,10 @@
 // Prüfling: Wartebereich, Prüfungsmodus (Dashboard, Aufgaben, Abgaben), Endbildschirm, Kursvorschau
-import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.3";
-import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, isFinished, isActive, isConnected, isOffline, HB_MS, $ } from "../ui.js?v=8.3";
-import { EXAM, ALL_SUBTASKS, subtask, taskOf } from "../scenario.js?v=8.3";
-import { navigate, session, render, directHelp } from "../app.js?v=8.3";
-import * as W from "./dock.js?v=8.3";
-import { einsichtView } from "./results.js?v=8.3";
+import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.4";
+import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, isFinished, isActive, isConnected, isOffline, HB_MS, $, examMark } from "../ui.js?v=8.4";
+import { EXAM, ALL_SUBTASKS, subtask, taskOf } from "../scenario.js?v=8.4";
+import { navigate, session, render, directHelp } from "../app.js?v=8.4";
+import * as W from "./dock.js?v=8.4";
+import { einsichtView } from "./results.js?v=8.4";
 // Punktebadge: grün, sobald für die (Teil-)Aufgabe eine Abgabe markiert ist, sonst grau
 const ptsBadge = (done, label, title = "") => `<span class="badge ${done ? "lime" : "gray"}" title="${title || (done ? "Abgabe markiert" : "noch nicht bearbeitet")}">${label}</span>`;
 const taskDone = (items, t) => t.subtasks.filter((s) => items.some((i) => i.submission === s.no)).length;
@@ -143,6 +143,66 @@ async function doLogin(ctx) {
     const globals = D.items.filter((i) => i.participant === "");
     for (const g of globals) await create("items", { participant: p.id, kind: g.kind, folder: g.folder, data: { ...g.data, read: false }, submission: "" });
   }
+  await ensureMailAttachments(p);
+}
+// Abgaben: bei einer E-Mail nur den Anhang durch eine neuere Datei ersetzen (E-Mail-Text bleibt unverändert)
+function swapAttachment(ctx, anchor, mailId, idx) {
+  const m = ctx.items().find((x) => x.id === mailId); if (!m) return;
+  const task = m.data.task || (m.submission || "1").split(".")[0];
+  const files = ctx.items().filter((f) => f.kind === "file" && (f.folder === "own" || f.folder === "abgabe") && String(f.data.task || "1") === String(task));
+  const apply = async (f) => {
+    const att = [...(m.data.attachments || [])]; const old = att[+idx]; att[+idx] = f.data.name;
+    const refs = { ...(m.data.attach_refs || {}) }; delete refs[old]; refs[f.data.name] = f.id;
+    await ctx.upd(m.id, { data: { ...m.data, attachments: att, attach_refs: refs, att_changed: new Date().toLocaleString("de-DE") } });
+    if (!ctx.preview) log(ctx.p.room, ctx.p, "Anhang einer Abgabe ausgetauscht", `${m.submission}: ${old} → ${f.data.name}`, "aktion");
+    toast("Anhang ausgetauscht", `${old} → ${f.data.name}`);
+  };
+  const upload = () => { const i = document.createElement("input"); i.type = "file"; i.onchange = async () => { const file = i.files[0]; if (!file) return; const ext = (file.name.split(".").pop() || "").toUpperCase();
+    const meta = { name: file.name, format: ext, size: (file.size / 1048576).toFixed(1).replace(".", ",") + " MB", changed: new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }), task };
+    const rec = ctx.preview ? await ctx.add("file", "own", meta) : await ctx.addFile(meta, file); await apply(rec); }; i.click(); };
+  popMenu(anchor, [{ header: "Neuere Datei wählen" }, ...files.filter((f) => f.data.name !== m.data.attachments[+idx] || m.data.attach_refs?.[f.data.name] !== f.id).map((f) => ({ label: `${f.data.name}${f.data.path ? " (" + f.data.path + ")" : ""}`, icon: "file", run: () => apply(f) })), "-", { label: "Neue Datei hochladen …", icon: "upload", run: upload }], { align: "left" });
+}
+// Direkte Dateiabgabe in der Aufgabe (ohne Ablage unter „Eigene Dateien“)
+function uploadBox(st, subs) {
+  const files = subs.filter((i) => i.kind === "file" && i.folder === "abgabe");
+  return `<div class="uploadbox mt-s" data-dropst="${st.no}"><label class="btn primary sm">${icon("file-up")} Datei als Abgabe ${st.no} hochladen<input type="file" hidden data-stupload="${st.no}" accept=".pdf,.docx,.xlsx,.csv,.png,.jpg,.jpeg,.txt"></label><span class="small">oder Datei hierher ziehen · PDF, DOCX, XLSX, CSV, Bilder – max. 20 MB</span></div>
+    ${files.length ? `<div class="mt-s">${files.map((f) => `<div class="filerow" style="margin:0">${icon("file")}<div class="grow"><b>${esc(f.data.name)}</b><div class="xs muted">abgegeben ${esc(f.data.changed)} · ${esc(f.data.format)}</div></div><button class="btn sm ghost" data-stview="${f.id}">${icon("eye")} Ansehen</button><label class="btn sm ghost">${icon("repeat")} Ersetzen<input type="file" hidden data-strepl="${f.id}" data-st="${st.no}"></label><button class="iconbtn" data-stdel="${f.id}" aria-label="Abgabe entfernen" title="Abgabe entfernen">${icon("trash-2")}</button></div>`).join("")}</div>` : ""}`;
+}
+async function uploadSubmission(ctx, stNo, file, replaceId = "") {
+  if (!file) return;
+  if (file.size > 20 * 1048576) { toast("Datei zu groß", "Maximal 20 MB sind erlaubt.", "error"); return; }
+  const ext = (file.name.split(".").pop() || "").toUpperCase();
+  const data = { task: stNo.split(".")[0], name: file.name, format: ext, size: (file.size / 1048576).toFixed(1).replace(".", ",") + " MB", changed: new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }), direct: true };
+  try {
+    if (ctx.preview) await ctx.add("file", "abgabe", data, stNo);
+    else await createWithFile("items", { participant: ctx.p.id, kind: "file", folder: "abgabe", data, submission: stNo }, file);
+    if (replaceId) await ctx.del(replaceId);
+    if (!ctx.preview) log(ctx.p.room, ctx.p, replaceId ? "Abgabedatei ersetzt" : "Datei als Abgabe hochgeladen", `${stNo}: ${file.name}`, "aktion");
+    toast(replaceId ? "Abgabe ersetzt" : "Abgabe hochgeladen", `${file.name} ist als Abgabe ${stNo} gespeichert.`);
+  } catch (e) { toast("Hochladen fehlgeschlagen", e?.message || "", "error"); }
+}
+function bindUploads(el, ctx) {
+  el.querySelectorAll("[data-stupload]").forEach((i) => (i.onchange = () => uploadSubmission(ctx, i.dataset.stupload, i.files[0])));
+  el.querySelectorAll("[data-strepl]").forEach((i) => (i.onchange = () => uploadSubmission(ctx, i.dataset.st, i.files[0], i.dataset.strepl)));
+  el.querySelectorAll("[data-stview]").forEach((b) => (b.onclick = () => W.open("files", { fileId: b.dataset.stview })));
+  el.querySelectorAll("[data-stdel]").forEach((b) => (b.onclick = async () => { const f = ctx.items().find((x) => x.id === b.dataset.stdel); if (f && (await confirmBox("Abgabe entfernen", `<p>„${esc(f.data.name)}“ wird als Abgabe entfernt.</p>`, "Entfernen"))) { await ctx.del(f.id); if (!ctx.preview) log(ctx.p.room, ctx.p, "Abgabedatei entfernt", f.data.name, "aktion"); } }));
+  el.querySelectorAll("[data-dropst]").forEach((z) => {
+    z.ondragover = (e) => { e.preventDefault(); z.classList.add("drag"); }; z.ondragleave = () => z.classList.remove("drag");
+    z.ondrop = (e) => { e.preventDefault(); z.classList.remove("drag"); uploadSubmission(ctx, z.dataset.dropst, e.dataTransfer.files[0]); };
+  });
+}
+// Anhänge empfangener E-Mails automatisch unter „Eigene Dateien › E-Mail-Anlagen“ ablegen (auch außerhalb der E-Mail nutzbar)
+async function ensureMailAttachments(p) {
+  const mine = D.items.filter((i) => i.participant === p.id);
+  for (const m of mine.filter((i) => i.kind === "mail" && i.folder === "inbox" && (i.data.attachments || []).length)) {
+    for (const name of m.data.attachments) {
+      const nm = typeof name === "string" ? name : name.name;
+      if (mine.some((f) => f.kind === "file" && f.data?.fromMail === m.id && f.data.name === nm) || D.items.some((f) => f.participant === p.id && f.kind === "file" && f.data?.fromMail === m.id && f.data.name === nm)) continue;
+      const url = m.data.attach_urls?.[nm] || D.items.find((g) => g.participant === "" && g.kind === "file" && g.data.name === nm)?.data.url || "";
+      const ext = (nm.split(".").pop() || "").toUpperCase();
+      await create("items", { participant: p.id, kind: "file", folder: "own", submission: "", data: { task: m.data.task || "1", name: nm, format: ext, size: "0,1 MB", changed: (m.data.date || "").slice(0, 8), path: "E-Mail-Anlagen", fromMail: m.id, fromSubject: m.data.subject, url } });
+    }
+  }
 }
 
 // ---------- Wartebereich ----------
@@ -183,7 +243,7 @@ function waitView(ctx) {
       el.querySelectorAll("[data-pgstep]").forEach((b) => (b.onclick = () => { ui.pdfPage = Math.max(1, Math.min(3, ui.pdfPage + +b.dataset.pgstep)); render(false); }));
       const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
       const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
-      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.3").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
+      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.4").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
       // Prüfung läuft bereits, Bestätigung fehlt
       if (room.state === "RUNNING" && !confirmedBoth && !document.querySelector(".backdrop") && !store.get("bo." + p.id)) {
         store.set("bo." + p.id, 1);
@@ -350,7 +410,7 @@ function examHead(ctx) {
   const p = ctx.p; const prog = progressOf(ctx.items());
   const conn = ctx.preview || online;
   const plus = (p.nta || 0) + (p.extra_time || 0) + (ctx.room.global_extra || 0);
-  return `<button class="skiplink" data-skip>Zum Inhalt springen</button><div class="sr-only" aria-live="assertive" data-live></div><header class="examhead"><div class="examname"><span class="logo-mini"><b></b><i></i></span>${esc(ctx.preview ? ctx.course?.title || EXAM.name : ctx.room.exam_name)}${ctx.preview ? `<span class="preview-banner">${icon("eye")} Sie befinden sich im Vorschaumodus</span>` : ""}</div>
+  return `<button class="skiplink" data-skip>Zum Inhalt springen</button><div class="sr-only" aria-live="assertive" data-live></div><header class="examhead"><div class="examname"><span class="logo-mini ex">${examMark(30)}</span>${esc(ctx.preview ? ctx.course?.title || EXAM.name : ctx.room.exam_name)}${ctx.preview ? `<span class="preview-banner">${icon("eye")} Sie befinden sich im Vorschaumodus</span>` : ""}</div>
   <div><div class="who">${esc(p.firstname)} ${esc(p.lastname)}&nbsp;&nbsp;P: ${esc(p.seat)}</div>
   <div class="meta"><span class="timer" title="Verbleibende Bearbeitungszeit">${icon("clock")} <span data-timer>--:--</span></span><span title="Fortschritt"><span class="progressbar"><i style="width:${prog}%"></i></span> ${prog}%</span><span class="conn ${conn ? "" : "off"}" title="${conn ? "Verbunden" : "Keine Verbindung"}">${icon("radio")}</span></div>${plus ? `<div class="xs" style="text-align:right;font-weight:600" title="Bereits in der Restzeit enthalten">inkl. ${p.nta ? `${p.nta} Min. Nachteilsausgleich` : ""}${p.nta && (p.extra_time || ctx.room.global_extra) ? " + " : ""}${(p.extra_time || 0) + (ctx.room.global_extra || 0) ? `${(p.extra_time || 0) + (ctx.room.global_extra || 0)} Min. Zusatzzeit` : ""}</div>` : ""}</div></header>`;
 }
@@ -431,16 +491,16 @@ function taskBody(ctx, t, st) {
   const inbox = items.filter((i) => i.kind === "mail" && i.folder === "inbox");
   const events = items.filter((i) => i.kind === "event");
   const subs = st ? submissionsFor(all, st.no) : [];
-  const toolLabel = { mail: ["mail", "Mail öffnen"], files: ["folder", "Dateien öffnen"], editor: ["notepad-text", "Notizen öffnen"], calendar: ["calendar", "Kalender öffnen"], ide: ["code-xml", "Entwicklungsumgebung öffnen"], calc: ["calculator", "Taschenrechner öffnen"], tickets: ["ticket", "Ticketsystem öffnen"] };
+  const toolLabel = { mail: ["mail", "Mail öffnen"], files: ["folder", "Dateien öffnen"], editor: ["notepad-text", "Notizen öffnen"], calendar: ["calendar", "Kalender öffnen"], ide: ["code-xml", "Entwicklungsumgebung öffnen"], calc: ["calculator", "Taschenrechner öffnen"], tickets: ["ticket", "Ticketsystem öffnen"], erp: ["package", "ERP-System öffnen"], upload: ["file-up", "Datei hochladen"] };
   const cnt = (k) => items.filter((i) => i.kind === k).length;
-  const tools = [["files", "folder", "Dateien", `${cnt("file")} Dateien`], ["mail", "mail", "Mail", `${items.filter((i) => i.kind === "mail" && i.folder === "inbox").length} im Posteingang`], ["calendar", "calendar", "Kalender", `${cnt("event")} Termine`], ["editor", "notepad-text", "Notizen", `${cnt("note")} Notizen`], ["tickets", "ticket", "Tickets", `${cnt("ticket")} Tickets`], ["ide", "code-xml", "Entwicklungsumgebung", `${cnt("code")} Code-Dateien`], ["calc", "calculator", "Taschenrechner", "Grundrechenarten, Prozent"]];
+  const tools = [["files", "folder", "Dateien", `${cnt("file")} Dateien`], ["mail", "mail", "Mail", `${items.filter((i) => i.kind === "mail" && i.folder === "inbox").length} im Posteingang`], ["calendar", "calendar", "Kalender", `${cnt("event")} Termine`], ["editor", "notepad-text", "Notizen", `${cnt("note")} Notizen`], ["tickets", "ticket", "Tickets", `${cnt("ticket")} Tickets`], ["erp", "package", "ERP-System", `${items.filter((i) => i.kind === "erp" && i.data.type === "artikel").length} Artikel, Bestellungen`], ["ide", "code-xml", "Entwicklungsumgebung", `${cnt("code")} Code-Dateien`], ["calc", "calculator", "Taschenrechner", "Grundrechenarten, Prozent"]];
   return tabs + `<div class="taskgrid"><div class="col" style="gap:20px">
     <button class="ausgang" data-sit="${t.no}"><span class="round">${icon("info")}</span><span class="grow">Ausgangssituation</span>${icon("arrow-right")}</button>
     ${st ? `<div class="assignment"><h3>${icon("clipboard-list")} Arbeitsauftrag ${st.no}</h3><p>${esc(st.text)}</p>
-      <div class="row wrap between"><button class="btn primary sm" data-open="${st.tool}">${icon(toolLabel[st.tool][0])} ${toolLabel[st.tool][1]}</button>
+      ${st.tool === "upload" ? uploadBox(st, subs) + `<div class="row wrap between mt-s"><span></span>` : `<div class="row wrap between"><button class="btn primary sm" data-open="${st.tool}">${icon(toolLabel[st.tool][0])} ${toolLabel[st.tool][1]}</button>`}
       <span class="small">${subs.length ? `<span class="badge green">${icon("check")} ${subs.length} Abgabe${subs.length > 1 ? "n" : ""} markiert</span>` : `<span class="badge gray">noch keine Abgabe</span>`}</span></div></div>`
     : `<div class="card pad"><h3>Teilaufgaben</h3>${t.subtasks.map((s) => `<a class="subtask mt-s" href="${ctx.base}/aufgabe/${t.no}/${s.no}"><span class="stico ${items.some((i) => i.submission === s.no) ? "done" : "todo"}">${icon(items.some((i) => i.submission === s.no) ? "check" : "square-pen")}</span><span class="grow">${s.no} ${esc(s.title)}</span><span class="badge ${items.some((i) => i.submission === s.no) ? "lime" : "gray"}">${s.points} P</span></a>`).join("")}</div>`}
-    <div class="widget"><div class="wh" style="cursor:default">${icon("app-window")} Werkzeuge für Aufgabe ${t.no}</div><div class="wb"><div class="toolwidgets">${tools.map(([k, ic, l, sub]) => `<button data-open="${k}">${icon(ic)}<span><b>${l}</b><small>${sub}</small></span></button>`).join("")}</div><p class="xs muted mt-s" style="margin-bottom:0">Alle Werkzeuge finden Sie auch in der Taskleiste am unteren Bildschirmrand (Tastatur: <kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>7</kbd>).</p></div></div>
+    <div class="widget"><div class="wh" style="cursor:default">${icon("app-window")} Werkzeuge für Aufgabe ${t.no}</div><div class="wb"><div class="toolwidgets">${tools.map(([k, ic, l, sub]) => `<button data-open="${k}">${icon(ic)}<span><b>${l}</b><small>${sub}</small></span></button>`).join("")}</div><p class="xs muted mt-s" style="margin-bottom:0">Alle Werkzeuge finden Sie auch in der Taskleiste am unteren Bildschirmrand (Tastatur: <kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>8</kbd>).</p></div></div>
     <div class="widget"><div class="wh" style="cursor:default">${icon("building-2")} ${esc(EXAM.company.name)}</div><div class="wb">
       <div class="tabs small" style="margin-bottom:12px">${["allgemein", "adresse", "rechtliches", "kontakt", "vorlagen"].map((k) => `<button data-ctab="${k}" class="${(ui.ctab || "allgemein") === k ? "active" : ""}">${k[0].toUpperCase() + k.slice(1)}</button>`).join("")}</div>
       <div class="row" style="align-items:flex-start;gap:16px">${companyLogo(74)}<div style="white-space:pre-line">${esc(EXAM.company[ui.ctab || "allgemein"])}</div></div></div></div>
@@ -475,7 +535,7 @@ function abgabenBody(ctx) {
     const openA = ui["abgacc" + t.no] !== false;
     return `<div class="acc"><button data-abgacc="${t.no}"><div><b>Aufgabe ${t.no} ${esc(t.title)}</b> ${ptsBadge(taskDone(items, t) > 0, `${t.points} Punkte`, `${taskDone(items, t)} von ${t.subtasks.length} Teilaufgaben mit Abgabe`)}</div>${icon(openA ? "chevron-up" : "chevron-down")}</button>
     ${openA ? `<div class="acc-b">${t.subtasks.map((s) => { const subs = submissionsFor(items, s.no); return `<div class="card pad soft"><div class="row between"><b>${icon("bookmark")} ${s.no} ${esc(s.title)}</b><span class="badge ${subs.length ? "lime" : "gray"}">${s.points} Punkte</span></div>
-      ${subs.length ? `<div class="mt-s small bold">Vorschau</div>${subs.map((x) => `<div class="card pad mt-s">${W.itemPreview(x)}</div>`).join("")}<a class="btn sm block mt-s" href="${ctx.base}/aufgabe/${t.no}/${s.no}">${icon("arrow-right")} Zur Teilaufgabe – Auswahl bearbeiten</a>` : `<div class="notice warn mt-s">${icon("triangle-alert")}<span>Noch keine Abgabe markiert. <a href="${ctx.base}/aufgabe/${t.no}/${s.no}">Zur Teilaufgabe</a></span></div>`}</div>`; }).join("")}</div>` : ""}</div>`;
+      ${subs.length ? `<div class="mt-s small bold">Vorschau</div>${subs.map((x) => `<div class="card pad mt-s">${W.itemPreview(x)}${x.kind === "mail" && (x.data.attachments || []).length ? `<div class="attswap mt-s">${x.data.attachments.map((a, i) => `<span class="attach">${icon("paperclip")} ${esc(a)}</span><button class="btn xs ghost" data-swapatt="${x.id}|${i}" title="Nur den Anhang dieser Abgabe durch eine neuere Datei ersetzen">${icon("repeat")} Datei austauschen</button>`).join("")}</div>` : ""}</div>`).join("")}<a class="btn sm block mt-s" href="${ctx.base}/aufgabe/${t.no}/${s.no}">${icon("arrow-right")} Zur Teilaufgabe – Auswahl bearbeiten</a>` : `<div class="notice warn mt-s">${icon("triangle-alert")}<span>Noch keine Abgabe markiert. <a href="${ctx.base}/aufgabe/${t.no}/${s.no}">Zur Teilaufgabe</a></span></div>`}</div>`; }).join("")}</div>` : ""}</div>`;
   }).join("");
 }
 
@@ -497,11 +557,13 @@ function bindPage(el, ctx, sub) {
   el.querySelectorAll("[data-faq]").forEach((b) => (b.onclick = () => { ui["faq" + b.dataset.faq] = !ui["faq" + b.dataset.faq]; refreshPage(); }));
   el.querySelectorAll("[data-ctab]").forEach((b) => (b.onclick = () => { ui.ctab = b.dataset.ctab; refreshPage(); }));
   el.querySelectorAll("[data-sit]").forEach((b) => (b.onclick = () => situationModal(b.dataset.sit === "0" ? null : taskOf(b.dataset.sit))));
-  el.querySelectorAll("[data-help]").forEach((b) => (b.onclick = () => directHelp(`<h3>Bedienung</h3><ul><li>Navigation links: Dashboard, Abgaben, Aufgaben</li><li>Taskleiste unten: Werkzeuge als Fenster öffnen, minimierte Fenster wiederherstellen; bei mehreren Fenstern erscheint eine Auswahlliste</li><li>Arbeitsmaterialien sind aufgabenspezifisch: Die Werkzeuge zeigen die Inhalte der geöffneten Aufgabe</li><li>Freitexte (E-Mail-Entwürfe, Notizen, Ticket-Lösungen) werden alle 15 Sekunden automatisch gespeichert</li><li>Häkchen-Symbol: Element als Abgabe markieren</li></ul><h3 class="mt">Tastatur</h3><table class="tbl"><tbody><tr><td><kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>7</kbd></td><td>Dateien, Mail, Kalender, Notizen, Tickets, Rechner, IDE öffnen</td></tr><tr><td><kbd>F6</kbd> / <kbd>Umschalt</kbd>+<kbd>F6</kbd></td><td>zwischen offenen Fenstern und Aufgabe wechseln</td></tr><tr><td><kbd>Esc</kbd></td><td>aktives Fenster minimieren</td></tr><tr><td><kbd>Strg</kbd> + <kbd>Enter</kbd></td><td>Programm in der IDE ausführen</td></tr><tr><td><kbd>Pfeiltasten</kbd></td><td>in Menüs und Auswahllisten navigieren</td></tr></tbody></table>`)));
+  el.querySelectorAll("[data-help]").forEach((b) => (b.onclick = () => directHelp(`<h3>Bedienung</h3><ul><li>Navigation links: Dashboard, Abgaben, Aufgaben</li><li>Taskleiste unten: Werkzeuge als Fenster öffnen, minimierte Fenster wiederherstellen; bei mehreren Fenstern erscheint eine Auswahlliste</li><li>Arbeitsmaterialien sind aufgabenspezifisch: Die Werkzeuge zeigen die Inhalte der geöffneten Aufgabe</li><li>Freitexte (E-Mail-Entwürfe, Notizen, Ticket-Lösungen) werden alle 15 Sekunden automatisch gespeichert</li><li>Häkchen-Symbol: Element als Abgabe markieren</li></ul><h3 class="mt">Tastatur</h3><table class="tbl"><tbody><tr><td><kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>8</kbd></td><td>Dateien, Mail, Kalender, Notizen, Tickets, Rechner, IDE öffnen</td></tr><tr><td><kbd>F6</kbd> / <kbd>Umschalt</kbd>+<kbd>F6</kbd></td><td>zwischen offenen Fenstern und Aufgabe wechseln</td></tr><tr><td><kbd>Esc</kbd></td><td>aktives Fenster minimieren</td></tr><tr><td><kbd>Strg</kbd> + <kbd>Enter</kbd></td><td>Programm in der IDE ausführen</td></tr><tr><td><kbd>Pfeiltasten</kbd></td><td>in Menüs und Auswahllisten navigieren</td></tr></tbody></table>`)));
   el.querySelectorAll("[data-open]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); W.open(b.dataset.open, { subtask: sub.split("/")[2] }); }));
+  bindUploads(el, ctx);
+  el.querySelectorAll("[data-swapatt]").forEach((b) => (b.onclick = () => swapAttachment(ctx, b, ...b.dataset.swapatt.split("|"))));
   el.querySelectorAll("[data-openmail]").forEach((b) => (b.onclick = () => W.open("mail", { mailId: b.dataset.openmail, subtask: sub.split("/")[2] })));
   const fin = el.querySelector("[data-finish]"); if (fin) fin.onclick = () => finishExam(ctx);
-  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.3").then((m) => m.copyCourse(ctx.course));
+  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.4").then((m) => m.copyCourse(ctx.course));
   const bm = el.querySelector("[data-bookmark]");
   if (bm) bm.onclick = () => {
     const parts = sub.split("/"); const key = parts[2] || parts[1];
@@ -549,7 +611,7 @@ function blockedModal(ctx, no) {
 }
 
 // ---------- Dock (Taskleiste) ----------
-const TOOLS = [["files", "folder", "Dateien"], ["mail", "mail", "Mail"], ["calendar", "calendar", "Kalender"], ["editor", "notepad-text", "Notizen"], ["tickets", "ticket", "Tickets"], ["calc", "calculator", "Rechner"], ["ide", "code-xml", "IDE"]];
+const TOOLS = [["files", "folder", "Dateien"], ["mail", "mail", "Mail"], ["calendar", "calendar", "Kalender"], ["editor", "notepad-text", "Notizen"], ["tickets", "ticket", "Tickets"], ["erp", "package", "ERP"], ["calc", "calculator", "Rechner"], ["ide", "code-xml", "IDE"]];
 const unreadOf = (ctx) => (W.getTask() ? ctx.items().filter((i) => i.kind === "mail" && i.folder === "inbox" && !i.data.read && W.itemTask(i) === W.getTask()).length : 0);
 function dockBtn(k, ic, label, unread) {
   const st = W.dockState(k);

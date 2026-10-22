@@ -1,4 +1,4 @@
-# CheckBW Klickdummy – Start unter Windows (PowerShell)
+# Exam Klickdummy – Start unter Windows (PowerShell)
 # Lädt beim ersten Start PocketBase herunter und startet den lokalen Server.
 $ErrorActionPreference = "Stop"
 $PbVersion = if ($env:PB_VERSION) { $env:PB_VERSION } else { "0.40.5" }
@@ -17,7 +17,7 @@ if (-not (Test-Path ".\pocketbase.exe")) {
 }
 
 Write-Host ""
-Write-Host "  CheckBW Klickdummy laeuft unter:  http://localhost:$Port"
+Write-Host "  Exam Klickdummy laeuft unter:  http://localhost:$Port"
 Write-Host "  PocketBase-Admin (optional):     http://localhost:$Port/_/"
 Write-Host "  Beenden mit Strg+C"
 Write-Host ""

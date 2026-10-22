@@ -11,6 +11,12 @@ export const EXAM = {
     kontakt: "Telefon: 0711 123456-0\nE-Mail: info@funsport-innovations.de\nWeb: www.funsport-innovations.de",
     vorlagen: "Briefvorlage DIN 5008, Vorlage Angebotsvergleich, Kalkulationsschema",
   },
+  // E-Mail-Signaturen je Ausgangssituation (Aufgabe); Platzhalter {name}, {mail}
+  signatures: {
+    "1": [["Einkauf (vollständig)", "Mit freundlichen Grüßen\n\n{name}\nAuszubildende/r im Einkauf\nFunSport Innovations GmbH\nSportparkallee 12 · 70173 Stuttgart\nTelefon 0711 123456-230 · {mail}\nwww.funsport-innovations.de"], ["Kurz (intern)", "Viele Grüße\n{name}\nEinkauf"]],
+    "2": [["Materialwirtschaft (vollständig)", "Mit freundlichen Grüßen\n\n{name}\nAuszubildende/r Materialwirtschaft\nFunSport Innovations GmbH\nSportparkallee 12 · 70173 Stuttgart\nTelefon 0711 123456-240 · {mail}"], ["Kurz (intern)", "Viele Grüße\n{name}\nMaterialwirtschaft"]],
+    "3": [["IT-Abteilung (vollständig)", "Mit freundlichen Grüßen\n\n{name}\nAuszubildende/r IT-Systemintegration\nFunSport Innovations GmbH · IT-Abteilung\nSportparkallee 12 · 70173 Stuttgart\nTelefon 0711 123456-300 · {mail}"], ["Kurz (intern)", "Viele Grüße\n{name}\nIT-Abteilung"]],
+  },
   ausgangssituation: "Die FunSport Innovations GmbH ist ein aufstrebendes Beratungsunternehmen für Fragen rund um die Themen Digitalisierung, IT-Infrastruktur und IT-Sicherheit. Sie sind Auszubildende/r und unterstützen in den kommenden Wochen verschiedene Abteilungen. Nutzen Sie für die Bearbeitung die bereitgestellten Werkzeuge: E-Mail-Client, Kalender, Dateiablage und Notizen.",
   tasks: [
     {
@@ -43,8 +49,8 @@ export const EXAM = {
           text: "Planen Sie im Kalender einen Termin für ein Lieferantengespräch in der kommenden Woche. Achten Sie auf bestehende Termine. Markieren Sie den Termin als Abgabe.",
           criteria: [["Terminwahl", 4], ["Vollständigkeit", 4], ["Darstellung", 2]],
           horizon: [["Termin kollidiert nicht mit bestehenden Terminen", "4 P"], ["Titel, Ort und Beschreibung vollständig", "4 P"], ["Aussagekräftige Bezeichnung", "2 P"]] },
-        { no: "2.3", title: "Nachkalkulation", points: 10, tool: "files",
-          text: "Führen Sie eine Nachkalkulation für den Auftrag durch und laden Sie das Ergebnis hoch.",
+        { no: "2.3", title: "Nachkalkulation", points: 10, tool: "upload",
+          text: "Führen Sie eine Nachkalkulation für den Auftrag durch (Tabellenkalkulation, Textverarbeitung oder PDF) und laden Sie die Datei direkt hier als Abgabe hoch. Eine Ablage unter „Eigene Dateien“ ist nicht nötig.",
           criteria: [["Berechnung", 5], ["Interpretation", 3], ["Darstellung", 2]],
           horizon: [["Abweichungen korrekt berechnet", "5 P"], ["Ursachen der Abweichungen benannt", "3 P"], ["Übersichtliche Darstellung", "2 P"]] },
       ],

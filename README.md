@@ -1,4 +1,4 @@
-# CheckBW Klickdummy – Prüfungsplattform Bildschirmarbeitsplatz
+# Exam Klickdummy – Prüfungsplattform Bildschirmarbeitsplatz
 
 Interaktiver Klickdummy der Prüfungsplattform. Er ist in HTML/CSS/JS nach den Figma-Screens nachgebaut und läuft entweder mit **PocketBase** als lokaler Datenbank und Webserver oder als **statische Seite (z. B. GitHub Pages)** mit einer Datenbank im Browser. Die Rollen sind über Realtime live gekoppelt. Startet die Raumaufsicht die Prüfung, wechselt der Prüfling im anderen Browserfenster sofort vom Wartebereich in die Prüfung. Markierte Abgaben erscheinen direkt in der Korrektur.
 
@@ -116,6 +116,10 @@ Auf der Startseite starten zwei Klickstrecken. Ein **Leitfaden unten rechts** ze
 
 Über **Administration › Demo zurücksetzen** oder den Button auf der Startseite wird alles auf den Ausgangszustand gesetzt. Andere offene Fenster laden dabei automatisch neu. Der Prüfungsbeginn von Raum 123 liegt nach dem Zurücksetzen 20 Minuten in der Zukunft.
 
+## Großraum (mehr als 40 Teilnehmende)
+
+Ab **41 Teilnehmenden** in einer Raumaufsicht wird kein Sitzplan mehr angezeigt: Der Reiter „Mein Raum“ ist ausgegraut, Aufrufe leiten in den Reiter „Teilnehmende“. Dort erfolgt die gesamte Steuerung (Anwesenheit, Anmelde-/Verbindungsstatus, Status, Zeitgutschrift, Details, Entfernen) mit Suche, Statusfilter und Seitenaufteilung. Die Grenze von 40 entspricht etwa dem größten üblichen Klassen- bzw. Prüfungsraum (`PLAN_MAX` in `js/views/proctor.js`).
+
 ## Raumaufsicht: Teilnehmende entfernen
 
 Im Reiter „Teilnehmende“ lassen sich Teilnehmende **einzeln** (Papierkorb in der Zeile), als **Auswahl** oder als **ganze Gruppe** (Klasse/Kurs, „Gruppe entfernen“) wieder aus der Raumaufsicht entfernen. Jede Entfernung wird protokolliert.
@@ -129,6 +133,12 @@ Im Reiter „Teilnehmende“ lassen sich Teilnehmende **einzeln** (Papierkorb in
 - **Aufgaben sind voneinander unabhängig:** Jede Aufgabe hat eigene Fenster (inkl. Rechner-Verlauf und IDE-Konsole). Beim Wechsel werden die Fenster der anderen Aufgabe ausgeblendet und beim Zurückkehren wiederhergestellt. Auf **Dashboard und Abgaben** sind alle Anwendungen in der Taskleiste ausgegraut und lassen sich nicht öffnen.
 - **Ticketsystem** (jede Aufgabe mit eigenen Tickets, Schwerpunkt Aufgabe 3, neue Tickets anlegbar): Ticketliste mit Priorität und Status, Ticketfenster mit Anfrage, Verlauf, Status und Lösungsfeld. Tickets werden wie andere Elemente als Abgabe markiert und in der Korrektur dargestellt.
 - **Automatische Zwischenspeicherung** aller Freitexte: E-Mail-Entwürfe, Notizen und Ticket-Lösungen alle 15 s, beim Verlassen oder Minimieren eines Fensters und beim Schließen. Der Code in der IDE wird bei jeder Eingabe gespeichert. In der Korrektur werden Begründungen (15 s, beim Verlassen) und Kommentar-Entwürfe gesichert.
+- **E-Mail-Anlagen**: Anhänge empfangener E-Mails werden beim Login automatisch unter „Eigene Dateien › E-Mail-Anlagen“ abgelegt und lassen sich dort unabhängig von der E-Mail öffnen, herunterladen, anhängen oder als Abgabe markieren. Anhänge in einer E-Mail sind anklickbar.
+- **Signaturen**: Im Verfassen-Fenster fügt „Signatur einfügen“ eine Signatur ein; für jede Ausgangssituation (Aufgabe) sind passende Signaturen hinterlegt (vollständig und kurz, `EXAM.signatures` in `js/scenario.js`).
+- **Anhang einer Abgabe austauschen**: In den Abgaben lässt sich bei einer als Abgabe markierten E-Mail **nur der Anhang** durch eine neuere Datei ersetzen (vorhandene eigene Datei oder neuer Upload); der E-Mail-Text bleibt unverändert, der Austausch wird protokolliert.
+- **Direkte Dateiabgabe**: Teilaufgaben mit Dateiabgabe (Beispiel 2.3 Nachkalkulation) haben in der Aufgabe ein Upload-Feld (auch per Ziehen und Ablegen). Die Datei wird direkt als Abgabe gespeichert, ohne Umweg über „Eigene Dateien“; ersetzen und entfernen sind möglich.
+- **ERP-System** (vereinfacht, je Aufgabe eigene Daten): Artikel mit Lagerbestand, Melde- und Höchstbestand, Lieferanten und Bestellungen. Bestellvorschlag = Höchstbestand − Bestand bei Unterschreiten des Meldebestands. Eigene Lieferanten und Bestellungen können als Abgabe markiert werden und erscheinen in der Korrektur als Beleg.
+- **Echte Beispieldateien**: Bereitgestellte Materialien und E-Mail-Anlagen (Angebote, Vorlagen, Preisliste, Netzplan) sowie die Beispielabgaben (PDF, Word, Excel) liegen unter `pb_public/samples` (erzeugt mit `tools/make-samples.py`).
 - **Textmarkierung in E-Mails**: Text in einer erhaltenen E-Mail auswählen und gelb, grün oder rot markieren; mehrere Passagen unabhängig voneinander, „Markierung entfernen“ und „Alle Markierungen löschen“. Die Markierungen bleiben während der Prüfung erhalten und werden nicht bewertet.
 - **Echte Datei-Uploads** (bis 20 MB) in „Eigene Dateien“ mit Vorschau (Bild, PDF, Text) und Download.
 - Die Aufgabenseite zeigt alle **Werkzeuge** inkl. Ticketsystem, Entwicklungsumgebung und Taschenrechner als Kacheln. Die Navigation ist auf Dashboard und Aufgabenseiten einklappbar und überdeckt beim Scrollen keine Inhalte.
@@ -194,6 +204,13 @@ Das Prüfungsprotokoll gibt es **nur bei Prüfungen** (nicht im Unterricht). Der
 
 „Demo starten“ öffnet eine Klickstrecke in elf Schritten an einer verkleinerten Nachbildung des Prüfungsmodus: Kopfzeile, Dashboard, Navigation, gesperrte Taskleiste, Aufgabe und Arbeitsauftrag, Fenster, Ergebnis erstellen, als Abgabe markieren, Abgaben prüfen, Pause/Verbindungsabbruch, Zeitablauf und Prüfung beenden. Der jeweils anzuklickende Bereich ist markiert, alternativ „Weiter“ oder Pfeiltasten. Die Demo startet nur per Klick.
 
+## Dateien im Korrekturscreen
+
+- **PDF-Dateien** (hochgeladen von Teilnehmenden oder von der Korrektur) werden seitenweise direkt im Korrekturbereich angezeigt und lassen sich wie Text mit Randzeichen, Unterstreichungen und Stift korrigieren.
+- **Office-Dateien** (Word, Excel) werden beim ersten Öffnen im Browser automatisch in eine **PDF-Korrekturfassung** umgewandelt (Text, Überschriften und Tabellen). Diese wird gespeichert, für alle Korrigierenden genutzt und ist korrigierbar. Bilder werden direkt angezeigt.
+- **E-Mail-Anhänge** einer Abgabe werden unterhalb der E-Mail ebenso dargestellt.
+- **„Hochgeladene Dateien“** unterscheidet: **Originaldateien der/des Teilnehmenden** (Badge „Original · Format“, Herkunft: eigene Dateien, direkte Abgabe oder E-Mail-Anhang) – immer **im Originalformat herunterladbar** –, die daraus erzeugte **PDF-Korrekturfassung** sowie **Dateien der Korrektur** (mit Korrekturstufe).
+
 ## Korrektorengruppen (Prüfung)
 
 - Im Kurs der Prüfung, Reiter **„Korrektoren“**, weist die Schuladministration je Korrekturstufe (Erst-, Zweitkorrektur, Endbeurteilung) eine **Gruppe aus einer oder mehreren Korrektor:innen** zu – für eine **Klasse/einen Kurs** (gilt für alle zugehörigen Prüflinge) oder für **einzelne Prüflinge** (Einzelzuweisung hat Vorrang). Gruppen gelten nur für diese Prüfung; dieselben Personen dürfen in mehreren Stufen sein (ohne Warnung). Mitglieder lassen sich über „Bearbeiten“ austauschen oder entfernen, erteilte Freigaben bleiben erhalten.
@@ -225,7 +242,7 @@ Das Prüfungsprotokoll gibt es **nur bei Prüfungen** (nicht im Unterricht). Der
 
 | Testfall | Wirkung |
 |---|---|
-| Großraum mit 120 Teilnehmenden | „Aula (Großraum)“: kompakter Sitzplan, Hervorhebung nach Status, Suche, Pagination |
+| Großraum mit 120 Teilnehmenden | „Aula (Großraum)“: kein Sitzplan („Mein Raum“ ausgegraut), Steuerung im Reiter „Teilnehmende“ mit Suche, Statusfilter und Seitenaufteilung |
 | Verbindungsabbruch | Prüfling 20 s offline (Hinweis im Prüfungsmodus), danach geht es **automatisch ohne erneute Anmeldung** weiter. Die Aufsicht sieht den Abbruch live, Abbruch und Wiederherstellung (mit Dauer) stehen im Protokoll. Auch über „Details › Testfälle“ in der Raumaufsicht |
 | Nachteilsausgleich im Timer | +15 Min. NTA: Restzeit, Kopfzeile des Prüflings („inkl. 15 Min. Nachteilsausgleich“), Sitzplan |
 | Bearbeitungszeit fast abgelaufen | Restzeit 2 Min.: Zeitansagen, danach Status „Bearbeitungszeit beendet“ (Prüfung läuft weiter, neue Aufgaben gesperrt) |
@@ -241,6 +258,9 @@ pb_public/       Frontend (ohne Build-Schritt) – wird auf GitHub Pages veröff
   js/seed-data.js Demodaten (gemeinsam für PocketBase und Browser-Modus)
   js/localdb.js  Browser-Datenbank (IndexedDB, Tab-Synchronisation) für statisches Hosting
   js/seats.js    Sitzordnungen (Reihen, versetzt, U-Form, Gruppentische) und Raumbelegung
+  js/docs.js     PDF-Darstellung (PDF.js), Office-Vorschau und Umwandlung in PDF (mammoth, SheetJS, jsPDF)
+  js/grades.js   Linearer Notenschlüssel, Gruppenfreigaben, Gesamtnote
+  samples/       Beispieldateien (Materialien, E-Mail-Anlagen, Beispielabgaben)
   css/app.css    Designsystem nach Figma (Gelb-Header, Rail, Tabs, Modals, Toasts, Status-Chips …)
   js/app.js      Router, Shells, Rollenwahl
   js/data.js     Backend-Erkennung, PocketBase-Client bzw. Browser-Datenbank, Realtime-Spiegel
@@ -277,4 +297,4 @@ pb_public/       Frontend (ohne Build-Schritt) – wird auf GitHub Pages veröff
 
 ## Lizenzen
 
-PocketBase (MIT), PocketBase JS SDK (MIT), jsPDF und jsPDF-AutoTable (MIT), Lucide Icons (ISC), Noto Sans (SIL OFL 1.1).
+PocketBase (MIT), PocketBase JS SDK (MIT), jsPDF und jsPDF-AutoTable (MIT), PDF.js (Apache 2.0), mammoth.js (BSD-2-Clause), SheetJS Community Edition (Apache 2.0), Lucide Icons (ISC), Noto Sans (SIL OFL 1.1). Alle Bibliotheken liegen lokal unter `pb_public/js/vendor` und werden erst bei Bedarf geladen.

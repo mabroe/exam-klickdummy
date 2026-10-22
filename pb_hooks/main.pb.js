@@ -1,5 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
-// CheckBW Klickdummy – Server-Hooks
+// Exam Klickdummy – Server-Hooks
 
 // Demodaten bei leerer Datenbank laden (wird vom Frontend beim Start aufgerufen)
 routerAdd("POST", "/api/demo/ensure", (e) => {
@@ -57,7 +57,7 @@ routerUse((e) => {
 });
 
 // Version der Server-Seite (muss zu pb_public/js/app.js VERSION passen)
-routerAdd("GET", "/api/demo/version", (e) => e.json(200, { version: "8.3" }));
+routerAdd("GET", "/api/demo/version", (e) => e.json(200, { version: "8.4" }));
 
 // Nachteilsausgleich darf nur vor dem Prüfungsstart (Raumstatus CREATED) geändert werden – auch serverseitig abgesichert
 onRecordUpdateRequest((e) => {

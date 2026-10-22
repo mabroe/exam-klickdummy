@@ -1,9 +1,9 @@
 // Lehrkraft / Schuladministration: Meine Aufgaben, Katalog, Kursdetails, Meine Prüfungen, Demo-Verwaltung
-import { D, byId, upd, create, resetDemo, demoApi } from "../data.js?v=8.3";
-import { icon, esc, modal, toast, popMenu, parseDate, mmss, pager, bindPager, ddHtml, bindDd, statusChip, toPb, isActive } from "../ui.js?v=8.3";
-import { simulateOffline } from "./proctor.js?v=8.3";
-import { navigate, redraw, render } from "../app.js?v=8.3";
-import { me, visibleCourses, visibleRooms } from "../access.js?v=8.3";
+import { D, byId, upd, create, resetDemo, demoApi } from "../data.js?v=8.4";
+import { icon, esc, modal, toast, popMenu, parseDate, mmss, pager, bindPager, ddHtml, bindDd, statusChip, toPb, isActive } from "../ui.js?v=8.4";
+import { simulateOffline } from "./proctor.js?v=8.4";
+import { navigate, redraw, render } from "../app.js?v=8.4";
+import { me, visibleCourses, visibleRooms } from "../access.js?v=8.4";
 
 const S = { tab: "active", sort: "new", q: "", open: {}, cat: { q: "", applied: "", tab: "Alle", beruf: [], fach: [], jahr: [], page: 1, per: 6 } };
 let timer = null;
@@ -108,7 +108,7 @@ export function catalog() {
   };
 }
 // Kopieren aus dem Katalog: Unterrichtsebene (Lehrkraft) – legt einen eigenen Kurs mit Mitgliederverwaltung an
-export async function copyCourse(c) { if (!c) return; const m = await import("./courses.js?v=8.3"); return m.copyToLesson(c); }
+export async function copyCourse(c) { if (!c) return; const m = await import("./courses.js?v=8.4"); return m.copyToLesson(c); }
 export function course(id) {
   const c = byId("catalog", id);
   if (!c) return { redirect: "#/app/katalog" };
@@ -155,7 +155,7 @@ export function admin() {
         <p class="small muted mt">„Demo zurücksetzen“ stellt alle Daten wieder her. Offene Browserfenster anderer Rollen laden automatisch neu.</p></div>
       <div class="card pad mt"><h3>Testfälle</h3><p class="small muted">Gezielt Situationen herstellen, z. B. für Workshops oder um bekannte Probleme (Last, Verbindung, Nachteilsausgleich) nachzustellen.</p>
         <div class="testgrid mt">
-          <div class="tcase"><b>${icon("users")} Großraum mit 120 Teilnehmenden</b><p class="small">Kompakter Sitzplan, Status-Hervorhebung, Suche und Pagination im Reiter „Teilnehmende“.</p>${(() => { const a = D.rooms.find((r) => r.rows * r.cols > 60); return a ? `<a class="btn sm" href="#/app/raum/${a.id}/meinraum">${icon("arrow-right")} ${esc(a.name)} öffnen</a>` : "–"; })()}</div>
+          <div class="tcase"><b>${icon("users")} Großraum mit 120 Teilnehmenden</b><p class="small">Ab 41 Teilnehmenden kein Sitzplan: „Mein Raum“ ist ausgegraut, Steuerung mit Suche, Statusfilter und Seitenaufteilung im Reiter „Teilnehmende“.</p>${(() => { const a = D.rooms.find((r) => D.participants.filter((p) => p.room === r.id).length > 40); return a ? `<a class="btn sm" href="#/app/raum/${a.id}/teilnehmende">${icon("arrow-right")} ${esc(a.name)} öffnen</a>` : "–"; })()}</div>
           <div class="tcase"><b>${icon("radio")} Verbindungsabbruch</b><p class="small">Prüfling ist 20 s offline (Hinweis im Prüfungsmodus), danach geht es automatisch weiter – ohne erneute Anmeldung. Aufsicht sieht den Abbruch live; Abbruch und Wiederherstellung (mit Dauer) werden protokolliert.</p>
             <div class="row wrap"><select class="select" style="width:auto" data-offp aria-label="Prüfling für Verbindungsabbruch">${ps.filter((p) => p.status !== "nicht_eingeloggt").map((p) => `<option value="${p.id}">${esc(p.lastname)}, ${esc(p.firstname)} (${esc(p.seat)})</option>`).join("") || `<option value="">– niemand angemeldet –</option>`}</select><button class="btn sm" data-off>Abbruch simulieren</button></div></div>
           <div class="tcase"><b>${icon("clock")} Nachteilsausgleich im Timer</b><p class="small">Setzt 15 Min. Nachteilsausgleich für den gewählten Prüfling. Restzeit, Kopfzeile des Prüflings und Sitzplan zeigen ihn an. Nur vor dem Prüfungsstart möglich.</p>
@@ -171,7 +171,7 @@ export function admin() {
       el.querySelector("[data-sim]").onclick = async () => { const room = D.rooms.find((r) => r.name === "Raum 123"); const r = await demoApi.simulateLogin(room.id); toast("Simulation", `${r.count} Teilnehmende angemeldet.`, "info"); };
       const room = D.rooms.find((r) => r.name === "Raum 123");
       const off = el.querySelector("[data-off]"); if (off) off.onclick = () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-offp]").value); if (p) simulateOffline(room, p); };
-      el.querySelectorAll("[data-nta]").forEach((b) => (b.onclick = async () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-ntap]").value); await upd("participants", p.id, { nta: +b.dataset.nta }); const { log } = await import("../data.js?v=8.3"); log(p.room, p, "Nachteilsausgleich geändert", `${b.dataset.nta} Min.`, "aktion"); toast("Nachteilsausgleich gesetzt", `${p.lastname}: ${b.dataset.nta} Min.`); }));
+      el.querySelectorAll("[data-nta]").forEach((b) => (b.onclick = async () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-ntap]").value); await upd("participants", p.id, { nta: +b.dataset.nta }); const { log } = await import("../data.js?v=8.4"); log(p.room, p, "Nachteilsausgleich geändert", `${b.dataset.nta} Min.`, "aktion"); toast("Nachteilsausgleich gesetzt", `${p.lastname}: ${b.dataset.nta} Min.`); }));
       const end = el.querySelector("[data-ending]"); if (end) end.onclick = async () => {
         const start = new Date(Date.now() - ((room.duration_min || 90) + (room.global_extra || 0) - 2) * 60000);
         await upd("rooms", room.id, { state: "RUNNING", started_at: toPb(start), paused_total_s: 0, paused_at: "" });

@@ -1,19 +1,19 @@
-// CheckBW Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.3";
-import { lock as lockGate } from "./gate.js?v=8.3";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.3";
-import * as TN from "./views/participant.js?v=8.3";
-import * as PR from "./views/proctor.js?v=8.3";
-import * as KO from "./views/correction.js?v=8.3";
-import * as LK from "./views/teacher.js?v=8.3";
-import * as RS from "./views/results.js?v=8.3";
-import * as KU from "./views/courses.js?v=8.3";
-import * as GD from "./guide.js?v=8.3";
-import { CORRECTORS } from "./scenario.js?v=8.3";
-import { me, personName, orgShort, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.3";
-import { seatCount, seatCmp } from "./seats.js?v=8.3";
+// Exam Klickdummy – Router, Shells, Rollenwahl
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.4";
+import { lock as lockGate } from "./gate.js?v=8.4";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.4";
+import * as TN from "./views/participant.js?v=8.4";
+import * as PR from "./views/proctor.js?v=8.4";
+import * as KO from "./views/correction.js?v=8.4";
+import * as LK from "./views/teacher.js?v=8.4";
+import * as RS from "./views/results.js?v=8.4";
+import * as KU from "./views/courses.js?v=8.4";
+import * as GD from "./guide.js?v=8.4";
+import { CORRECTORS } from "./scenario.js?v=8.4";
+import { me, personName, orgShort, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.4";
+import { seatCount, seatCmp } from "./seats.js?v=8.4";
 
-export const VERSION = "8.3";
+export const VERSION = "8.4";
 export const VERSION_LABEL = `Version ${VERSION} · 22.10.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },
@@ -89,7 +89,7 @@ export function render(force = true) {
 
 function draw() {
   const v = current;
-  document.title = (v.title ? v.title + " – " : "") + "CheckBW Klickdummy";
+  document.title = (v.title ? v.title + " – " : "") + "Exam Klickdummy";
   if (v.shell === "staff") root.innerHTML = staffShell(v);
   else if (v.shell === "plain") root.innerHTML = plainShell(v);
   else root.innerHTML = v.render();
@@ -166,7 +166,7 @@ export function directHelp(extra = "") {
     body: `<p>Dieser Klickdummy bildet die Prüfungsplattform am Bildschirmarbeitsplatz nach. Alle Daten sind Demodaten und werden lokal in PocketBase gespeichert.</p>${extra}` });
 }
 function aboutBox() {
-  modal({ title: "Informationen", size: "wide", body: `<p><b>CheckBW Klickdummy – Prüfungsplattform Bildschirmarbeitsplatz</b></p>
+  modal({ title: "Informationen", size: "wide", body: `<p><b>Exam Klickdummy – Prüfungsplattform Bildschirmarbeitsplatz</b></p>
   <p>Grundlage sind die Figma-Screens (Wartebereich, Teilnahmemodus, Raumaufsicht, Korrekturworkflow, Aufgabensteuerung, Katalog) sowie die Rollen- und Aufgabenbeschreibungen der Instanzen OPE, OPP und OPU.</p>
   <p>Die Rollen sind live gekoppelt: Öffnen Sie z. B. die Raumaufsicht und den Prüfling in zwei Browserfenstern, um Start, Pause und Einsammeln in Echtzeit zu sehen.</p>` });
 }

@@ -1,5 +1,5 @@
 /// <reference path="../pb_data/types.d.ts" />
-// CheckBW Klickdummy – Datenmodell
+// Exam Klickdummy – Datenmodell
 // Alle Collections sind bewusst öffentlich (leere Regeln), da der Klickdummy
 // nur lokal zu Demonstrationszwecken läuft. NICHT für echte Daten verwenden.
 

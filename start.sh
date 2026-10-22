@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CheckBW Klickdummy – Start unter macOS / Linux
+# Exam Klickdummy – Start unter macOS / Linux
 # Lädt beim ersten Start PocketBase herunter und startet den lokalen Server.
 set -euo pipefail
 PB_VERSION="${PB_VERSION:-0.40.5}"
@@ -27,7 +27,7 @@ if [ ! -x ./pocketbase ]; then
 fi
 
 echo ""
-echo "  CheckBW Klickdummy läuft unter:  http://localhost:${PORT}"
+echo "  Exam Klickdummy läuft unter:  http://localhost:${PORT}"
 echo "  PocketBase-Admin (optional):     http://localhost:${PORT}/_/"
 echo "  Beenden mit Strg+C"
 echo ""

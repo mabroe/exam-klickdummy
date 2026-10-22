@@ -1,5 +1,5 @@
 // Gemeinsame UI-Helfer
-import { ICONS } from "./icons.js?v=8.3";
+import { ICONS } from "./icons.js?v=8.4";
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const icon = (name, cls = "") => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ""}</svg>`;
@@ -201,7 +201,9 @@ export function bindPager(root, state, rerender) {
   const sel = root.querySelector("[data-per]"); if (sel) sel.onchange = () => { state.per = +sel.value; state.page = 1; rerender(); };
 }
 
-export const brand = (small = false) => `<a class="brand ${small ? "small" : ""}" href="#/" aria-label="CheckBW Startseite">Check<span class="bw">BW</span><span class="dots"><i></i><i></i><i></i></span></a>`;
+// Logo „Exam“: Prüfungsbogen mit Haken (Bildmarke) und Wortmarke
+export const examMark = (size = 44) => `<svg class="exmark" width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true"><rect x="2" y="2" width="44" height="44" rx="11" fill="#1d1d1b"/><rect x="11" y="12" width="17" height="4" rx="2" fill="#fff"/><rect x="11" y="21" width="12" height="4" rx="2" fill="#fff"/><rect x="11" y="30" width="8" height="4" rx="2" fill="#fff" opacity=".55"/><path d="M24.5 31.5l5 5 9.5-12" fill="none" stroke="#ffff00" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+export const brand = (small = false) => `<a class="brand ${small ? "small" : ""}" href="#/" aria-label="Exam – Startseite">${examMark(small ? 36 : 46)}<span class="wm">Exam</span></a>`;
 export const debounce = (fn, ms = 80) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 export const uid = () => Math.random().toString(36).slice(2, 9);
 

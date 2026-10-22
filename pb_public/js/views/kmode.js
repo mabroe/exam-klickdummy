@@ -2,12 +2,13 @@
 //  - Erstkorrektur: rot, rechter Rand · Zweitkorrektur: grün, linker Rand · Drittkorrektur (Endbeurteilung): braun, linker Rand außen
 //  - Unterstreichen horizontal (einfach, doppelt, gekringelt) und vertikal (Randstrich)
 //  - Stift: Gesten für Linien, handschriftliche Korrekturzeichen werden erkannt und an den Rand gesetzt
-import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=8.3";
-import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=8.3";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS } from "../scenario.js?v=8.3";
-import { navigate, redraw, session } from "../app.js?v=8.3";
-import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer, lessonMode } from "./correction.js?v=8.3";
-import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=8.3";
+import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=8.4";
+import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=8.4";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS } from "../scenario.js?v=8.4";
+import { navigate, redraw, session } from "../app.js?v=8.4";
+import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer, lessonMode } from "./correction.js?v=8.4";
+import { pdfPages, cachedPages, isPdf, isImage, isOffice, officeToPdf, downloadUrl, extOf } from "../docs.js?v=8.4";
+import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=8.4";
 
 const PW = 900, ML = 110, MR = 790;               // Papierbreite, Textspalte links/rechts
 const VX = { 1: MR + 8, 2: ML - 8, 3: ML - 16 };    // Randstrich je Korrektor
@@ -75,21 +76,96 @@ const colorOf = (c) => CORRECTORS[c]?.color || "#333";
 const companyMini = () => `<div style="display:inline-flex;gap:8px;align-items:center;border:2px solid #333;padding:4px 8px;font-weight:700">FunSport<br><span style="font-size:9px;font-weight:400">Innovations GmbH</span></div>`;
 const sheetTable = () => `<table><tr><th>Pos.</th><th>Bezeichnung</th><th>BatteryWorld</th><th>InnovaTech</th></tr><tr><td>1</td><td>Listeneinkaufspreis (300 Stk.)</td><td>34.500,00 €</td><td>33.900,00 €</td></tr><tr><td>2</td><td>– Rabatt</td><td>3.450,00 €</td><td>1.695,00 €</td></tr><tr><td>3</td><td>Zieleinkaufspreis</td><td>31.050,00 €</td><td>32.205,00 €</td></tr><tr><td>4</td><td>– Skonto</td><td>621,00 €</td><td>966,15 €</td></tr><tr><td>5</td><td>+ Bezugskosten</td><td>450,00 €</td><td>0,00 €</td></tr><tr><td><b>6</b></td><td><b>Bezugspreis</b></td><td><b>30.879,00 €</b></td><td><b>31.238,85 €</b></td></tr></table>`;
 const calcTable = () => `<table><tr><th>Pos.</th><th>Bezeichnung</th><th>Menge</th><th>Einzelpreis</th><th>Gesamtpreis</th></tr><tr><td>1</td><td>Lithium-Batterie-Pack LBP-36V</td><td>300</td><td>115,00 €</td><td>34.500,00 €</td></tr><tr><td>2</td><td>Rabatt 10 %</td><td></td><td></td><td>−3.450,00 €</td></tr><tr><td>3</td><td>Skonto 2 %</td><td></td><td></td><td>−621,00 €</td></tr><tr><td>4</td><td>Fracht/Verpackung</td><td></td><td></td><td>450,00 €</td></tr><tr><td></td><td><b>Bezugspreis</b></td><td></td><td></td><td><b>30.879,00 €</b></td></tr></table>`;
+// ---------- Dateien im Korrekturscreen: PDF-Seiten als Bilder (korrigierbar), Office-Dateien über eine PDF-Korrekturfassung ----------
+const pendingPdf = new Set(), failedPdf = new Set(), converting = new Set(), failedConv = new Set();
+const later = () => setTimeout(() => { try { redraw(); } catch {} }, 30);
+export function pdfBlock(url, label) {
+  const pages = cachedPages(url);
+  if (pages) return `<div class="kpdf">${pages.map((pg, i) => `<img class="kpage" src="${pg.src}" width="${pg.w}" height="${pg.h}" alt="${esc(label)} – Seite ${i + 1}" draggable="false">`).join("")}</div>`;
+  if (failedPdf.has(url)) return `<div class="kfilemsg">${icon("triangle-alert")} Die PDF-Datei konnte nicht dargestellt werden – bitte über „Hochgeladene Dateien“ herunterladen.</div>`;
+  if (!pendingPdf.has(url)) { pendingPdf.add(url); pdfPages(url).then(later, () => { failedPdf.add(url); later(); }).finally(() => pendingPdf.delete(url)); }
+  return `<div class="kfilemsg loading">${icon("refresh-cw", "spin")} PDF wird geladen …</div>`;
+}
+// Korrekturfassung (PDF) zu einer Office-Datei; wird beim ersten Öffnen im Korrekturscreen erzeugt und für alle Korrigierenden gespeichert
+export const conversionOf = (sourceId) => D.kfiles.find((k) => k.kind === "konvertiert" && k.source === sourceId);
+function ensureConversion(srcId, url, name, pid, st) {
+  if (!srcId || conversionOf(srcId) || converting.has(srcId) || failedConv.has(srcId) || session.role === "tn") return;
+  converting.add(srcId);
+  const base = name.replace(/\.[^.]+$/, "");
+  officeToPdf(url, name, { who: byId("participants", pid) ? `${byId("participants", pid).firstname} ${byId("participants", pid).lastname}` : "" })
+    .then((blob) => createWithFile("kfiles", { participant: pid, subtask: st, corrector: 0, name: `${base} (Korrekturfassung).pdf`, kind: "konvertiert", source: srcId, orig: name }, new File([blob], `${base}_Korrekturfassung.pdf`, { type: "application/pdf" })))
+    .catch((e) => { console.error(e); failedConv.add(srcId); })
+    .finally(() => { converting.delete(srcId); later(); });
+}
+// Darstellung einer Datei (Teilnehmende oder Korrektur) im Papier
+function fileBlock(src, { name, url, pid, st, label }) {
+  if (!url) return `<div class="kfilemsg">${icon("file")} ${esc(name)} – keine Datei hinterlegt.</div>`;
+  if (isPdf(name)) return pdfBlock(url, name);
+  if (isImage(name)) return `<img class="kpage" src="${url}" alt="${esc(name)}" style="max-width:100%">`;
+  if (isOffice(name)) {
+    const conv = conversionOf(src);
+    if (conv) return `<div class="kconvnote">${icon("file-cog")} Korrekturfassung (PDF) – automatisch umgewandelt aus ${esc(extOf(name).toUpperCase())}. Die Originaldatei steht unter „Hochgeladene Dateien“ zum Download bereit.</div>` + pdfBlock(fileUrl(conv), conv.name);
+    ensureConversion(src, url, name, pid, st);
+    return failedConv.has(src) ? `<div class="kfilemsg">${icon("triangle-alert")} Die Datei konnte nicht in eine PDF-Korrekturfassung umgewandelt werden – bitte herunterladen.</div>` : session.role === "tn" ? `<div class="kfilemsg">${icon("file")} ${esc(name)} (Originaldatei)</div>` : `<div class="kfilemsg loading">${icon("refresh-cw", "spin")} ${esc(extOf(name).toUpperCase())}-Datei wird in eine PDF-Korrekturfassung umgewandelt …</div>`;
+  }
+  return `<div class="kfilemsg">${icon("file")} ${esc(name)} – für dieses Format gibt es keine Vorschau. Bitte herunterladen.</div>`;
+}
+// Datei zu einem E-Mail-Anhang des Prüflings
+export function attachmentItem(m, name) {
+  const mine = D.items.filter((i) => i.participant === m.participant && i.kind === "file");
+  const ref = m.data.attach_refs?.[name];
+  return (ref && mine.find((i) => i.id === ref)) || mine.find((i) => i.data?.fromMail === m.id && i.data.name === name) || mine.find((i) => i.folder === "own" && i.data.name === name) || null;
+}
 function paperFor(it, p) {
   const name = `${p.firstname} ${p.lastname}`;
   if (it.kind === "mail") {
     const body = it.data.html ? it.data.html.replace(/<blockquote[\s\S]*<\/blockquote>/, "") : esc(it.data.body).replace(/\n/g, "<br>");
     return `<div class="letterhead"><div><div class="sender-line">${esc(EXAM.company.name)} · Sportparkallee 12 · 70173 Stuttgart</div><div class="mt-s">An: ${esc(it.data.to)}</div></div><div style="text-align:right">${companyMini()}<div style="font-size:12px;margin-top:10px">Von: ${esc(it.data.from)}<br>${esc(it.data.from_mail)}<br>Datum: ${esc(it.data.date)}</div></div></div>
     <p><b>${esc(it.data.subject)}</b></p><div class="ptext">${body}</div>
-    ${(it.data.attachments || []).map((a) => `<div style="margin-top:28px"><b>Anhang: ${esc(a)}</b>${a.toLowerCase().includes("vergleich") ? sheetTable() : ""}</div>`).join("")}`;
+    ${(it.data.attachments || []).map((a) => { const f = attachmentItem(it, a); const u = f ? fileUrl(f) : "";
+      return `<div class="kattach"><b>${icon("paperclip")} Anhang: ${esc(a)}</b>${f?.data?.att_changed || it.data.att_changed ? ` <span class="xs" style="color:#777">(Anhang ausgetauscht ${esc(it.data.att_changed || "")})</span>` : ""}${u ? fileBlock(f.id, { name: f.data.name, url: u, pid: p.id, st: it.submission }) : a.toLowerCase().includes("vergleich") ? sheetTable() : ""}</div>`; }).join("")}`;
   }
   if (it.kind === "ticket") return `<div class="letterhead"><b>${icon("ticket")} Ticket #${esc(it.data.no)} – ${esc(it.data.subject)}</b><span style="font-size:12px">${esc(name)} · Status: ${esc(it.data.status)}</span></div><p style="color:#555;font-size:13px"><b>Anfrage:</b> ${esc(it.data.desc || "")}</p><h3>Lösung</h3><div class="ptext">${it.data.solution || "<p><i>keine Lösung eingetragen</i></p>"}</div>`;
-  if (it.kind === "file" && it.file) { const u = fileUrl(it); const img = /^(PNG|JPG|JPEG|GIF|WEBP)$/i.test(it.data.format || "");
-    return `<div class="letterhead"><b>${esc(it.data.name)}</b><span style="font-size:12px">${esc(name)} · ${esc(it.data.changed)} · <a href="${u}?download=1" download>herunterladen</a></span></div>${img ? `<img src="${u}" alt="${esc(it.data.name)}" style="max-width:100%">` : /^PDF$/i.test(it.data.format || "") ? `<iframe src="${u}" title="${esc(it.data.name)}" style="width:100%;height:900px;border:1px solid #ddd"></iframe>` : `<p>Hochgeladene Datei (${esc(it.data.format)}, ${esc(it.data.size)}). Eine Vorschau ist für dieses Format nicht verfügbar – bitte herunterladen.</p>`}`; }
+  if (it.kind === "file" && fileUrl(it)) return `<div class="letterhead"><b>${icon("file")} ${esc(it.data.name)}</b><span style="font-size:12px">${esc(name)} · ${it.folder === "abgabe" ? "direkt in der Aufgabe hochgeladen" : "Eigene Dateien"} · ${esc(it.data.changed)}</span></div>${fileBlock(it.id, { name: it.data.name, url: fileUrl(it), pid: p.id, st: it.submission })}`;
+  if (it.kind === "erp") { const d = it.data; const sum = (d.pos || []).reduce((a, x) => a + x.menge * x.preis, 0); const eur = (v) => (+v || 0).toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " €";
+    return d.type === "bestellung" ? `<div class="letterhead"><b>${icon("package")} ERP – Bestellung ${esc(d.nr)}</b><span style="font-size:12px">${esc(name)} · ${esc(d.datum)}</span></div><p>Lieferant: <b>${esc(d.lieferant_name || d.lieferant)}</b>${d.termin ? ` · Liefertermin ${esc(d.termin)}` : ""} · Status: ${esc(d.status)}</p><table><tr><th>Artikel</th><th>Menge</th><th>Einzelpreis</th><th>Gesamt</th></tr>${(d.pos || []).map((x) => `<tr><td>${esc(x.name || x.artikel)}</td><td>${x.menge}</td><td>${eur(x.preis)}</td><td>${eur(x.menge * x.preis)}</td></tr>`).join("")}<tr><td colspan="3"><b>Summe</b></td><td><b>${eur(sum)}</b></td></tr></table>`
+      : `<div class="letterhead"><b>${icon("package")} ERP – Lieferant ${esc(d.nr)}</b><span style="font-size:12px">${esc(name)}</span></div><table><tr><th>Name</th><td>${esc(d.name)}</td></tr><tr><th>Ort</th><td>${esc(d.ort || "")}</td></tr><tr><th>E-Mail</th><td>${esc(d.mail || "")}</td></tr><tr><th>Zahlungsbedingungen</th><td>${esc(d.zahlung || "")}</td></tr></table>`; }
   if (it.kind === "file") return `<div class="letterhead"><b>${esc(it.data.name)}</b><span style="font-size:12px">${esc(name)} · ${esc(it.data.changed)}</span></div><h3>Bezugskalkulation 300 Lithium-Batterie-Packs</h3>${calcTable()}<p style="margin-top:20px">Ergebnis: Das Angebot der BatteryWorld GmbH ist unter Berücksichtigung aller Konditionen günstiger, da der Bezugspreis um 359,85 € niedriger liegt. Zusätzlich ist die Lieferzeit kürzer.</p>`;
   if (it.kind === "event") return `<h3>Termin: ${esc(it.data.title)}</h3><p>Tag ${+it.data.day + 1} der Woche, ${esc(it.data.start)} – ${esc(it.data.end)} Uhr<br>Ort: ${esc(it.data.location || "–")}</p><p>${esc(it.data.desc || "")}</p>`;
   if (it.kind === "code") return `<div class="letterhead"><b>${icon("file-code")} ${esc(it.data.name)}</b><span style="font-size:12px">${esc(name)} · Entwicklungsumgebung</span></div><pre class="kcode">${(it.data.code || "").split("\n").map((l, i) => `<span class="ln">${i + 1}</span>${esc(l) || " "}`).join("\n")}</pre>`;
   return `<div class="letterhead"><b>Notiz: ${esc(it.data.title || "")}</b><span style="font-size:12px">${esc(name)}</span></div><div>${it.data.html || ""}</div>`;
+}
+
+// Inhalt des Korrekturpapiers: Abgaben der Teilaufgabe, danach die von Korrigierenden hochgeladenen Dateien (ebenfalls korrigierbar)
+function contentFor(pid, st, emptyHtml) {
+  const p = byId("participants", pid);
+  const subs = D.items.filter((i) => i.participant === pid && i.submission === st);
+  const kf = D.kfiles.filter((f) => f.participant === pid && f.subtask === st && f.kind !== "konvertiert");
+  const parts = subs.map((it) => paperFor(it, p));
+  kf.forEach((f) => parts.push(`<div class="letterhead kcorrfile"><b>${icon("file-up")} Datei der Korrektur: ${esc(f.name)}</b><span style="font-size:12px;color:${colorOf(f.corrector)}">${esc(corrName(f.corrector) || "Korrektur")}</span></div>${fileBlock(f.id, { name: f.name, url: fileUrl(f), pid, st })}`));
+  return parts.length ? parts.join('<hr class="ksep">') : emptyHtml;
+}
+
+// „Hochgeladene Dateien“: Originaldateien der Teilnehmenden (Download im Originalformat), PDF-Korrekturfassungen und Dateien der Korrektur
+function origFilesOf(pid, st) {
+  const subs = D.items.filter((i) => i.participant === pid && i.submission === st);
+  const out = [];
+  subs.forEach((it) => {
+    if (it.kind === "file" && fileUrl(it)) out.push({ f: it, name: it.data.name, how: it.folder === "abgabe" ? "direkt in der Aufgabe hochgeladen" : "aus „Eigene Dateien“" });
+    if (it.kind === "mail") (it.data.attachments || []).forEach((a) => { const f = attachmentItem(it, a); if (f && fileUrl(f)) out.push({ f, name: f.data.name, how: `Anhang der E-Mail „${it.data.subject}“` }); });
+  });
+  return out;
+}
+function filesPanel(pid, st, own, locked) {
+  const orig = origFilesOf(pid, st);
+  const kf = D.kfiles.filter((f) => f.participant === pid && f.subtask === st && f.kind !== "konvertiert");
+  const conv = (id) => conversionOf(id);
+  const dl = (url, name, label) => `<button class="iconbtn" style="width:26px;height:26px" data-dlf="${esc(url)}" data-dln="${esc(name)}" title="${esc(label)}" aria-label="${esc(label)}">${icon("download")}</button>`;
+  return `<div class="bold small mt-s">Originaldateien der/des Teilnehmenden</div>
+    <div class="kfiles">${orig.length ? orig.map((o) => { const c = conv(o.f.id); return `<div class="kfile2"><div class="row" style="gap:6px">${icon("file")}<span class="grow" title="${esc(o.name)}">${esc(o.name)}</span><span class="badge gray xs">Original · ${esc(extOf(o.name).toUpperCase())}</span>${dl(fileUrl(o.f), o.name, "Originaldatei herunterladen")}</div><div class="xs muted">${esc(o.how)}</div>
+      ${c ? `<div class="row xs" style="gap:6px;margin:4px 0 0 18px">${icon("file-cog")}<span class="grow">PDF-Korrekturfassung (für Markierungen genutzt)</span>${dl(fileUrl(c), c.name, "Korrekturfassung herunterladen")}</div>` : isOffice(o.name) ? `<div class="xs muted" style="margin-left:18px">Korrekturfassung wird beim Anzeigen erzeugt</div>` : isPdf(o.name) ? `<div class="xs muted" style="margin-left:18px">wird direkt im Korrekturbereich angezeigt</div>` : ""}</div>`; }).join("") : `<div class="small muted">keine Dateien</div>`}</div>
+    <div class="bold small mt">Dateien der Korrektur</div>
+    <div class="kfiles">${kf.length ? kf.map((f) => { const c = conv(f.id); return `<div class="kfile2"><div class="row" style="gap:6px">${icon("file-up")}<span class="grow" title="${esc(f.name)}">${esc(f.name)}</span><span class="badge xs" style="background:${colorOf(f.corrector)};color:#fff">${esc(CORRECTORS[f.corrector]?.short || "K")}</span>${dl(fileUrl(f), f.name, "Datei herunterladen")}${!locked && f.corrector === own ? `<button class="iconbtn" style="width:26px;height:26px" data-delkf="${f.id}" aria-label="Datei löschen" title="Datei löschen">${icon("trash-2")}</button>` : ""}</div><div class="xs muted">durch die Korrektur hochgeladen${isPdf(f.name) || isOffice(f.name) || isImage(f.name) ? " · im Korrekturbereich angezeigt und korrigierbar" : ""}</div>${c ? `<div class="row xs" style="gap:6px;margin:4px 0 0 18px">${icon("file-cog")}<span class="grow">PDF-Korrekturfassung</span>${dl(fileUrl(c), c.name, "Korrekturfassung herunterladen")}</div>` : ""}</div>`; }).join("") : `<div class="small muted">keine</div>`}</div>`;
 }
 
 // ---------- Markierungen zeichnen ----------
@@ -164,7 +240,7 @@ export function roPaper(pid, st, zoom = 0.8) {
   const ann = annotations(pid, st, 0, true);
   return `<div class="kpaper-wrap ro"><div class="ksizer" data-ro-sizer data-zoom="${zoom}"><div class="kpaper2 tool-ro" style="width:${PW}px;transform:scale(${zoom})">
     <div class="kmargin l"></div><div class="kmargin r"></div>
-    <div class="kcontent">${subs.length ? subs.map((it) => paperFor(it, p)).join('<hr class="ksep">') : `<div class="empty">${icon("file")}<p>Keine Abgabe zu dieser Teilaufgabe.</p></div>`}</div>
+    <div class="kcontent">${contentFor(pid, st, `<div class="empty">${icon("file")}<p>Keine Abgabe zu dieser Teilaufgabe.</p></div>`)}</div>
     <svg class="kann" width="${PW}" height="100">${ann.svg}</svg><div class="ksigns">${ann.signs}</div></div></div></div>`;
 }
 export function fitRoPapers(root) {
@@ -237,7 +313,7 @@ export function mode(pid, st, q, compare) {
           ${locked ? `<div class="ktools row wrap xs" style="gap:14px">${icon("lock")} Schreibgeschützte Ansicht – Markierungen aller Korrekturen werden angezeigt.<span class="grow"></span>${(lessonMode() ? [1] : [1, 2, 3]).map((c) => `<span class="row" style="gap:4px"><i class="cdot" style="background:${colorOf(c)}"></i>${CORRECTORS[c].label}</span>`).join("")}<button class="iconbtn boxed" data-zoom="-1" aria-label="Verkleinern">${icon("zoom-out")}</button><button class="iconbtn boxed" data-zoom="1" aria-label="Vergrößern">${icon("zoom-in")}</button></div>` : ""}
           <div class="kpaper-wrap" data-wrap><div class="ksizer" data-sizer><div class="kpaper2 tool-${locked ? "ro" : K.tool}" data-paper style="width:${PW}px;transform:scale(${K.zoom})">
             <div class="kmargin l"></div><div class="kmargin r"></div>
-            <div class="kcontent">${subs.length ? subs.map((it) => paperFor(it, p)).join('<hr class="ksep">') : `<div class="empty">${icon("file")}<h3>Keine Abgabe</h3><p>Zu dieser Teilaufgabe wurde nichts als Abgabe markiert.</p><p>Wählen Sie ggf. „Aufgabe nicht bearbeitet“.</p></div>`}</div>
+            <div class="kcontent">${contentFor(pid, st, `<div class="empty">${icon("file")}<h3>Keine Abgabe</h3><p>Zu dieser Teilaufgabe wurde nichts als Abgabe markiert.</p><p>Wählen Sie ggf. „Aufgabe nicht bearbeitet“.</p></div>`)}</div>
             <svg class="kann" data-svg width="${PW}" height="100">${ann.svg}<g data-temp></g></svg>
             <div class="ksigns">${ann.signs}</div>
             <canvas class="kink" data-ink width="${PW}" height="100"></canvas>
@@ -256,8 +332,7 @@ export function mode(pid, st, q, compare) {
             <div class="sec"><h3>Begründung</h3><p class="xs muted">Wird in der Prüfungseinsicht angezeigt. Bausteine (${icon("list")}) ergänzen Text und Punkte.</p>
               <textarea class="input" data-notes rows="4" ${locked ? "readonly" : ""} placeholder="Begründung der Bewertung …">${esc(g?.notes?.[st] || "")}</textarea></div>
             <div class="sec"><h3>Hochgeladene Dateien</h3>
-              <div class="bold small mt-s">Korrektur</div><div class="kfiles">${kf.length ? kf.map((f) => `<div class="kfile">${icon("file")}<a href="${fileUrl(f)}?download=1" download="${esc(f.name)}" title="${esc(f.name)}">${esc(f.name)}</a><span class="xs" style="color:${colorOf(f.corrector)}">${CORRECTORS[f.corrector]?.short || ""}</span>${!locked && f.corrector === own ? `<button class="iconbtn" style="width:26px;height:26px" data-delkf="${f.id}" aria-label="Datei löschen" title="Datei löschen">${icon("trash-2")}</button>` : ""}</div>`).join("") : `<div class="small muted">keine</div>`}</div>
-              <div class="bold small mt">Teilnehmender</div>${subs.flatMap((it) => it.kind === "file" ? [`<span class="doclink">${icon("file")} ${it.file ? `<a href="${fileUrl(it)}?download=1" download>${esc(it.data.name)}</a>` : esc(it.data.name)}</span>`] : it.kind === "code" ? [`<span class="doclink">${icon("file-code")} ${esc(it.data.name)}</span>`] : (it.data.attachments || []).map((a) => `<span class="doclink">${icon("paperclip")} ${esc(a)}</span>`)).join("") || `<div class="small muted">keine</div>`}
+              ${filesPanel(pid, st, own, locked)}
               ${locked ? "" : `<div class="bold small mt">Dateiupload (Korrektur)</div><p class="xs muted" style="margin:2px 0 6px">z. B. Korrekturbogen, Nebenrechnung oder Gutachten – max. 20 MB. Sichtbar für alle Korrigierenden.</p><label class="btn block">${icon("upload")} Datei auswählen<input type="file" hidden data-upload></label>`}
             </div>
             <div class="sec"><h3>Aufgabenstellung</h3><p class="small">${esc(s.text)}</p><button class="link small" data-horizon>${icon("external-link")} Erwartungshorizont öffnen</button></div>
@@ -307,6 +382,7 @@ export function mode(pid, st, q, compare) {
       wrap.scrollTop = K.scroll; wrap.onscroll = () => (K.scroll = wrap.scrollTop);
 
       // Bewertung (auch bei gesperrter Ansicht nichts speichern)
+      el.querySelectorAll("[data-dlf]").forEach((b) => (b.onclick = () => downloadUrl(b.dataset.dlf, b.dataset.dln)));
       if (!locked) {
         el.querySelectorAll("[data-crit]").forEach((sel) => (sel.onchange = async () => {
           const g = grading(pid); const points = { ...(g?.points || {}) };
@@ -336,7 +412,7 @@ export function mode(pid, st, q, compare) {
         if (up) up.onchange = async () => {
           const f = up.files[0]; if (!f) return;
           if (f.size > 20 * 1048576) return toast("Datei zu groß", "Maximal 20 MB sind erlaubt.", "error");
-          try { await createWithFile("kfiles", { participant: pid, subtask: st, corrector: own, name: f.name }, f); toast("Datei hochgeladen", f.name); redraw(); }
+          try { await createWithFile("kfiles", { participant: pid, subtask: st, corrector: own, name: f.name, kind: "korrektor" }, f); toast("Datei hochgeladen", f.name); redraw(); }
           catch (e) { toast("Hochladen fehlgeschlagen", e?.message || "", "error"); }
         };
         el.querySelectorAll("[data-delkf]").forEach((b) => (b.onclick = async () => { const f = byId("kfiles", b.dataset.delkf); if (f && (await confirmBox("Datei löschen", `Möchten Sie „${esc(f.name)}“ löschen?`, "Löschen"))) { await del("kfiles", f.id); redraw(); } }));

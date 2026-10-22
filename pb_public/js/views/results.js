@@ -1,12 +1,12 @@
 // Ergebnisse (Task 28/30/36) und Prüfungseinsicht (Task 37/38)
-import { D, byId, upd, setting, setSetting } from "../data.js?v=8.3";
-import { icon, esc, toast, confirmBox, brand, modal } from "../ui.js?v=8.3";
-import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.3";
-import { navigate, redraw, session } from "../app.js?v=8.3";
-import { grading, stPoints, candidates, fmtP } from "./correction.js?v=8.3";
-import { linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=8.3";
-import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, orgShort } from "../access.js?v=8.3";
-import { roPaper, fitRoPapers } from "./kmode.js?v=8.3";
+import { D, byId, upd, setting, setSetting } from "../data.js?v=8.4";
+import { icon, esc, toast, confirmBox, brand, modal } from "../ui.js?v=8.4";
+import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.4";
+import { navigate, redraw, session } from "../app.js?v=8.4";
+import { grading, stPoints, candidates, fmtP } from "./correction.js?v=8.4";
+import { linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=8.4";
+import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, orgShort } from "../access.js?v=8.4";
+import { roPaper, fitRoPapers } from "./kmode.js?v=8.4";
 
 // Endpunkte je Teilaufgabe: Endbeurteilung (falls angefordert und erfasst), sonst Mittelwert Erst/Zweit, sonst Erstkorrektur
 export function finalPoints(pid, st) {

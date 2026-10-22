@@ -1,9 +1,9 @@
 // Raumaufsicht: Übersicht der Raumaufsichten und Steuerkonsole eines Raums
-import { D, byId, upd, create, log, demoApi } from "../data.js?v=8.3";
-import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=8.3";
-import { navigate, redraw, session, directHelp } from "../app.js?v=8.3";
-import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, KIND, members } from "../access.js?v=8.3";
-import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=8.3";
+import { D, byId, upd, create, log, demoApi } from "../data.js?v=8.4";
+import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=8.4";
+import { navigate, redraw, session, directHelp } from "../app.js?v=8.4";
+import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, KIND, members } from "../access.js?v=8.4";
+import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=8.4";
 
 const MR = { status: "", q: "" }; // Filter „Mein Raum“ (Großraum)
 const pending = new Set();
@@ -14,6 +14,10 @@ let tick = null;
 const connState = new Map();
 
 const inRoom = (room) => D.participants.filter((p) => p.room === room.id);
+// Ab dieser Zahl von Teilnehmenden wird kein Sitzplan mehr gezeigt: „Mein Raum“ ist ausgegraut, die Steuerung erfolgt im Reiter „Teilnehmende“
+// (40 ≈ größter üblicher Klassen- bzw. Prüfungsraum; darüber wird der Sitzplan unübersichtlich)
+export const PLAN_MAX = 40;
+export const isLargeRoom = (room) => inRoom(room).length > PLAN_MAX;
 const actor = () => session.userName();
 
 // ---------- Übersicht ----------
@@ -138,6 +142,7 @@ export function room(id, tab) {
   const lesson = courseOf(r)?.kind === "unterricht";
   const tabs = [["pruefung", "Prüfung"], ["meinraum", "Mein Raum"], ["teilnehmende", "Teilnehmende"], ["aufsicht", "Aufsichtspersonen"], ...(lesson ? [] : [["protokoll", "Prüfungsprotokoll"]])];
   if (lesson && tab === "protokoll") tab = "meinraum";
+  if (tab === "meinraum" && isLargeRoom(r)) tab = "teilnehmende";
   return {
     shell: "staff", rail: "schule", title: r.name,
     render() {
@@ -153,7 +158,7 @@ export function room(id, tab) {
           <button class="btn" data-collect ${room.state === "RUNNING" || room.state === "PAUSED" ? "" : "disabled"}>${icon("download")} Prüfung einsammeln</button>
           <button class="btn" data-end ${ended || room.state === "CREATED" ? "disabled" : ""}>${icon("log-in")} Prüfung beenden</button>` : ""}
         </div></div>
-      <nav class="tabs">${tabs.map(([k, l]) => `<a href="#/app/raum/${id}/${k}" class="${k === tab ? "active" : ""}">${l}</a>`).join("")}</nav>
+      <nav class="tabs">${tabs.map(([k, l]) => k === "meinraum" && isLargeRoom(room) ? `<span class="tabdis" aria-disabled="true" title="Mehr als ${PLAN_MAX} Teilnehmende: kein Sitzplan – Steuerung im Reiter „Teilnehmende“">${l}</span>` : `<a href="#/app/raum/${id}/${k}" class="${k === tab ? "active" : ""}">${l}</a>`).join("")}</nav>
       ${body(room)}`;
     },
     mount(el) {
@@ -468,13 +473,19 @@ async function addParticipants(room, seat) {
 
 // ---------- Tab Teilnehmende ----------
 function tabTeilnehmende(room) {
-  const st = S.tn; const ps = inRoom(room);
+  const st = S.tn; const all = inRoom(room); const big = isLargeRoom(room);
+  const ps = all.filter((p) => (!st.status || p.status === st.status) && (!st.q || (p.lastname + " " + p.firstname + " " + p.username + " " + p.seat).toLowerCase().includes(st.q.toLowerCase())));
+  const counts = {}; all.forEach((p) => (counts[p.status] = (counts[p.status] || 0) + 1));
+  const off = all.filter((p) => isActive(p.status) && !isConnected(p)).length;
   const key = { seat: (p) => p.seat, lastname: (p) => p.lastname, firstname: (p) => p.firstname, status: (p) => p.status, end: (p) => (endTime(room, p) || plannedEnd(room, p))?.getTime() || 0 }[st.sort] || ((p) => p.seat);
   const cmp = (x, y) => (typeof x === "number" ? x - y : st.sort === "seat" ? seatCmp(x, y) : String(x).localeCompare(String(y), "de", { numeric: true }));
   const sorted = [...ps].sort((a, b) => cmp(key(a), key(b)) * st.dir);
   const page = sorted.slice((st.page - 1) * st.per, st.page * st.per);
   const th = (k, l) => `<th class="sortable" data-sort="${k}">${icon(st.sort === k ? (st.dir > 0 ? "chevron-up" : "chevron-down") : "list")} ${l}</th>`;
-  return `<div class="row between wrap mb"><div class="row wrap"><button class="btn" data-addtn>${icon("plus")} Teilnehmende hinzufügen</button><div class="notice success small">${icon("circle-check")}<span>Es sind aktuell <b>${ps.length} von ${seatCount(room)} Sitzplätzen</b> im Raum belegt.</span></div></div>
+  return `${big ? `<div class="notice info small mb">${icon("users")}<span><b>Großraum mit ${all.length} Teilnehmenden:</b> Ab ${PLAN_MAX + 1} Teilnehmenden wird kein Sitzplan angezeigt („Mein Raum“ ist ausgegraut). Anwesenheit, Verbindung, Status und Details steuern Sie hier in der Liste – mit Suche und Statusfilter.</span></div>
+  <div class="row between wrap mb"><div class="row wrap"><div class="search"><input class="input" style="width:260px" data-tnq placeholder="Name, Anmeldename oder Platz" value="${esc(st.q || "")}" aria-label="Teilnehmende suchen">${icon("search")}</div><button class="btn ghost sm" data-simulate>${icon("users")} Demo: übrige Teilnehmende anmelden</button></div>
+    <div class="legend small">${Object.entries(counts).map(([k, n]) => `<button class="legend-btn ${st.status === k ? "on" : ""}" data-tnst="${k}" title="Nach Status filtern">${statusChip(k)} ${n}</button>`).join("")}${off ? `<span class="badge red">${icon("radio")} ${off} nicht verbunden</span>` : ""}</div></div>` : ""}
+  <div class="row between wrap mb"><div class="row wrap"><button class="btn" data-addtn>${icon("plus")} Teilnehmende hinzufügen</button><div class="notice success small">${icon("circle-check")}<span>Es sind aktuell <b>${all.length} von ${seatCount(room)} Sitzplätzen</b> im Raum belegt.</span></div></div>
     <div class="row wrap"><button class="btn" data-delgrp ${ps.length ? "" : "disabled"}>${icon("users")} Gruppe entfernen</button><button class="btn" data-deltn ${st.sel.size ? "" : "disabled"}>${icon("trash-2")} Ausgewählte entfernen${st.sel.size ? ` (${st.sel.size})` : ""}</button></div></div>
   ${ps.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th><input type="checkbox" data-all aria-label="Alle auswählen"></th>${th("lastname", "Name")}${th("seat", "Platz")}<th>Anwesend</th><th>Anmeldung / Verbindung</th>${th("status", "Status")}<th>Zeitgutschrift</th>${th("end", "Ende")}<th><span class="sr-only">Details</span></th></tr></thead>
   <tbody>${page.map((p) => `<tr><td><input type="checkbox" data-sel="${p.id}" ${st.sel.has(p.id) ? "checked" : ""} aria-label="${esc(p.lastname)} auswählen"></td><td><b>${esc(p.lastname)}, ${esc(p.firstname)}</b><div class="sub">${esc(p.username)}</div></td><td>${esc(p.seat)}</td>
@@ -497,6 +508,9 @@ function bindTeilnehmende(el, room) {
   if (d) d.onclick = () => removeParticipants(room, [...st.sel].map((id) => byId("participants", id)).filter(Boolean));
   el.querySelectorAll("[data-rmtn]").forEach((b) => (b.onclick = () => removeParticipants(room, [byId("participants", b.dataset.rmtn)].filter(Boolean))));
   const g = el.querySelector("[data-delgrp]"); if (g) g.onclick = () => removeGroupDialog(room);
+  el.querySelectorAll("[data-tnst]").forEach((b) => (b.onclick = () => { st.status = st.status === b.dataset.tnst ? "" : b.dataset.tnst; st.page = 1; redraw(); }));
+  const q = el.querySelector("[data-tnq]"); if (q) q.oninput = () => { st.q = q.value; st.page = 1; const pos = q.selectionStart; redraw(); const n = document.querySelector("[data-tnq]"); if (n) { n.focus(); n.setSelectionRange(pos, pos); } };
+  const sim = el.querySelector("[data-simulate]"); if (sim) sim.onclick = async () => { const r = await demoApi.simulateLogin(room.id); toast("Simulation", `${r.count} Teilnehmende haben sich angemeldet.`, "info"); };
 }
 
 // Teilnehmende einzeln, als Auswahl oder als ganze Gruppe (Klasse/Kurs) aus der Raumaufsicht entfernen
@@ -582,7 +596,7 @@ function bindAufsicht(el, room) {
   el.querySelector("[data-delsv]").onclick = async () => {
     const list = [...st.sel].map((id) => byId("supervisors", id)).filter(Boolean);
     if (!(await confirmBox("Aufsichtspersonen löschen", list.map((s) => `${esc(s.lastname)}, ${esc(s.firstname)}`).join("<br>"), "Löschen"))) return;
-    const { del } = await import("../data.js?v=8.3");
+    const { del } = await import("../data.js?v=8.4");
     for (const s of list) { await del("supervisors", s.id); log(room.id, null, `Aufsichtsperson ${s.lastname} entfernt`, "", "aktion", actor()); }
     st.sel.clear(); toast("Aufsichtspersonen entfernt");
   };
@@ -614,4 +628,4 @@ function bindProtokoll(el, room) {
     if (v !== null && v !== undefined) { await upd("protocol", r.id, { comment: v }); toast("Kommentar gespeichert"); }
   }));
 }
-function downloadProtocol(room) { import("./protocolpdf.js?v=8.3").then((m) => m.protocolPdf(room)); }
+function downloadProtocol(room) { import("./protocolpdf.js?v=8.4").then((m) => m.protocolPdf(room)); }

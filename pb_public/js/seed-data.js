@@ -1,10 +1,10 @@
-// CheckBW Klickdummy – Demodaten (gemeinsame Quelle)
+// Exam Klickdummy – Demodaten (gemeinsame Quelle)
 // Wird von PocketBase (pb_hooks/seed.js, per require) und im Browser-Modus (js/localdb.js) verwendet.
 // Erzeugt reine Datensätze mit festen IDs; Beziehungen sind damit in beiden Umgebungen identisch.
 // Alle Personennamen sind zufällig erzeugte Fantasienamen – Ähnlichkeiten mit realen Personen sind nicht beabsichtigt.
 (function (root) {
   // Stand der Demodaten. Erhöhen, wenn sich die Demodaten ändern – ältere Datenbestände werden beim Start automatisch neu aufgebaut.
-  var SEED_VERSION = 11;
+  var SEED_VERSION = 12;
   var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings"];
 
   // Bewertungskriterien je Teilaufgabe (Maximalpunkte) – muss zu js/scenario.js passen
@@ -151,27 +151,27 @@
 
     // ---------- Bereitgestellte Arbeitsmaterialien (je Aufgabe) ----------
     var G = function (kind, folder, data, task) { return add("items", { participant: "", kind: kind, folder: folder, data: Object.assign({ task: task || "1" }, data), submission: "" }); };
-    G("file", "provided", { name: "Angebot_BatteryWorld.pdf", format: "PDF", size: "0,4 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" });
-    G("file", "provided", { name: "Angebot_Innovatech.pdf", format: "PDF", size: "0,3 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" });
-    G("file", "provided", { name: "Vorlage_Angebotsvergleich.xlsx", format: "XLSX", size: "0,1 MB", changed: "20.08.25", path: "Bereitgestellte Dateien/Vorlagen" });
-    G("file", "provided", { name: "Netzplan_FunSport.png", format: "PNG", size: "0,8 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" }, "3");
+    G("file", "provided", { name: "Angebot_BatteryWorld.pdf", url: "samples/Angebot_BatteryWorld.pdf", format: "PDF", size: "0,4 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" });
+    G("file", "provided", { name: "Angebot_Innovatech.pdf", url: "samples/Angebot_Innovatech.pdf", format: "PDF", size: "0,3 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" });
+    G("file", "provided", { name: "Vorlage_Angebotsvergleich.xlsx", url: "samples/Vorlage_Angebotsvergleich.xlsx", format: "XLSX", size: "0,1 MB", changed: "20.08.25", path: "Bereitgestellte Dateien/Vorlagen" });
+    G("file", "provided", { name: "Netzplan_FunSport.png", url: "samples/Netzplan_FunSport.png", format: "PNG", size: "0,8 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" }, "3");
     G("code", "ide", { name: "bestellmenge.py", lang: "python", code: "# Aufgabe 1.3 – Bestellmenge ermitteln\n\ndef bestellmenge(lagerbestand, meldebestand, hoechstbestand):\n    # TODO: Bestellmenge berechnen\n    return 0\n\n\nprint(\"Bestellmenge:\", bestellmenge(120, 150, 400))\n" });
     G("code", "ide", { name: "bestellmenge.js", lang: "javascript", code: "// Aufgabe 1.3 – Bestellmenge ermitteln (JavaScript)\n\nfunction bestellmenge(lagerbestand, meldebestand, hoechstbestand) {\n  // TODO: Bestellmenge berechnen\n  return 0;\n}\n\nconsole.log(\"Bestellmenge:\", bestellmenge(120, 150, 400));\n" });
     G("code", "ide", { name: "README.md", lang: "text", code: "Projekt Bestellmenge\n====================\nWenn der Lagerbestand den Meldebestand unterschreitet,\nwird bis zum Höchstbestand aufgefüllt.\n" });
     G("mail", "inbox", {
       from: "Bäumler, Karim", from_mail: "Karim.Baeumler@funsport-innovations.de", to: "azubi@funsport-innovations.de",
-      subject: "Quantitativer Angebotsvergleich für neue Lithium-Batterie-Packs", date: "13.10.2025 09:22",
+      subject: "Quantitativer Angebotsvergleich für neue Lithium-Batterie-Packs", date: "13.10.2025 09:22", attach_urls: { "Angebotsvergleich.xlsx": "samples/Vorlage_Angebotsvergleich.xlsx" },
       attachments: ["Angebotsvergleich.xlsx"],
       body: "Hallo Herr Bendix,\n\ndie FunSport Innovations GmbH steht kurz vor dem Produktionsstart eines neuen E-Skateboard-Modells. Dafür benötigen wir Lithium-Batterie-Packs in größerer Stückzahl. Um unsere Kosten niedrig zu halten, möchte ich Sie bitten, einen quantitativen Angebotsvergleich durchzuführen.\n\nGehen Sie von einem Bedarf von 300 Batterie-Packs aus. Die eingegangenen Angebote habe ich im Ordner „Bereitgestellte Dateien“ (Angebot_BatteryWorld und Angebot_Innovatech) abgelegt. Sie finden dort auch eine Vorlage für den Angebotsvergleich (Vorlage_Angebotsvergleich.xlsx).\n\nFühren Sie einen Angebotsvergleich durch. Nutzen Sie Zellbezüge, verwenden Sie kopierfähige Formeln und setzen Sie die Wenn-Funktion, wenn möglich, ein.\n\nSenden Sie mir Ihr Ergebnis (Angebotsvergleich.xlsx) bitte schnellstmöglich zu.\n\nIch danke Ihnen schon jetzt für Ihre Unterstützung! Bei Rückfragen stehe ich Ihnen selbstverständlich gern zur Verfügung.\n\nMit freundlichen Grüßen\nKarim Bäumler\nEinkauf – FunSport Innovations GmbH",
     });
     G("mail", "inbox", {
       from: "Danner, Ronja", from_mail: "info@batteryworldgmbh.de", to: "einkauf@funsport-innovations.de",
-      subject: "Angebote", date: "11.10.2025 10:22", attachments: ["Angebot_BatteryWorld.pdf"],
+      subject: "Angebote", date: "11.10.2025 10:22", attachments: ["Angebot_BatteryWorld.pdf"], attach_urls: { "Angebot_BatteryWorld.pdf": "samples/Angebot_BatteryWorld.pdf" },
       body: "Sehr geehrter Herr Bendix,\n\nanbei erhalten Sie unser Angebot über 300 Lithium-Batterie-Packs (Typ LBP-36V).\n\nMit freundlichen Grüßen\nRonja Danner\nBatteryWorld GmbH",
     });
     G("mail", "inbox", {
       from: "Timm, Rafael", from_mail: "r.timm@innovatech.de", to: "einkauf@funsport-innovations.de",
-      subject: "Angebot für Lithium-Batterie-Packs", date: "09.10.2025 08:05", attachments: ["Angebot_Innovatech.pdf"],
+      subject: "Angebot für Lithium-Batterie-Packs", date: "09.10.2025 08:05", attachments: ["Angebot_Innovatech.pdf"], attach_urls: { "Angebot_Innovatech.pdf": "samples/Angebot_Innovatech.pdf" },
       body: "Sehr geehrte Damen und Herren,\n\nvielen Dank für Ihre Anfrage. Gerne unterbreiten wir Ihnen folgendes Angebot …\n\nFreundliche Grüße\nRafael Timm\nInnovaTech GmbH",
     });
     G("event", "calendar", { title: "Messe", day: 0, start: "07:00", end: "07:30", allday: true, editable: false, location: "Messe Stuttgart", desc: "Fachmesse E-Mobilität" });
@@ -185,19 +185,19 @@
     G("ticket", "tickets", { no: "4688", subject: "Lieferantenstammdaten Rollmaster AG anlegen", requester: "Voßkamp, Selma", prio: "mittel", status: "offen", created: "13.10.2025 14:20",
       desc: "Bitte die Rollmaster AG (Kugellager) als Lieferant im System anlegen: Anschrift, Ansprechpartner, Zahlungsbedingungen laut Preisliste.", answers: [] }, "2");
     // Aufgabe 2 – Angebote & Kalkulation
-    G("mail", "inbox", { from: "Voßkamp, Selma", from_mail: "s.vosskamp@funsport-innovations.de", to: "azubi@funsport-innovations.de", subject: "Kugellager für den Speedster – Anfrage und Termin", date: "14.10.2025 08:10", attachments: ["Lieferantenliste.xlsx"],
+    G("mail", "inbox", { from: "Voßkamp, Selma", from_mail: "s.vosskamp@funsport-innovations.de", to: "azubi@funsport-innovations.de", subject: "Kugellager für den Speedster – Anfrage und Termin", date: "14.10.2025 08:10", attachments: ["Lieferantenliste.xlsx"], attach_urls: { "Lieferantenliste.xlsx": "samples/Lieferantenliste.xlsx" },
       body: "Hallo,\n\nfür die Produktion des Speedster benötigen wir 500 Kugellager (Typ 608-2RS). Bitte formulieren Sie eine Anfrage an einen der Lieferanten aus der Lieferantenliste und planen Sie für nächste Woche ein Lieferantengespräch im Kalender ein. Achten Sie auf bestehende Termine.\n\nViele Grüße\nSelma Voßkamp\nAusbildungsleitung" }, "2");
-    G("mail", "inbox", { from: "Rollmaster AG", from_mail: "vertrieb@rollmaster.de", to: "einkauf@funsport-innovations.de", subject: "Ihre Anfrage – Rahmenkonditionen 2025", date: "10.10.2025 15:41", attachments: ["Preisliste_Rollmaster.pdf"],
+    G("mail", "inbox", { from: "Rollmaster AG", from_mail: "vertrieb@rollmaster.de", to: "einkauf@funsport-innovations.de", subject: "Ihre Anfrage – Rahmenkonditionen 2025", date: "10.10.2025 15:41", attachments: ["Preisliste_Rollmaster.pdf"], attach_urls: { "Preisliste_Rollmaster.pdf": "samples/Preisliste_Rollmaster.pdf" },
       body: "Sehr geehrte Damen und Herren,\n\nanbei unsere aktuelle Preisliste. Bei Abnahme ab 500 Stück gewähren wir 8 % Mengenrabatt.\n\nMit freundlichen Grüßen\nRollmaster AG" }, "2");
-    G("file", "provided", { name: "Lieferantenliste.xlsx", format: "XLSX", size: "0,1 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" }, "2");
-    G("file", "provided", { name: "Kalkulationsschema.pdf", format: "PDF", size: "0,2 MB", changed: "20.08.25", path: "Bereitgestellte Dateien/Vorlagen" }, "2");
-    G("file", "provided", { name: "Preisliste_Rollmaster.pdf", format: "PDF", size: "0,3 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" }, "2");
+    G("file", "provided", { name: "Lieferantenliste.xlsx", url: "samples/Lieferantenliste.xlsx", format: "XLSX", size: "0,1 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" }, "2");
+    G("file", "provided", { name: "Kalkulationsschema.pdf", url: "samples/Kalkulationsschema.pdf", format: "PDF", size: "0,2 MB", changed: "20.08.25", path: "Bereitgestellte Dateien/Vorlagen" }, "2");
+    G("file", "provided", { name: "Preisliste_Rollmaster.pdf", url: "samples/Preisliste_Rollmaster.pdf", format: "PDF", size: "0,3 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" }, "2");
     G("event", "calendar", { title: "Lieferantentag Einkauf", day: 2, start: "09:00", end: "12:00", editable: false, location: "Halle 1", desc: "Interne Schulung" }, "2");
     G("event", "calendar", { title: "Teamrunde Produktion", day: 4, start: "10:00", end: "11:00", editable: false, location: "Besprechungsraum 1", desc: "" }, "2");
     // Aufgabe 3 – Netzwerkkonfiguration
-    G("mail", "inbox", { from: "Pätzold, Helge", from_mail: "h.paetzold@funsport-innovations.de", to: "azubi@funsport-innovations.de", subject: "Neuer Standort – Netzwerkplanung", date: "15.10.2025 07:55", attachments: ["Anforderungen_Netzwerk.pdf"],
+    G("mail", "inbox", { from: "Pätzold, Helge", from_mail: "h.paetzold@funsport-innovations.de", to: "azubi@funsport-innovations.de", subject: "Neuer Standort – Netzwerkplanung", date: "15.10.2025 07:55", attachments: ["Anforderungen_Netzwerk.pdf"], attach_urls: { "Anforderungen_Netzwerk.pdf": "samples/Anforderungen_Netzwerk.pdf" },
       body: "Hallo,\n\nfür den neuen Standort benötigen wir einen IP-Adressplan und ein Firewall-Regelwerk. Die Details finden Sie in den Anforderungen und im Ticketsystem (Ticket #4711 und #4712).\n\nViele Grüße\nHelge Pätzold\nGeschäftsführung" }, "3");
-    G("file", "provided", { name: "Anforderungen_Netzwerk.pdf", format: "PDF", size: "0,2 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" }, "3");
+    G("file", "provided", { name: "Anforderungen_Netzwerk.pdf", url: "samples/Anforderungen_Netzwerk.pdf", format: "PDF", size: "0,2 MB", changed: "20.08.25", path: "Bereitgestellte Dateien" }, "3");
     G("event", "calendar", { title: "Abnahme IT-Infrastruktur", day: 3, start: "13:00", end: "14:30", editable: false, location: "Neuer Standort", desc: "Abnahme durch die Geschäftsführung" }, "3");
     G("code", "ide", { name: "firewall_regeln.txt", lang: "text", code: "# Firewall-Regelwerk (Vorlage)\n# Nr | Quelle | Ziel | Dienst/Port | Aktion | Begründung\n1 | any | any | any | deny | Default-Deny\n" }, "3");
     G("ticket", "tickets", { no: "4711", subject: "IP-Adressplan für den neuen Standort erstellen", requester: "Helge Pätzold", prio: "hoch", status: "offen", created: "15.10.2025 08:02",
@@ -205,6 +205,26 @@
     G("ticket", "tickets", { no: "4712", subject: "Gäste-WLAN darf nur ins Internet", requester: "IT-Sicherheit", prio: "mittel", status: "offen", created: "15.10.2025 08:05",
       desc: "Das Gäste-Netz soll ausschließlich Internetzugriff erhalten. Die Verwaltung muss auf die Produktion zugreifen können. Bitte Regelwerk vorschlagen und begründen.", answers: [] }, "3");
     G("ticket", "tickets", { no: "4698", subject: "Drucker im Lager druckt nicht", requester: "Lager", prio: "niedrig", status: "geschlossen", created: "02.10.2025 11:20", desc: "Erledigt durch Neustart des Druckservers.", answers: [{ by: "IT-Support", at: "02.10.2025 13:05", text: "Druckerwarteschlange neu gestartet, Problem behoben." }] }, "3");
+
+    // ---------- ERP-System (Stammdaten und Belege je Aufgabe; Prüflinge legen eigene Lieferanten und Bestellungen an) ----------
+    var E = function (type, data, task) { return add("items", { participant: "", kind: "erp", folder: "erp", data: Object.assign({ task: task || "1", type: type }, data), submission: "" }); };
+    ["1", "2"].forEach(function (t) {
+      E("artikel", { nr: "100100", name: "Lithium-Batterie-Pack LBP-36V", gruppe: "Zukaufteile", einheit: "Stk.", bestand: 120, melde: 150, hoechst: 400, ek: 115.0, lieferant: "70010" }, t);
+      E("artikel", { nr: "100200", name: "Rillenkugellager 608-2RS", gruppe: "Zukaufteile", einheit: "Stk.", bestand: 180, melde: 300, hoechst: 1000, ek: 0.48, lieferant: "" }, t);
+      E("artikel", { nr: "100300", name: "Deck Ahorn 7-lagig (Speedster)", gruppe: "Halbfabrikate", einheit: "Stk.", bestand: 260, melde: 100, hoechst: 500, ek: 18.9, lieferant: "70030" }, t);
+      E("artikel", { nr: "100400", name: "Rolle PU 90 mm", gruppe: "Zukaufteile", einheit: "Stk.", bestand: 940, melde: 400, hoechst: 2000, ek: 2.35, lieferant: "70030" }, t);
+      E("artikel", { nr: "900100", name: "E-Skateboard Speedster", gruppe: "Fertigerzeugnisse", einheit: "Stk.", bestand: 85, melde: 50, hoechst: 300, ek: 0, vk: 449.0, lieferant: "" }, t);
+      E("lieferant", { nr: "70010", name: "BatteryWorld GmbH", ort: "Heilbronn", mail: "info@batteryworldgmbh.de", zahlung: "14 Tage 2 % Skonto, 30 Tage netto" }, t);
+      E("lieferant", { nr: "70020", name: "InnovaTech GmbH", ort: "Karlsruhe", mail: "r.timm@innovatech.de", zahlung: "10 Tage 3 % Skonto" }, t);
+      E("lieferant", { nr: "70030", name: "Holz & Rolle KG", ort: "Pforzheim", mail: "vertrieb@holzundrolle.de", zahlung: "30 Tage netto" }, t);
+      E("bestellung", { nr: "BE-2025-0412", datum: "02.10.2025", lieferant: "70030", pos: [{ artikel: "100400", menge: 800, preis: 2.35 }], status: "geliefert" }, t);
+      E("bestellung", { nr: "BE-2025-0431", datum: "08.10.2025", lieferant: "70030", pos: [{ artikel: "100300", menge: 150, preis: 18.9 }], status: "offen" }, t);
+    });
+    E("artikel", { nr: "IT-2001", name: "Managed Switch 24 Port", gruppe: "IT-Inventar", einheit: "Stk.", bestand: 2, melde: 1, hoechst: 4, ek: 389.0, lieferant: "70040" }, "3");
+    E("artikel", { nr: "IT-2002", name: "Firewall-Appliance", gruppe: "IT-Inventar", einheit: "Stk.", bestand: 0, melde: 1, hoechst: 2, ek: 1290.0, lieferant: "70040" }, "3");
+    E("artikel", { nr: "IT-2003", name: "WLAN-Access-Point", gruppe: "IT-Inventar", einheit: "Stk.", bestand: 3, melde: 2, hoechst: 8, ek: 149.0, lieferant: "70040" }, "3");
+    E("lieferant", { nr: "70040", name: "NetzWerk Systemhaus GmbH", ort: "Stuttgart", mail: "service@netzwerk-systemhaus.de", zahlung: "30 Tage netto" }, "3");
+    E("bestellung", { nr: "BE-2025-0450", datum: "14.10.2025", lieferant: "70040", pos: [{ artikel: "IT-2001", menge: 2, preis: 389.0 }], status: "offen" }, "3");
 
     // ---------- Abgaben + Bewertungen für bereits korrigierbare Teilnehmende ----------
     var graded = ["Kuhnert", "Niebuhr", "Mattern", "Trautwein", "Birkholz", "Lohse", "Dittrich", "Ahlers", "Ehrlicher"];
@@ -214,13 +234,19 @@
       var pid = ids[l];
       var p = people.filter(function (x) { return x[0] === l; })[0];
       var sender = p[1].split(" ")[0] + " " + l;
-      add("items", { participant: pid, kind: "mail", folder: "sent", submission: "1.1", data: { task: "1",
+      // Anhang der gesendeten E-Mail: eigene Datei (echte Excel-Datei)
+      var att = add("items", { participant: pid, kind: "file", folder: "own", submission: "", data: { task: "1", name: "Angebotsvergleich.xlsx", format: "XLSX", size: "0,1 MB", changed: "13.10.25", url: "samples/abgaben/Angebotsvergleich_" + l + ".xlsx" } });
+      add("items", { participant: pid, kind: "mail", folder: "sent", submission: "1.1", data: { task: "1", attach_refs: { "Angebotsvergleich.xlsx": att.id },
         from: sender, from_mail: uname(l, p[1]) + "@azubi.funsport-innovations.de", to: "Karim.Baeumler@funsport-innovations.de",
         subject: "AW: Quantitativer Angebotsvergleich für neue Lithium-Batterie-Packs", date: "13.10.2025 09:5" + (idx % 10),
         attachments: ["Angebotsvergleich.xlsx"],
         body: "Sehr geehrter Herr Bäumler,\n\nanbei sende ich Ihnen den gewünschten quantitativen Angebotsvergleich für 300 Lithium-Batterie-Packs. Unter Berücksichtigung von Rabatt, Skonto und Bezugskosten ist das Angebot der " + (idx % 3 ? "BatteryWorld GmbH" : "InnovaTech GmbH") + " günstiger.\n\nMit freundlichen Grüßen\n" + sender,
       } });
-      add("items", { participant: pid, kind: "file", folder: "own", submission: "1.2", data: { task: "1", name: "Kalkulation_" + l + ".pdf", format: "PDF", size: "0,2 MB", changed: "21.10.26" } });
+      // Abgabe 1.2: hochgeladene Kalkulation in unterschiedlichen Formaten (PDF, Word, Excel) – echte Beispieldateien
+      var fmt = ["pdf", "docx", "xlsx"][idx % 3];
+      add("items", { participant: pid, kind: "file", folder: "own", submission: "1.2", data: { task: "1", name: "Kalkulation_" + l + "." + fmt, format: fmt.toUpperCase(), size: "0,1 MB", changed: "21.10.26", url: "samples/abgaben/Kalkulation_" + l + "." + fmt } });
+      // Abgabe 2.3: direkt in der Aufgabe hochgeladene Datei (nicht in „Eigene Dateien“)
+      if (idx < 4) { var f2 = ["xlsx", "pdf", "docx", "xlsx"][idx]; add("items", { participant: pid, kind: "file", folder: "abgabe", submission: "2.3", data: { task: "2", name: "Nachkalkulation_" + l + "." + f2, format: f2.toUpperCase(), size: "0,1 MB", changed: "21.10.26", url: "samples/abgaben/Nachkalkulation_" + l + "." + f2, direct: true } }); }
       if (idx % 4 !== 3) add("items", { participant: pid, kind: "code", folder: "ide", submission: "1.3", data: { task: "1", name: "bestellmenge.py", lang: "python", code: "# Aufgabe 1.3 – Bestellmenge\n\ndef bestellmenge(lagerbestand, meldebestand, hoechstbestand):\n    if lagerbestand < meldebestand:\n        return hoechstbestand - lagerbestand\n" + (idx % 2 ? "    return 0\n" : "    else:\n        return 0\n") + "\n\nprint(\"Bestellmenge:\", bestellmenge(120, 150, 400))\n" } });
       add("items", { participant: pid, kind: "note", folder: "notes", submission: "2.1", data: { task: "2", title: "Anfrage", html: "<p>Sehr geehrte Damen und Herren,</p><p>wir bitten um ein Angebot über 500 Kugellager Typ 608-2RS …</p>" } });
 

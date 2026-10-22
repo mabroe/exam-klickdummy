@@ -1,5 +1,5 @@
 // Zugangsseite: Passwort vor dem Klickdummy (Zugangshürde für die Demo, kein Schutz vertraulicher Daten)
-import CFG from "./config.js?v=8.3";
+import CFG from "./config.js?v=8.4";
 
 const KEY = "checkbw.gate";
 // SHA-256 (Fallback, falls crypto.subtle nicht verfügbar ist, z. B. bei http über eine Netzwerkadresse)
@@ -35,7 +35,7 @@ export function gate(root) {
   return new Promise((resolve) => {
     root.innerHTML = `<main class="gate" aria-labelledby="gate-h">
       <form class="gate-card" autocomplete="off" novalidate>
-        <div class="gate-brand"><img src="img/favicon.svg" alt="" width="40" height="40"><div><b>CheckBW</b><span>Prüfungsplattform Bildschirmarbeitsplatz</span></div></div>
+        <div class="gate-brand"><img src="img/favicon.svg" alt="" width="40" height="40"><div><b>Exam</b><span>Prüfungsplattform Bildschirmarbeitsplatz</span></div></div>
         <h1 id="gate-h">Klickdummy</h1>
         <p class="gate-sub">Dieser Demonstrator ist passwortgeschützt. Er enthält ausschließlich fiktive Demodaten.</p>
         <label class="lbl" for="gate-pw">Passwort</label>

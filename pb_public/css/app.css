@@ -1,4 +1,4 @@
-/* CheckBW Klickdummy – Designsystem (nachgebaut nach Figma-Screens) */
+/* Exam Klickdummy – Designsystem (nachgebaut nach Figma-Screens) */
 @font-face { font-family: "Noto Sans"; font-weight: 400; font-display: swap; src: url(../fonts/noto-sans-latin-400-normal.woff2) format("woff2"); }
 @font-face { font-family: "Noto Sans"; font-weight: 500; font-display: swap; src: url(../fonts/noto-sans-latin-500-normal.woff2) format("woff2"); }
 @font-face { font-family: "Noto Sans"; font-weight: 600; font-display: swap; src: url(../fonts/noto-sans-latin-600-normal.woff2) format("woff2"); }
@@ -130,7 +130,10 @@ textarea.input { min-height: 90px; resize: vertical; }
 
 /* ---------- App header ---------- */
 .topbar { background: var(--yellow); min-height: 84px; display: flex; align-items: center; justify-content: space-between; padding: 12px 48px 12px 72px; gap: 24px; position: relative; z-index: 20; }
-.brand { display: inline-flex; align-items: center; gap: 2px; font-weight: 700; font-size: 26px; letter-spacing: -.01em; text-decoration: none; color: var(--ink); }
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 30px; letter-spacing: -.02em; text-decoration: none; color: var(--ink); }
+.brand .exmark { flex: none; display: block; }
+.brand .wm { line-height: 1; }
+.brand.small { font-size: 22px; gap: 8px; }
 .brand .bw { position: relative; display: inline-grid; place-items: center; width: 50px; height: 50px; margin-left: 2px; border-radius: 50%; background: var(--ink); color: var(--yellow); font-size: 22px; }
 .brand .dots { position: relative; width: 34px; height: 44px; margin-left: -4px; }
 .brand .dots i { position: absolute; border-radius: 50%; border: 4px solid var(--ink); background: transparent; }
@@ -543,7 +546,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
   .tn-nav { position: static; }
   .pdfviewer { grid-template-columns: 1fr; }
   .thumbs { display: none; }
-  .brand { font-size: 20px; } .brand .bw { width: 38px; height: 38px; font-size: 16px; }
+  .brand { font-size: 22px; } .brand .exmark { width: 36px; height: 36px; }
   .usermenu > button span.nm { display: none; }
   .examhead { flex-wrap: wrap; }
   .dock button { min-width: 70px; font-size: 12px; }
@@ -1021,3 +1024,26 @@ mark.hlm { color: inherit; border-radius: 2px; padding: 0 1px; }
 .hlpop { position: fixed; z-index: 6600; display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-lg); padding: 4px 8px; }
 .restbl th, .restbl td { padding-left: 8px; padding-right: 8px; }
 .restbl td .xs { white-space: nowrap; }
+
+/* v8.4: Logo im Prüfungskopf */
+.logo-mini.ex { width: auto; height: auto; background: none; border: 0; display: inline-flex; }
+.logo-mini.ex b, .logo-mini.ex i { display: none; }
+.tabs .tabdis { color: var(--muted); opacity: .55; cursor: not-allowed; padding: 10px 0; font-size: 17px; white-space: nowrap; border-bottom: 4px solid transparent; margin-bottom: -2px; }
+.attswap { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.btn.xs { font-size: 12px; padding: 2px 8px; min-height: 26px; }
+.uploadbox.drag { outline: 2px dashed var(--accent); outline-offset: 2px; background: var(--blue-soft); }
+.officeprev { width: 100%; min-width: 320px; max-height: 380px; overflow: auto; border: 1px solid var(--line); background: #fff; padding: 10px; font-size: 13px; }
+.officeprev table { border-collapse: collapse; } .officeprev td, .officeprev th { border: 1px solid #ccc; padding: 2px 6px; }
+.tbl.erp td { vertical-align: top; }
+p.sig { color: var(--ink-2); }
+/* v8.4: Dateien im Korrekturscreen */
+.kpdf { display: flex; flex-direction: column; gap: 14px; margin: 8px 0; }
+.kpage { display: block; width: 680px; max-width: 100%; height: auto; border: 1px solid #ccc; box-shadow: 0 1px 4px rgba(0,0,0,.08); background: #fff; user-select: none; -webkit-user-drag: none; }
+.kfilemsg { border: 1px dashed #bbb; border-radius: 6px; padding: 18px; color: #555; font-size: 14px; display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.kconvnote { font-size: 12px; color: #555; background: #f4f3f1; border-radius: 4px; padding: 6px 10px; display: flex; gap: 6px; align-items: center; }
+.kattach { margin-top: 26px; }
+.kcorrfile { border-top: 0; }
+.kfile2 { border: 1px solid var(--line-2); border-radius: 6px; padding: 6px 8px; margin-top: 6px; font-size: 13px; }
+.kfile2 .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.badge.xs { font-size: 10.5px; padding: 1px 6px; }
+.tbl.erp { font-size: 13px; } .tbl.erp .btn.sm { padding: 4px 10px; min-height: 30px; white-space: nowrap; }

@@ -1,9 +1,9 @@
 // Datenschicht: PocketBase (lokaler Server) oder Browser-Datenbank (GitHub Pages) + Realtime-Spiegel aller Collections im Speicher
-import PocketBase from "./vendor/pocketbase.es.mjs?v=8.3";
-import { toPb } from "./ui.js?v=8.3";
-import CFG from "./config.js?v=8.3";
+import PocketBase from "./vendor/pocketbase.es.mjs?v=8.4";
+import { toPb } from "./ui.js?v=8.4";
+import CFG from "./config.js?v=8.4";
 
-export const APP_VERSION = "8.3";
+export const APP_VERSION = "8.4";
 // Backend ermitteln: PocketBase, wenn erreichbar, sonst Datenbank im Browser
 export const backend = { mode: "local", url: "" };
 async function probe(url) {
@@ -28,7 +28,7 @@ if (backend.mode === "pocketbase") {
     beacon: (col, id, data) => { try { fetch(`${backend.url}api/collections/${col}/records/${id}`, { method: "PATCH", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }); } catch {} },
   };
 } else {
-  const { createLocalBackend } = await import("./localdb.js?v=8.3");
+  const { createLocalBackend } = await import("./localdb.js?v=8.4");
   const lb = await createLocalBackend({ version: APP_VERSION });
   pb = lb.client; api = lb.api;
 }
@@ -125,4 +125,5 @@ export async function createWithFile(c, data, file) {
   const fd = new FormData(); Object.entries(data).forEach(([k, v]) => fd.append(k, typeof v === "object" ? JSON.stringify(v) : v)); if (file) fd.append("file", file);
   const rec = await pb.collection(c).create(fd); patchLocal(c, rec); emit(c, { action: "create", record: rec }); return rec;
 }
-export const fileUrl = (rec, opts = {}) => (rec?.file ? pb.files.getURL(rec, rec.file, opts) : "");
+// Datei-URL: hochgeladene Datei (PocketBase bzw. Browser-Datenbank) oder mitgelieferte Beispieldatei (data.url)
+export const fileUrl = (rec, opts = {}) => (rec?.file ? pb.files.getURL(rec, rec.file, opts) : rec?.data?.url || "");

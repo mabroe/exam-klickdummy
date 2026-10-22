@@ -3,9 +3,10 @@
 // - mehrere Fenster je Kategorie (z. B. jede geöffnete E-Mail, jede Notiz)
 // - Klick außerhalb eines Fensters minimiert alle sichtbaren Fenster
 // - Wiederherstellen über die Taskleiste (Dock); bei mehreren Fenstern Auswahlliste
-import { onChange, fileUrl } from "../data.js?v=8.3";
-import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.3";
-import { EXAM, subtask } from "../scenario.js?v=8.3";
+import { onChange, fileUrl } from "../data.js?v=8.4";
+import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.4";
+import { EXAM, subtask } from "../scenario.js?v=8.4";
+import { isOffice, officeHtml, downloadUrl } from "../docs.js?v=8.4";
 
 let ctx = null;
 export const setCtx = (c) => { ctx = c; };
@@ -17,6 +18,7 @@ export const CATS = {
   calc: { title: "Taschenrechner", icon: "calculator", w: 330, h: 540 },
   ide: { title: "Entwicklungsumgebung", icon: "code-xml", w: 1000, h: 660 },
   tickets: { title: "Tickets", icon: "ticket", w: 860, h: 600 },
+  erp: { title: "ERP-System", icon: "package", w: 1080, h: 620 },
 };
 const WINS = new Map();
 let zTop = 10, cascade = 0;
@@ -172,8 +174,8 @@ export function bindOutsideMinimize() {
       const next = targets[(cur + (e.shiftKey ? -1 : 1) + targets.length) % targets.length];
       if (next.id === "tnpage") { next.setAttribute("tabindex", "-1"); next.focus(); } else { const w = vis.find((x) => "win-" + cssId(x.key) === next.id); w.z = ++zTop; next.style.zIndex = w.z; focusWin(w); }
     }
-    const ORDER = ["files", "mail", "calendar", "editor", "tickets", "calc", "ide"];
-    if (e.altKey && /^[1-7]$/.test(e.key)) { e.preventDefault(); const cat = ORDER[+e.key - 1]; const ins = instances(cat); if (ins.length) { const w = ins.sort((a, b) => b.z - a.z)[0]; w.min = false; w.z = ++zTop; place(w); focusWin(w); onDockChange(); } else open(cat); }
+    const ORDER = ["files", "mail", "calendar", "editor", "tickets", "erp", "calc", "ide"];
+    if (e.altKey && /^[1-8]$/.test(e.key)) { e.preventDefault(); const cat = ORDER[+e.key - 1]; const ins = instances(cat); if (ins.length) { const w = ins.sort((a, b) => b.z - a.z)[0]; w.min = false; w.z = ++zTop; place(w); focusWin(w); onDockChange(); } else open(cat); }
   });
 }
 
@@ -215,7 +217,7 @@ function dragify(el, w) {
     document.addEventListener("pointermove", mv); document.addEventListener("pointerup", up);
   });
 }
-const RENDER = { tickets: (w) => (w.kind === "ticket" ? ticketWin(w) : ticketsWin(w)), files: (w) => (w.kind === "file" ? fileWin(w) : filesWin(w)), mail: (w) => (w.kind === "read" ? mailRead(w) : w.kind === "compose" ? composeWin(w) : mailWin(w)), calendar: calWin, editor: (w) => (w.kind === "note" ? noteWin(w) : notesWin(w)), calc: calcWin, ide: ideWin };
+const RENDER = { tickets: (w) => (w.kind === "ticket" ? ticketWin(w) : ticketsWin(w)), files: (w) => (w.kind === "file" ? fileWin(w) : filesWin(w)), mail: (w) => (w.kind === "read" ? mailRead(w) : w.kind === "compose" ? composeWin(w) : mailWin(w)), calendar: calWin, editor: (w) => (w.kind === "note" ? noteWin(w) : notesWin(w)), calc: calcWin, ide: ideWin, erp: (w) => erpWin(w) };
 function drawBody(w) {
   const el = document.getElementById("win-" + cssId(w.key)); if (!el) return;
   const body = el.querySelector(".win-b");
@@ -242,7 +244,7 @@ onChange((c) => { if (c === "items" || c === "_reset") refreshWindows(); });
 
 // ---------- Abgabe-Markierung ----------
 const stOptions = (sel) => EXAM.tasks.filter((t) => !curTask || t.no === curTask).map((t) => `<optgroup label="Aufgabe ${t.no} ${esc(t.title)}">${t.subtasks.map((s) => `<option value="${s.no}" ${s.no === sel ? "selected" : ""}>${s.no} ${esc(s.title)}</option>`).join("")}</optgroup>`).join("");
-const LABEL = { file: "Datei", mail: "E-Mail", event: "Termin", note: "Notiz", code: "Code-Datei", ticket: "Ticket" };
+const LABEL = { file: "Datei", mail: "E-Mail", event: "Termin", note: "Notiz", code: "Code-Datei", ticket: "Ticket", erp: "ERP-Beleg" };
 export async function markDialog(item, kindLabel, defSt) {
   const v = await modal({ title: `${kindLabel} als Abgabe markieren`, warn: true, size: "narrow",
     body: `<p>Wählen Sie die Teilaufgabe, für die <b>${esc(item.data.name || item.data.subject || item.data.title || kindLabel)}</b> als Abgabe markiert werden soll.</p>
@@ -264,6 +266,7 @@ export function itemLine(it) {
   return `<div class="row small" style="padding:4px 0">${icon(ic)} <span class="grow">${esc(t)}</span><span class="muted">${LABEL[it.kind]}</span></div>`;
 }
 export function itemPreview(it) {
+  if (it.kind === "erp") return `<div class="row">${icon("package")}<div><b>${esc(erpTitle(it))}</b><div class="small muted">${esc(erpSummary(it))}</div></div></div>`;
   if (it.kind === "mail") return `<div class="row between small"><span>Von: ${esc(it.data.from_mail || it.data.from)}</span><span>${esc(it.data.date)}</span></div><div class="small">An: ${esc(it.data.to)}</div><div class="bold small mt-s">Betreff: ${esc(it.data.subject)}</div><div class="small muted">${esc((it.data.body || "").slice(0, 160))} …</div>${(it.data.attachments || []).map((a) => `<span class="attach mt-s">${icon("paperclip")} ${esc(a)}</span> `).join("")}`;
   if (it.kind === "file") return `<div class="row">${icon("file")}<div><b>${esc(it.data.name)}</b><div class="small muted">Format: ${esc(it.data.format)} · Größe: ${esc(it.data.size)} · Geändert: ${esc(it.data.changed)}</div></div></div>`;
   if (it.kind === "event") return `<div class="row">${icon("calendar")}<div><b>${esc(it.data.title)}</b><div class="small muted">${dayDate(it.data.day)}, ${esc(it.data.start)} – ${esc(it.data.end)} Uhr · ${esc(it.data.location || "")}</div></div></div>`;
@@ -282,7 +285,9 @@ function filesWin(w) {
     const groups = {}; list.forEach((f) => (groups[f.data.path || "Bereitgestellte Dateien"] ||= []).push(f));
     html += Object.entries(groups).map(([g, fs]) => `<div class="bold row mt-s">${icon("chevron-down")} ${icon("folder")} ${esc(g)}</div>${fs.map((f) => row(f, false)).join("")}`).join("");
   } else {
-    html += `<div class="bold row">${icon("chevron-down")} ${icon("folder")} Eigene Dateien</div>` + (list.length ? list.map((f) => row(f, true)).join("") : `<div class="empty small">${icon("folder")}<div>Noch keine eigenen Dateien</div></div>`) +
+    const rootL = list.filter((f) => !f.data.path), mailL = list.filter((f) => f.data.path === "E-Mail-Anlagen");
+    html += `<div class="bold row">${icon("chevron-down")} ${icon("folder")} Eigene Dateien</div>` + (rootL.length ? rootL.map((f) => row(f, true)).join("") : `<div class="empty small">${icon("folder")}<div>Noch keine eigenen Dateien</div></div>`) +
+      `<div class="bold row mt-s" style="margin-left:24px">${icon("chevron-down")} ${icon("folder")} E-Mail-Anlagen <span class="xs muted" style="font-weight:400">automatisch aus empfangenen E-Mails</span></div>` + (mailL.length ? mailL.map((f) => row(f, true).replace('margin-left:24px', 'margin-left:48px').replace(`Format: ${esc(f.data.format)}`, `Aus E-Mail „${esc(f.data.fromSubject || "")}“ · Format: ${esc(f.data.format)}`)).join("") : `<div class="xs muted" style="margin-left:52px">Keine Anlagen</div>`) +
       `<h3 class="mt">Dateien hochladen</h3><div class="uploadbox mt-s"><label class="btn">${icon("upload")} Datei auswählen<input type="file" hidden data-upload></label><span class="small">Erlaubte Formate: PDF, JPG, PNG, CSV, XLSX, DOCX – Maximalgröße: 20 MB</span></div>`;
   }
   return { html, bind(el) {
@@ -294,7 +299,7 @@ function filesWin(w) {
       popMenu(b, f.folder === "provided" ? [
         { label: "Öffnen", icon: "eye", run: () => open("files", { fileId: f.id }) },
         { label: "In eigene Dateien kopieren", icon: "copy", run: async () => { await addItemW(w, "file", "own", { ...f.data, changed: today() }); w.tab = "own"; w.notice = "Datei wurde in „Eigene Dateien“ kopiert."; redraw(w); } },
-        { label: "Herunterladen", icon: "download", run: () => toast("Download im Klickdummy simuliert", f.data.name, "info") },
+        { label: "Herunterladen", icon: "download", run: () => download(f) },
       ] : [
         { label: "Öffnen", icon: "eye", run: () => open("files", { fileId: f.id }) },
         { label: "Umbenennen", icon: "pen-line", run: () => renameFile(f) },
@@ -326,12 +331,15 @@ function fileWin(w) {
   const isImg = /^(PNG|JPG|JPEG|GIF|WEBP|SVG)$/i.test(f.data.format || "");
   const prev = url && isImg ? `<img src="${url}" alt="${esc(f.data.name)}" style="max-width:100%;max-height:360px;border:1px solid var(--line)">`
     : url && /^PDF$/i.test(f.data.format || "") ? `<iframe src="${url}" title="${esc(f.data.name)}" style="width:100%;min-width:320px;height:380px;border:1px solid var(--line)"></iframe>`
+    : url && isOffice(f.data.name) ? `<div class="officeprev" data-office="${url}" data-oname="${esc(f.data.name)}">Lade Vorschau …</div>`
     : url && /^(TXT|CSV|PY|JS|MD)$/i.test(f.data.format || "") ? `<pre data-txt="${url}" style="width:100%;min-width:320px;max-height:360px;overflow:auto;border:1px solid var(--line);background:#fff;padding:10px;font-size:13px;white-space:pre-wrap">Lade Vorschau …</pre>`
     : `<div class="card" style="width:240px;aspect-ratio:1/1.3;display:grid;place-items:center;background:var(--bg-soft);text-align:center">${icon("file-text", "xl")}<div class="small">${esc(f.data.format)}-Vorschau<br><span class="muted xs">${url ? "keine Vorschau – bitte herunterladen" : "(bereitgestellte Demo-Datei)"}</span></div></div>`;
   return { html: `<div class="row" style="align-items:flex-start;gap:24px;flex-wrap:wrap"><div style="flex:1 1 320px">${prev}</div>
     <div class="col" style="gap:6px"><div><b>Name:</b> ${esc(f.data.name)}</div><div><b>Format:</b> ${esc(f.data.format)}</div><div><b>Größe:</b> ${esc(f.data.size)}</div><div><b>Geändert:</b> ${esc(f.data.changed)}</div><div><b>Ordner:</b> ${f.folder === "provided" ? "Bereitgestellte Dateien" : "Eigene Dateien"}</div><div><b>Abgabe:</b> ${f.submission ? "Teilaufgabe " + esc(f.submission) : "nicht markiert"}</div>${url ? `<a class="btn sm mt-s" href="${url}?download=1" download>${icon("download")} Herunterladen</a>` : ""}</div></div>`,
-    footer: f.folder === "own" ? `<button class="btn sm" data-mk>${icon("circle-check")} ${f.submission ? "Markierung ändern" : "Als Abgabe markieren"}</button>` : `<button class="btn sm" data-cp>${icon("copy")} In eigene Dateien kopieren</button>`,
+    footer: (url ? `<button class="btn sm ghost" data-dl>${icon("download")} Herunterladen</button>` : "") + (f.folder === "abgabe" ? `<span class="xs muted">Direkt in der Aufgabe hochgeladene Abgabe ${esc(f.submission)}</span>` : f.folder === "own" ? `<button class="btn sm" data-mk>${icon("circle-check")} ${f.submission ? "Markierung ändern" : "Als Abgabe markieren"}</button>` : `<button class="btn sm" data-cp>${icon("copy")} In eigene Dateien kopieren</button>`),
     bind(el) {
+      const op = el.querySelector("[data-office]"); if (op) officeHtml(op.dataset.office, op.dataset.oname).then((h) => (op.innerHTML = h)).catch(() => (op.textContent = "Vorschau nicht verfügbar – bitte herunterladen"));
+      const dl = el.querySelector("[data-dl]"); if (dl) dl.onclick = () => download(f);
       const tx = el.querySelector("[data-txt]"); if (tx) fetch(tx.dataset.txt).then((r) => r.text()).then((t) => (tx.textContent = t.slice(0, 20000))).catch(() => (tx.textContent = "Vorschau nicht verfügbar"));
       const mk = el.querySelector("[data-mk]"); if (mk) mk.onclick = () => markDialog(f, "Datei", w.defSt);
       const cp = el.querySelector("[data-cp]"); if (cp) cp.onclick = async () => { await addItemW(w, "file", "own", { ...f.data, changed: today() }); toast("In eigene Dateien kopiert", f.data.name); };
@@ -343,12 +351,15 @@ async function renameFile(f) {
   if (v) ctx.upd(f.id, { data: { ...f.data, name: v, changed: today() } });
 }
 const today = () => new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
-function download(f) { const u = fileUrl(f); if (!u) return toast("Download im Klickdummy simuliert", f.data.name + " ist eine bereitgestellte Demo-Datei ohne Inhalt.", "info"); const a = document.createElement("a"); a.href = u + "?download=1"; a.download = f.data.name; document.body.appendChild(a); a.click(); a.remove(); }
+function download(f) { const u = fileUrl(f); if (!u) return toast("Download im Klickdummy simuliert", f.data.name + " ist eine Demo-Datei ohne Inhalt.", "info"); downloadUrl(u, f.data.name); }
 
 // ---------- Mail ----------
 function markRead(m) { if (m && m.folder === "inbox" && !m.data.read) ctx.upd(m.id, { data: { ...m.data, read: true } }); }
 const FOLDERS = [["inbox", "Posteingang"], ["draft", "Entwürfe"], ["sent", "Gesendet"], ["deleted", "Gelöscht"]];
-const signature = () => `<p><br></p><p>Mit freundlichen Grüßen<br>${esc(ctx.p.firstname)} ${esc(ctx.p.lastname)}<br>${esc(EXAM.company.name)}</p>`;
+// Signaturen je Ausgangssituation (Aufgabe), einfügbar im Verfassen-Fenster
+const sigList = (task) => (EXAM.signatures?.[task] || EXAM.signatures?.["1"] || []);
+const sigHtml = (txt) => `<p class="sig">${esc(txt.replace(/\{name\}/g, `${ctx.p.firstname} ${ctx.p.lastname}`).replace(/\{mail\}/g, `${ctx.p.username || "azubi"}@azubi.funsport-innovations.de`)).replace(/\n/g, "<br>")}</p>`;
+const signature = () => `<p><br></p>`;
 function mailWin(w) {
   const mails = items().filter((i) => i.kind === "mail");
   const list = mails.filter((m) => m.folder === w.tab);
@@ -381,7 +392,7 @@ function mailRead(w) {
     <h3 class="mt">${esc(m.data.subject)}</h3>
     ${m.data.html ? `<div class="mt" style="white-space:pre-line;font-size:14px">${m.data.html}</div>` : `<div class="hltools mt" role="toolbar" aria-label="Textmarkierung">${icon("highlighter")}<span class="xs muted">Text auswählen, dann Farbe wählen:</span>${HL.map(([k, l]) => `<button type="button" class="hlbtn hl-${k}" data-hl="${k}" title="${l} markieren" aria-label="Auswahl ${l} markieren"></button>`).join("")}<button type="button" class="btn xs ghost" data-hl="none" title="Markierung der Auswahl entfernen">${icon("eraser")} Entfernen</button><span class="grow"></span><button type="button" class="btn xs ghost" data-hlclear ${hlRanges(m).length ? "" : "disabled"}>${icon("trash-2")} Alle Markierungen löschen</button></div>
     <div class="mt mailbody" data-mbody style="white-space:pre-line;font-size:14px">${hlHtml(m.data.body || "", hlRanges(m))}</div>`}
-    <div class="row wrap mt">${(m.data.attachments || []).map((a) => `<span class="attach">${icon("paperclip")} ${esc(a)}</span>`).join("")}</div>
+    <div class="row wrap mt">${(m.data.attachments || []).map((a) => { const f = attachmentFile(m, a); return f ? `<button class="attach" data-openatt="${f.id}" title="Anhang öffnen">${icon("paperclip")} ${esc(a)}</button>` : `<span class="attach">${icon("paperclip")} ${esc(a)}</span>`; }).join("")}${m.folder === "inbox" && (m.data.attachments || []).length ? `<span class="xs muted" style="align-self:center">Anlagen liegen auch unter „Eigene Dateien › E-Mail-Anlagen“.</span>` : ""}</div>
     ${m.folder === "sent" ? `<div class="notice ${m.submission ? "success" : "info"} mt">${icon(m.submission ? "circle-check" : "info")}<span>${m.submission ? `Als Abgabe für Teilaufgabe ${esc(m.submission)} markiert.` : "Diese E-Mail ist nicht als Abgabe markiert."}</span></div>` : ""}`,
     footer: `${m.folder === "deleted" ? `<button class="btn sm" data-restore>${icon("rotate-ccw")} Wiederherstellen</button>` : `<button class="btn sm ghost" data-delmail>${icon("trash-2")} Löschen</button>`}
       ${m.folder === "sent" ? `<button class="btn sm" data-markmail>${icon("circle-check")} ${m.submission ? "Markierung ändern" : "Als Abgabe markieren"}</button>` : ""}
@@ -392,6 +403,7 @@ function mailRead(w) {
       q("[data-delmail]") && (q("[data-delmail]").onclick = () => { ctx.upd(m.id, { folder: "deleted", data: { ...m.data, prev: m.folder } }); close(w.key); toast("E-Mail gelöscht", "Sie finden sie im Ordner „Gelöscht“.", "info"); });
       q("[data-restore]") && (q("[data-restore]").onclick = () => { ctx.upd(m.id, { folder: m.data.prev || "inbox" }); close(w.key); });
       q("[data-markmail]") && (q("[data-markmail]").onclick = () => markDialog(m, "E-Mail", w.defSt));
+      el.querySelectorAll("[data-openatt]").forEach((b) => (b.onclick = () => open("files", { fileId: b.dataset.openatt, subtask: w.defSt })));
       q("[data-reply]").onclick = () => open("mail", { compose: { to: m.data.from_mail, subject: (m.data.subject.startsWith("AW:") ? "" : "AW: ") + m.data.subject, html: signature() + quote, attachments: [] }, subtask: w.defSt });
       q("[data-fwd]").onclick = () => open("mail", { compose: { to: "", subject: "WG: " + m.data.subject, html: "<p><br></p>" + quote, attachments: [...(m.data.attachments || [])] }, subtask: w.defSt });
     } };
@@ -444,6 +456,11 @@ function bindHighlights(el, m, w) {
     pop.querySelectorAll("[data-c]").forEach((b) => { b.addEventListener("mousedown", (e) => e.preventDefault()); b.onclick = () => apply(b.dataset.c); });
   }, 0));
 }
+// Datei zu einem E-Mail-Anhang: Verweis des Entwurfs, abgelegte E-Mail-Anlage oder gleichnamige Datei
+export function attachmentFile(m, name) {
+  const all = allItems(); const ref = m.data.attach_refs?.[name];
+  return (ref && all.find((i) => i.id === ref)) || all.find((i) => i.kind === "file" && i.data?.fromMail === m.id && i.data.name === name) || all.find((i) => i.kind === "file" && i.folder === "own" && i.data.name === name) || all.find((i) => i.kind === "file" && i.data.name === name) || null;
+}
 function rteToolbar() {
   const b = (cmd, ic, t) => `<button type="button" data-cmd="${cmd}" title="${t}" aria-label="${t}">${icon(ic)}</button>`;
   return `<div class="rte-toolbar">${b("undo", "undo-2", "Rückgängig")}${b("redo", "redo-2", "Wiederholen")}<span style="width:10px"></span>${b("bold", "bold", "Fett")}${b("italic", "italic", "Kursiv")}${b("underline", "underline", "Unterstrichen")}<span style="width:10px"></span>${b("justifyLeft", "align-left", "Links")}${b("justifyCenter", "align-center", "Zentriert")}${b("justifyRight", "align-right", "Rechts")}${b("justifyFull", "align-justify", "Blocksatz")}<span style="width:10px"></span>${b("insertUnorderedList", "list", "Aufzählung")}${b("insertOrderedList", "list-ordered", "Nummerierung")}${b("hiliteColor", "highlighter", "Hervorheben")}</div>`;
@@ -454,7 +471,7 @@ function composeWin(w) {
   return { html: `<div class="field"><label class="lbl">An</label><input class="input" data-to value="${esc(d.to)}" placeholder="name@beispiel.de"></div>
     <div class="field"><label class="lbl">Betreff</label><input class="input" data-subj value="${esc(d.subject)}"></div>
     <label class="lbl">Nachricht</label>${rteToolbar()}<div class="rte" contenteditable="true" data-body>${d.html || "<p><br></p>"}</div>
-    <div class="row wrap mt-s">${(d.attachments || []).map((a, i) => `<span class="attach">${icon("paperclip")} ${esc(a)} <button class="iconbtn" style="width:22px;height:22px" data-rmatt="${i}" aria-label="Anhang entfernen">${icon("trash-2")}</button></span>`).join("")}<button class="attach dashed" data-attach>${icon("plus")} Dateien anhängen</button></div>`,
+    <div class="row wrap mt-s">${(d.attachments || []).map((a, i) => `<span class="attach">${icon("paperclip")} ${esc(a)} <button class="iconbtn" style="width:22px;height:22px" data-rmatt="${i}" aria-label="Anhang entfernen">${icon("trash-2")}</button></span>`).join("")}<button class="attach dashed" data-attach>${icon("plus")} Dateien anhängen</button><button class="attach dashed" data-sig>${icon("signature")} Signatur einfügen</button></div>`,
     footer: `<button class="btn sm ghost" data-discard>${icon("trash-2")} Verwerfen</button><span class="grow xs muted" data-autosaved aria-live="off">${d.savedAt ? "Automatisch gespeichert " + d.savedAt : "Wird automatisch als Entwurf gespeichert"}</span><button class="btn sm ghost" data-savedraft>${icon("save")} Als Entwurf speichern</button><button class="btn primary" data-send>${icon("send")} Senden</button>`,
     bind(el) {
       const collect = () => { d.to = el.querySelector("[data-to]").value; d.subject = el.querySelector("[data-subj]").value; d.html = el.querySelector("[data-body]").innerHTML; };
@@ -464,10 +481,19 @@ function composeWin(w) {
       el.querySelector("[data-attach]").onclick = (e) => {
         collect();
         const files = items().filter((i) => i.kind === "file" || i.kind === "code");
-        const pick = (f) => ({ label: f.data.name, icon: f.kind === "code" ? "file-code" : "file", run: () => { d.attachments.push(f.data.name); redraw(w); } });
-        popMenu(e.currentTarget, [{ header: "Eigene Dateien" }, ...files.filter((f) => f.folder === "own").map(pick), { header: "Entwicklungsumgebung" }, ...files.filter((f) => f.folder === "ide").map(pick), { header: "Bereitgestellte Dateien" }, ...files.filter((f) => f.folder === "provided").map(pick)], { align: "left" });
+        const pick = (f) => ({ label: f.data.name, icon: f.kind === "code" ? "file-code" : "file", run: () => { d.attachments.push(f.data.name); (d.attach_refs ||= {})[f.data.name] = f.id; redraw(w); } });
+        popMenu(e.currentTarget, [{ header: "Eigene Dateien" }, ...files.filter((f) => f.folder === "own" && f.data.path !== "E-Mail-Anlagen").map(pick), { header: "E-Mail-Anlagen" }, ...files.filter((f) => f.folder === "own" && f.data.path === "E-Mail-Anlagen").map(pick), { header: "Entwicklungsumgebung" }, ...files.filter((f) => f.folder === "ide").map(pick), { header: "Bereitgestellte Dateien" }, ...files.filter((f) => f.folder === "provided").map(pick)], { align: "left" });
       };
-      const asData = () => ({ from: `${ctx.p.firstname} ${ctx.p.lastname}`, from_mail: (ctx.p.username || "azubi") + "@azubi.funsport-innovations.de", to: d.to, subject: d.subject, html: d.html, body: htmlToText(d.html), attachments: d.attachments, date: new Date().toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) });
+      el.querySelector("[data-sig]").onclick = (e) => {
+        collect();
+        popMenu(e.currentTarget, [{ header: `Signaturen – Aufgabe ${w.task}` }, ...sigList(w.task).map(([label, txt]) => ({ label, icon: "signature", run: () => {
+          const body = el.querySelector("[data-body]"); body.querySelectorAll("p.sig").forEach((x) => x.remove());
+          const q = body.querySelector("blockquote, .quote"); const tmp = document.createElement("div"); tmp.innerHTML = sigHtml(txt);
+          if (q) body.insertBefore(tmp.firstChild, q); else body.appendChild(tmp.firstChild);
+          d.html = body.innerHTML; toast("Signatur eingefügt", label, "info");
+        } }))], { align: "left" });
+      };
+      const asData = () => ({ from: `${ctx.p.firstname} ${ctx.p.lastname}`, from_mail: (ctx.p.username || "azubi") + "@azubi.funsport-innovations.de", to: d.to, subject: d.subject, html: d.html, body: htmlToText(d.html), attachments: d.attachments, attach_refs: Object.fromEntries(Object.entries(d.attach_refs || {}).filter(([k]) => (d.attachments || []).includes(k))), date: new Date().toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) });
       w.autosave = async () => {
         if (w.sent || !document.getElementById("win-" + cssId(w.key))) return;
         collect(); const sig = JSON.stringify([d.to, d.subject, d.html, d.attachments]);
@@ -787,4 +813,85 @@ export function py2js(src) {
   });
   while (stack.length) { stack.pop(); out.push("}"); }
   return out.join("\n");
+}
+
+// ---------- ERP-System (vereinfacht): Artikel, Lieferanten, Bestellungen ----------
+// Stammdaten je Aufgabe (beim ersten Login kopiert); Prüflinge legen Lieferanten und Bestellungen an und können Bestellungen als Abgabe markieren
+const eur = (v) => (+v || 0).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+const erpAll = (w) => allItems().filter((i) => i.kind === "erp" && itemTask(i) === w.task);
+const erpOf = (w, type) => erpAll(w).filter((i) => i.data.type === type);
+const supplierName = (w, nr) => erpOf(w, "lieferant").find((x) => x.data.nr === nr)?.data.name || nr || "–";
+const articleOf = (w, nr) => erpOf(w, "artikel").find((x) => x.data.nr === nr);
+export const erpTitle = (it) => it.data.type === "bestellung" ? `Bestellung ${it.data.nr}` : it.data.type === "lieferant" ? `Lieferant ${it.data.nr} ${it.data.name}` : `Artikel ${it.data.nr}`;
+export const erpSum = (it) => (it.data.pos || []).reduce((a, p) => a + (+p.menge || 0) * (+p.preis || 0), 0);
+export function erpSummary(it) {
+  if (it.data.type === "bestellung") return `${it.data.datum} · ${it.data.lieferant_name || it.data.lieferant} · ${(it.data.pos || []).length} Position(en) · ${eur(erpSum(it))} · ${it.data.status}`;
+  if (it.data.type === "lieferant") return `${it.data.ort || ""} · ${it.data.mail || ""}`;
+  return it.data.name;
+}
+function erpWin(w) {
+  w.tab = ["artikel", "lieferanten", "bestellungen"].includes(w.tab) ? w.tab : "artikel";
+  const tabs = `<div class="tabs small" style="margin-bottom:12px">${[["artikel", "package", "Artikel / Lager"], ["lieferanten", "building-2", "Lieferanten"], ["bestellungen", "clipboard-list", "Bestellungen"]].map(([k, ic, l]) => `<button data-etab="${k}" class="${w.tab === k ? "active" : ""}">${icon(ic)} ${l}</button>`).join("")}</div>`;
+  let body = "", foot = "";
+  if (w.tab === "artikel") {
+    const l = erpOf(w, "artikel");
+    body = `<div class="tablewrap"><table class="tbl compact erp"><thead><tr><th>Art.-Nr.</th><th>Bezeichnung</th><th>Gruppe</th><th class="num">Bestand</th><th class="num">Meldebestand</th><th class="num">Höchstbestand</th><th class="num">EK-Preis</th><th>Status</th><th></th></tr></thead><tbody>${l.map((a) => { const low = +a.data.bestand < +a.data.melde; return `<tr><td>${esc(a.data.nr)}</td><td><b>${esc(a.data.name)}</b><div class="xs muted">${a.data.lieferant ? "Lieferant: " + esc(supplierName(w, a.data.lieferant)) : "kein Stammlieferant"}</div></td><td>${esc(a.data.gruppe)}</td><td class="num">${a.data.bestand} ${esc(a.data.einheit || "")}</td><td class="num">${a.data.melde}</td><td class="num">${a.data.hoechst}</td><td class="num">${a.data.ek ? eur(a.data.ek) : "–"}</td><td>${low ? `<span class="badge red">unter Meldebestand</span>` : `<span class="badge green">ausreichend</span>`}</td><td>${a.data.ek ? `<button class="btn sm ${low ? "primary" : ""}" data-order="${a.id}">${icon("plus")} Bestellen</button>` : ""}</td></tr>`; }).join("")}</tbody></table></div>
+      <p class="xs muted mt-s">Bestellvorschlag: Liegt der Bestand unter dem Meldebestand, wird bis zum Höchstbestand aufgefüllt (Bestellmenge = Höchstbestand − Bestand).</p>`;
+  } else if (w.tab === "lieferanten") {
+    const l = erpOf(w, "lieferant");
+    body = `<div class="tablewrap"><table class="tbl compact erp"><thead><tr><th>Lief.-Nr.</th><th>Name</th><th>Ort</th><th>E-Mail</th><th>Zahlungsbedingungen</th><th></th></tr></thead><tbody>${l.map((x) => `<tr><td>${esc(x.data.nr)}</td><td><b>${esc(x.data.name)}</b>${x.data.own ? ` <span class="badge cyan">neu angelegt</span>` : ""}</td><td>${esc(x.data.ort || "")}</td><td>${esc(x.data.mail || "")}</td><td>${esc(x.data.zahlung || "")}</td><td>${x.data.own ? markChip(x) : ""}</td></tr>`).join("")}</tbody></table></div>`;
+    foot = `<button class="btn primary sm" data-newsup>${icon("plus")} Lieferant anlegen</button>`;
+  } else {
+    const l = erpOf(w, "bestellung").sort((a, b) => (a.data.nr > b.data.nr ? -1 : 1));
+    body = `<div class="tablewrap"><table class="tbl compact erp"><thead><tr><th>Bestell-Nr.</th><th>Datum</th><th>Lieferant</th><th>Positionen</th><th class="num">Summe</th><th>Status</th><th>Abgabe</th></tr></thead><tbody>${l.map((b) => `<tr><td><button class="linkbtn" data-showord="${b.id}">${esc(b.data.nr)}</button></td><td>${esc(b.data.datum)}</td><td>${esc(supplierName(w, b.data.lieferant))}</td><td class="small">${(b.data.pos || []).map((p) => `${p.menge} × ${esc(articleOf(w, p.artikel)?.data.name || p.artikel)}`).join("<br>")}</td><td class="num">${eur(erpSum(b))}</td><td><span class="badge ${b.data.status === "geliefert" ? "green" : b.data.status === "angelegt" ? "cyan" : "gray"}">${esc(b.data.status)}</span></td><td>${b.data.own ? markChip(b) : ""}</td></tr>`).join("")}</tbody></table></div>`;
+    foot = `<button class="btn primary sm" data-order>${icon("plus")} Neue Bestellung</button>`;
+  }
+  return { html: tabs + body, footer: `<span class="grow xs muted">ERP-System (vereinfacht) · Aufgabe ${esc(w.task)} · eigene Lieferanten und Bestellungen lassen sich als Abgabe markieren</span>${foot}`,
+    bind(el) {
+      el.querySelectorAll("[data-etab]").forEach((b) => (b.onclick = () => { w.tab = b.dataset.etab; redraw(w); }));
+      bindMarks(el, w);
+      el.querySelectorAll("[data-order]").forEach((b) => (b.onclick = () => erpOrder(w, b.dataset.order)));
+      const ns = el.querySelector("[data-newsup]"); if (ns) ns.onclick = () => erpSupplier(w);
+      el.querySelectorAll("[data-showord]").forEach((b) => (b.onclick = () => erpShow(w, erpAll(w).find((x) => x.id === b.dataset.showord))));
+    } };
+}
+async function erpSupplier(w) {
+  const nums = erpOf(w, "lieferant").map((x) => +x.data.nr || 0); const nr = String(Math.max(70000, ...nums) + 10);
+  const v = await modal({ title: "Lieferant anlegen", size: "narrow", body: `<div class="field"><label class="lbl" for="es-n">Name</label><input id="es-n" class="input" data-f="name" autofocus></div><div class="field"><label class="lbl" for="es-o">Ort</label><input id="es-o" class="input" data-f="ort"></div><div class="field"><label class="lbl" for="es-m">E-Mail</label><input id="es-m" class="input" data-f="mail"></div><div class="field"><label class="lbl" for="es-z">Zahlungsbedingungen</label><input id="es-z" class="input" data-f="zahlung" placeholder="z. B. 30 Tage netto"></div><p class="xs muted">Lieferantennummer: ${nr}</p>`,
+    footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Anlegen</button>`,
+    onMount: (m, close) => (m.querySelector("[data-ok]").onclick = () => { const o = {}; m.querySelectorAll("[data-f]").forEach((f) => (o[f.dataset.f] = f.value.trim())); if (!o.name) { m.querySelector('[data-f="name"]').style.borderColor = "var(--red)"; return; } close(o); }) });
+  if (!v) return;
+  const rec = await addItemW(w, "erp", "erp", { type: "lieferant", nr, own: true, ...v });
+  toast("Lieferant angelegt", `${nr} ${v.name}`); redraw(w);
+  await markDialog(rec, "ERP-Beleg", w.defSt);
+}
+async function erpOrder(w, artId = "") {
+  const arts = erpOf(w, "artikel").filter((a) => +a.data.ek > 0); const sups = erpOf(w, "lieferant");
+  const a0 = arts.find((a) => a.id === artId) || arts[0];
+  const sugg = (a) => Math.max(1, +a.data.bestand < +a.data.melde ? +a.data.hoechst - +a.data.bestand : +a.data.hoechst - +a.data.bestand);
+  const v = await modal({ title: "Neue Bestellung", size: "narrow",
+    body: `<div class="field"><label class="lbl" for="eo-a">Artikel</label><select id="eo-a" class="select" data-a>${arts.map((a) => `<option value="${a.id}" ${a === a0 ? "selected" : ""}>${esc(a.data.nr)} · ${esc(a.data.name)}</option>`).join("")}</select></div>
+      <div class="field"><label class="lbl" for="eo-l">Lieferant</label><select id="eo-l" class="select" data-l>${sups.map((x) => `<option value="${esc(x.data.nr)}" ${x.data.nr === a0?.data.lieferant ? "selected" : ""}>${esc(x.data.nr)} · ${esc(x.data.name)}</option>`).join("")}</select></div>
+      <div class="nrgrid"><div class="field"><label class="lbl" for="eo-m">Menge</label><input id="eo-m" class="input" type="number" min="1" data-m value="${a0 ? sugg(a0) : 1}"></div><div class="field"><label class="lbl" for="eo-p">Einzelpreis (€)</label><input id="eo-p" class="input" type="number" step="0.01" min="0" data-p value="${a0 ? a0.data.ek : 0}"></div></div>
+      <div class="field"><label class="lbl" for="eo-t">Liefertermin</label><input id="eo-t" class="input" type="date" data-t></div>
+      <p class="small" data-sum></p><p class="xs muted" data-hint></p>`,
+    footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Bestellung anlegen</button>`,
+    onMount: (m, close) => {
+      const A = m.querySelector("[data-a]"), M = m.querySelector("[data-m]"), P = m.querySelector("[data-p]");
+      const upd = () => { const a = arts.find((x) => x.id === A.value); m.querySelector("[data-sum]").innerHTML = `Bestellwert: <b>${eur((+M.value || 0) * (+P.value || 0))}</b>`; m.querySelector("[data-hint]").textContent = a ? `Bestand ${a.data.bestand}, Meldebestand ${a.data.melde}, Höchstbestand ${a.data.hoechst} – Vorschlag: ${sugg(a)} ${a.data.einheit || ""}` : ""; };
+      A.onchange = () => { const a = arts.find((x) => x.id === A.value); if (a) { M.value = sugg(a); P.value = a.data.ek; if (a.data.lieferant) m.querySelector("[data-l]").value = a.data.lieferant; } upd(); };
+      M.oninput = P.oninput = upd; upd();
+      m.querySelector("[data-ok]").onclick = () => { if (!(+M.value > 0)) { M.style.borderColor = "var(--red)"; return; } close({ art: A.value, lief: m.querySelector("[data-l]").value, menge: +M.value, preis: +P.value, termin: m.querySelector("[data-t]").value }); };
+    } });
+  if (!v) return;
+  const a = arts.find((x) => x.id === v.art); const n = erpOf(w, "bestellung").length + 1;
+  const rec = await addItemW(w, "erp", "erp", { type: "bestellung", own: true, nr: "BE-2025-" + String(500 + n).padStart(4, "0"), datum: new Date().toLocaleDateString("de-DE"), lieferant: v.lief, lieferant_name: supplierName(w, v.lief), pos: [{ artikel: a.data.nr, name: a.data.name, menge: v.menge, preis: v.preis }], termin: v.termin ? v.termin.split("-").reverse().join(".") : "", status: "angelegt" });
+  w.tab = "bestellungen"; toast("Bestellung angelegt", `${rec.data.nr} · ${eur(v.menge * v.preis)}`); redraw(w);
+  await markDialog(rec, "ERP-Beleg", w.defSt);
+}
+function erpShow(w, b) {
+  if (!b) return;
+  modal({ title: `Bestellung ${esc(b.data.nr)}`, body: `<p><b>Lieferant:</b> ${esc(supplierName(w, b.data.lieferant))}<br><b>Datum:</b> ${esc(b.data.datum)}${b.data.termin ? `<br><b>Liefertermin:</b> ${esc(b.data.termin)}` : ""}<br><b>Status:</b> ${esc(b.data.status)}</p>
+    <table class="tbl compact"><thead><tr><th>Artikel</th><th class="num">Menge</th><th class="num">Einzelpreis</th><th class="num">Gesamt</th></tr></thead><tbody>${(b.data.pos || []).map((p) => `<tr><td>${esc(p.name || articleOf(w, p.artikel)?.data.name || p.artikel)}</td><td class="num">${p.menge}</td><td class="num">${eur(p.preis)}</td><td class="num">${eur(p.menge * p.preis)}</td></tr>`).join("")}<tr><td colspan="3"><b>Summe</b></td><td class="num"><b>${eur(erpSum(b))}</b></td></tr></tbody></table>`,
+    footer: `${b.data.own ? `<button class="btn" data-value="mark">${icon("circle-check")} ${b.submission ? "Markierung ändern" : "Als Abgabe markieren"}</button>` : ""}<button class="btn primary" data-close>Schließen</button>` }).then((r) => { if (r === "mark") markDialog(b, "ERP-Beleg", w.defSt); });
 }

@@ -12,7 +12,7 @@ export const SCHEMA = {
   tasks: F(`procedure:${t} procedure_icon:${t} title:${t} icon:${t} due:${t} done:${b} is_new:${b} link:${t} role:${t} task_no:${n} closed:${b}`),
   catalog: F(`title:${t} beruf:${t} fach:${t} jahr:${t} kind:${t} description:${t} duration:${t} creator:${t} tags:${j} contents:${j} mine:${b} copied_from:${t} image:${n}`),
   settings: F(`key:${t} value:${j}`),
-  kfiles: F(`participant:${t} subtask:${t} corrector:${n} name:${t} file:${f}`),
+  kfiles: F(`participant:${t} subtask:${t} corrector:${n} name:${t} file:${f} kind:${t} source:${t} orig:${t}`),
   orgs: F(`name:${t} short:${t} city:${t}`),
   persons: F(`lastname:${t} firstname:${t} username:${t} org:${t} kind:${t} short:${t} email:${t}`),
   groups: F(`name:${t} org:${t} kind:${t} source:${t} course:${t} members:${j}`),

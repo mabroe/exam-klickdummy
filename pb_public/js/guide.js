@@ -2,10 +2,10 @@
 //  - Unterricht: Lehrkraft (Tasks 31–36, 34 als Schüler:in)
 //  - Prüfung: Schuladministration (Tasks 52, 24, 21), Raumaufsicht (Task 22/23)
 // Der Fortschritt wird aus den Daten erkannt; der Leitfaden kann jederzeit ein- und ausgeklappt werden.
-import { D, byId, onChange } from "./data.js?v=8.3";
-import { icon, esc, store, toast } from "./ui.js?v=8.3";
-import { members, personName } from "./access.js?v=8.3";
-import { navigate, render } from "./app.js?v=8.3";
+import { D, byId, onChange } from "./data.js?v=8.4";
+import { icon, esc, store, toast } from "./ui.js?v=8.4";
+import { members, personName } from "./access.js?v=8.4";
+import { navigate, render } from "./app.js?v=8.4";
 
 const KEY = "guide";
 const st = () => store.lget(KEY, null);
