@@ -2,10 +2,11 @@
 //  - Unterricht (Lehrkraft): Teilnehmende (Personen, vorhandene Gruppen, eigene Gruppen) und weitere Lehrkräfte (Mitbetreuung)
 //  - Prüfung (Schuladministration): Teilnehmende, Raumaufsichten, Korrektor:innen (Erst/Zweit/Dritt), Prüfungseinsicht –
 //    jeweils nur für Personen der eigenen Organisation
-import { D, byId, upd, create, del, log } from "../data.js?v=8.4";
-import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=8.4";
-import { navigate, redraw } from "../app.js?v=8.4";
-import { assignments, approvalStateFor, lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=8.4";
+import { D, byId, upd, create, del, log } from "../data.js?v=8.5";
+import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=8.5";
+import { navigate, redraw } from "../app.js?v=8.5";
+import * as RU from "./rules.js?v=8.5";
+import { assignments, approvalStateFor, orgIds, inOrg, sameOrg, orgsLabel, lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=8.5";
 
 const ROOM_STATE = { CREATED: ["In Vorbereitung", "gray"], RUNNING: ["Prüfung läuft", "cyan"], PAUSED: ["Prüfung pausiert", "yellowb"], TERMINATED: ["Prüfung beendet", "green"] };
 const UI = { q: "", addQ: "" };
@@ -19,13 +20,13 @@ export function list() {
       if (!p || p.kind === "schueler") return `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Bitte als Lehrkraft oder Schuladministration anmelden.</p><a class="btn" href="#/">Zur Anmeldung</a></div>`;
       const adm = p.kind === "schuladmin";
       const list = visibleCourses(p);
-      const own = (c) => members(c).filter((m) => byId("persons", m.person)?.org === p.org);
-      return `<div class="pagehead"><div><h1>${adm ? "Prüfungen" : "Mein Unterricht"}</h1><div class="sub">${esc(personName(p))} · ${esc(orgName(p.org))}</div></div>
+      const own = (c) => members(c).filter((m) => sameOrg(byId("persons", m.person), p));
+      return `<div class="pagehead"><div><h1>${adm ? "Prüfungen" : "Mein Unterricht"}</h1><div class="sub">${esc(personName(p))} · ${esc(orgIds(p).map(orgName).join(" · "))}</div></div>
         ${adm ? "" : `<a class="btn primary" href="#/app/katalog">${icon("copy")} Prüfung aus dem Katalog kopieren</a>`}</div>
       <p class="muted">${adm ? "Prüfungsebene: Prüfungen, an denen Ihre Schule beteiligt ist. Sie ordnen Teilnehmende, Raumaufsichten und Korrektor:innen Ihrer Schule zu und organisieren die Raumaufsichten." : "Unterrichtsebene: aus dem Katalog kopierte Kurse, die Sie besitzen oder mitbetreuen. Fügen Sie Teilnehmende und Lehrkräfte hinzu und planen Sie die Raumaufsicht."}</p>
       ${list.length ? `<div class="tablewrap mt"><table class="tbl"><thead><tr><th>Titel</th><th>Ebene</th><th>${adm ? "Beteiligte Schulen" : "Besitzer"}</th><th class="num">Teilnehmende${adm ? " (eigene Schule)" : ""}</th><th class="num">Raumaufsichten</th><th>Status</th><th></th></tr></thead>
         <tbody>${list.map((c) => { const tn = (adm ? own(c) : members(c)).filter((m) => m.role === "teilnehmer"); const rooms = visibleRooms(p).filter((r) => r.course === c.id);
-          return `<tr><td><b>${esc(c.title)}</b>${c.catalog ? `<div class="xs muted">Kopie von „${esc(byId("catalog", c.catalog)?.title || "Katalog")}“</div>` : ""}</td><td><span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span></td>
+          return `<tr class="rowlink" data-href="#/app/kurs/${c.id}/mitglieder" tabindex="0"><td><b>${esc(c.title)}</b>${c.catalog ? `<div class="xs muted">Kopie von „${esc(byId("catalog", c.catalog)?.title || "Katalog")}“</div>` : ""}</td><td><span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span></td>
           <td>${adm ? (c.orgs || []).map((o) => esc(orgShort(o))).join(", ") : esc(personName(byId("persons", c.owner)))}</td><td class="num">${new Set(tn.map((m) => m.person)).size}</td><td class="num">${rooms.length}</td><td>${esc(c.status || "–")}</td>
           <td><a class="linkarrow" href="#/app/kurs/${c.id}/mitglieder">${icon("arrow-right")} Öffnen</a></td></tr>`; }).join("")}</tbody></table></div>`
       : `<div class="empty">${icon("book-open")}<h3>${adm ? "Keine Prüfungen für Ihre Schule" : "Noch kein Unterricht"}</h3>${adm ? "" : `<p>Kopieren Sie eine Prüfung aus dem Katalog.</p><a class="btn primary" href="#/app/katalog">Zum Katalog</a>`}</div>`}`;
@@ -41,16 +42,16 @@ export function detail(id, tab) {
       const c = byId("courses", id); const p = me();
       if (!c) return `<div class="empty">Kurs nicht gefunden. <a href="#/app/kurse">Zur Übersicht</a></div>`;
       if (!canManageCourse(c, p)) return `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Dieser Kurs gehört nicht zu Ihrem Konto bzw. Ihrer Organisation.</p><a class="btn" href="#/app/kurse">Zur Übersicht</a></div>`;
-      const tabs = [["mitglieder", "Mitglieder und Gruppen"], ...(c.kind === "pruefung" ? [["korrektoren", "Korrektoren"]] : []), ["raumaufsichten", "Raumaufsichten"], ["info", "Kursinformationen"]];
-      const body = tab === "raumaufsichten" ? tabRooms(c, p) : tab === "info" ? tabInfo(c) : tab === "korrektoren" && c.kind === "pruefung" ? tabCorrectors(c, p) : c.kind === "pruefung" ? tabMembersExam(c, p) : tabMembersLesson(c, p);
+      const tabs = [["mitglieder", "Mitglieder und Gruppen"], ...(c.kind === "pruefung" ? [["korrektoren", "Korrektoren"]] : []), ["steuerung", `Aufgabensteuerung${(c.rules || []).length ? ` <span class="badge gray">${c.rules.length}</span>` : ""}`], ["raumaufsichten", "Raumaufsichten"], ["info", "Kursinformationen"]];
+      const body = tab === "steuerung" ? RU.tabRules(c) : tab === "raumaufsichten" ? tabRooms(c, p) : tab === "info" ? tabInfo(c) : tab === "korrektoren" && c.kind === "pruefung" ? tabCorrectors(c, p) : c.kind === "pruefung" ? tabMembersExam(c, p) : tabMembersLesson(c, p);
       return `<div class="breadcrumb"><a href="#/app/kurse">${p.kind === "schuladmin" ? "Prüfungen" : "Mein Unterricht"}</a>${icon("chevron-right")}<b>${esc(c.title)}</b></div>
       <div class="pagehead"><div><h1>${esc(c.title)}</h1><div class="row mt-s small"><span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span><span>${c.kind === "pruefung" ? "Beteiligte Schulen: " + (c.orgs || []).map((o) => esc(orgShort(o))).join(", ") : "Besitzer: " + esc(personName(byId("persons", c.owner)))}</span></div></div>
-        <div class="actions-bar">${c.catalog ? `<a class="btn" href="#/app/vorschau/${c.catalog}/dashboard">${icon("eye")} Vorschau</a>` : ""}<button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button></div></div>
+        <div class="actions-bar">${c.catalog ? `<a class="btn" href="#/app/vorschau/${c.catalog}/dashboard" data-pvfrom="${c.id}">${icon("eye")} Vorschau</a>` : ""}<button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button></div></div>
       <nav class="tabs">${tabs.map(([k, l]) => `<a href="#/app/kurs/${id}/${k}" class="${k === tab ? "active" : ""}">${l}</a>`).join("")}</nav>${body}`;
     },
     mount(el) {
       const c = byId("courses", id); if (!c || !canManageCourse(c)) return;
-      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=8.4").then((m) => m.newRoomDialog(c.id))));
+      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=8.5").then((m) => m.newRoomDialog(c.id))));
       el.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => addPersons(c, b.dataset.add, b.dataset.stage)));
       el.querySelectorAll("[data-addgroup]").forEach((b) => (b.onclick = () => addGroup(c, b.dataset.addgroup)));
       const ng = el.querySelector("[data-owngroup]"); if (ng) ng.onclick = () => ownGroup(c);
@@ -62,17 +63,18 @@ export function detail(id, tab) {
       const ke = el.querySelector("[data-korrend]"); if (ke) ke.onchange = async () => { await upd("courses", c.id, { korr_end: ke.value }); toast("Korrekturzeitraum gespeichert", ke.value ? "Ende: " + ke.value.split("-").reverse().join(".") : "ohne Ende"); };
       const dk = el.querySelector("[data-dkth]"); if (dk) dk.onchange = async () => { await upd("courses", c.id, { dk_threshold: +dk.value }); toast("Schwelle gespeichert", `Drittkorrektur wird ab ${dk.value.replace(".", ",")} Notenstufen Abweichung empfohlen.`); };
       el.querySelectorAll("[data-gopen]").forEach((b) => (b.onclick = () => { UI["g" + b.dataset.gopen] = !UI["g" + b.dataset.gopen]; redraw(); }));
+      if (tab === "steuerung") RU.bindRules(el, c);
     },
   };
 }
 
 const delBtn = (pid, role, label) => `<button class="iconbtn" data-rmm="${pid}" data-role="${role}" title="Entfernen" aria-label="${esc(label)} entfernen">${icon("trash-2")}</button>`;
 function personRows(list, c, role, extraCol) {
-  return list.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Name</th><th>Anmeldename</th><th>Schule</th>${extraCol ? `<th>${extraCol.head}</th>` : ""}<th>Zugeordnet über</th><th></th></tr></thead><tbody>${list.map((m) => { const pe = byId("persons", m.person); return `<tr><td><b>${esc(personName(pe))}</b></td><td>${esc(pe?.username || "")}</td><td>${esc(orgShort(pe?.org))}</td>${extraCol ? `<td>${extraCol.cell(m)}</td>` : ""}<td>${m.via ? `<span class="badge gray">${icon("users")} Gruppe ${esc(m.via)}</span>` : "einzeln"}</td><td>${m.via || m.role === "besitzer" ? "" : delBtn(m.person, m.role, personName(pe))}</td></tr>`; }).join("")}</tbody></table></div>` : `<div class="empty small">${icon("users")}<div>Noch niemand zugeordnet</div></div>`;
+  return list.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Name</th><th>Anmeldename</th><th>Schule</th>${extraCol ? `<th>${extraCol.head}</th>` : ""}<th>Zugeordnet über</th><th></th></tr></thead><tbody>${list.map((m) => { const pe = byId("persons", m.person); return `<tr><td><b>${esc(personName(pe))}</b></td><td>${esc(pe?.username || "")}</td><td>${esc(orgsLabel(pe))}</td>${extraCol ? `<td>${extraCol.cell(m)}</td>` : ""}<td>${m.via ? `<span class="badge gray">${icon("users")} Gruppe ${esc(m.via)}</span>` : "einzeln"}</td><td>${m.via || m.role === "besitzer" ? "" : delBtn(m.person, m.role, personName(pe))}</td></tr>`; }).join("")}</tbody></table></div>` : `<div class="empty small">${icon("users")}<div>Noch niemand zugeordnet</div></div>`;
 }
 function groupRows(c, ownOrgOnly) {
   const p = me();
-  const gs = (c.groups || []).map((g) => ({ ...g, gr: byId("groups", g.group) })).filter((g) => g.gr && (!ownOrgOnly || g.gr.org === p.org));
+  const gs = (c.groups || []).map((g) => ({ ...g, gr: byId("groups", g.group) })).filter((g) => g.gr && (!ownOrgOnly || inOrg(p, g.gr.org)));
   if (!gs.length) return `<p class="small muted">Keine Gruppen zugeordnet.</p>`;
   return `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Gruppe</th><th>Art</th><th>Herkunft</th><th class="num">Mitglieder</th><th></th></tr></thead><tbody>${gs.map((g) => `<tr><td><button class="linkbtn" data-gopen="${g.group}">${icon(UI["g" + g.group] ? "chevron-up" : "chevron-down")} <b>${esc(g.gr.name)}</b></button>${UI["g" + g.group] ? `<div class="xs muted mt-s">${(g.gr.members || []).map((id) => esc(personName(byId("persons", id)))).join(" · ")}</div>` : ""}</td><td>${g.gr.kind === "klasse" ? "Klasse" : g.gr.kind === "kurs" ? "Kurs" : "eigene Gruppe"}</td><td>${g.gr.source === "kurs" ? "im Kurs angelegt" : "Schulverwaltung"}</td><td class="num">${(g.gr.members || []).length}</td><td><button class="iconbtn" data-rmg="${g.group}" title="Gruppe entfernen" aria-label="Gruppe ${esc(g.gr.name)} entfernen">${icon("trash-2")}</button></td></tr>`).join("")}</tbody></table></div>`;
 }
@@ -94,8 +96,8 @@ function tabMembersLesson(c, p) {
 // Prüfung: Schuladministration verwaltet Rollen nur für die eigene Organisation
 function tabMembersExam(c, p) {
   const ms = members(c);
-  const mine = ms.filter((m) => byId("persons", m.person)?.org === p.org);
-  const hidden = new Set(ms.filter((m) => byId("persons", m.person)?.org !== p.org).map((m) => m.person)).size;
+  const mine = ms.filter((m) => sameOrg(byId("persons", m.person), p));
+  const hidden = new Set(ms.filter((m) => !sameOrg(byId("persons", m.person), p)).map((m) => m.person)).size;
   const sec = (role, ic, title, addLabel, extra) => { const l = mine.filter((m) => m.role === role); return `<div class="card pad mt"><div class="row between wrap"><h3>${icon(ic)} ${title} (${new Set(l.map((m) => m.person)).size})</h3><div class="row wrap">${role === "teilnehmer" ? `<button class="btn sm" data-addgroup="teilnehmer">${icon("users")} Klasse/Kurs hinzufügen</button>` : ""}<button class="btn sm" data-add="${role}">${icon("user-round-plus")} ${addLabel}</button></div></div>${role === "teilnehmer" ? groupRows(c, true) : ""}${personRows(l, c, role, extra)}</div>`; };
   return `<div class="notice info small mb">${icon("info")}<span>Prüfungsebene (Task 52 / 24): Sie ordnen Personen Ihrer Schule <b>${esc(orgName(p.org))}</b> zu. ${hidden ? `${hidden} Mitglieder anderer Schulen sind ausgeblendet.` : ""}</span></div>
   ${sec("teilnehmer", "graduation-cap", "Teilnehmende", "Teilnehmende hinzufügen")}
@@ -106,7 +108,7 @@ function tabMembersExam(c, p) {
 function tabRooms(c, p) {
   const rooms = visibleRooms(p).filter((r) => r.course === c.id);
   return `<div class="row between wrap mb"><p class="muted" style="margin:0">${c.kind === "pruefung" ? "Raumaufsichten Ihrer Schule für diese Prüfung." : "Raumaufsichten dieses Unterrichtskurses."}</p><button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button></div>
-  ${rooms.length ? `<div class="tablewrap"><table class="tbl"><thead><tr><th>Raum</th><th>Start</th><th class="num">Aufsichten</th><th class="num">Teilnehmende</th><th>Status</th><th></th></tr></thead><tbody>${rooms.map((r) => `<tr><td><b>${esc(r.name)}</b></td><td>${fmtDateTime(parseDate(r.planned_start))}</td><td class="num">${D.supervisors.filter((s) => s.room === r.id).length}</td><td class="num">${D.participants.filter((x) => x.room === r.id).length}</td><td><span class="badge ${ROOM_STATE[r.state]?.[1]}">${ROOM_STATE[r.state]?.[0]}</span></td><td><a class="linkarrow" href="#/app/raum/${r.id}/meinraum">${icon("arrow-right")} Zur Raumaufsicht</a></td></tr>`).join("")}</tbody></table></div>`
+  ${rooms.length ? `<div class="tablewrap"><table class="tbl"><thead><tr><th>Raum</th><th>Start</th><th class="num">Aufsichten</th><th class="num">Teilnehmende</th><th>Status</th><th></th></tr></thead><tbody>${rooms.map((r) => `<tr class="rowlink" data-href="#/app/raum/${r.id}/meinraum" tabindex="0"><td><b>${esc(r.name)}</b></td><td>${fmtDateTime(parseDate(r.planned_start))}</td><td class="num">${D.supervisors.filter((s) => s.room === r.id).length}</td><td class="num">${D.participants.filter((x) => x.room === r.id).length}</td><td><span class="badge ${ROOM_STATE[r.state]?.[1]}">${ROOM_STATE[r.state]?.[0]}</span></td><td><a class="linkarrow" href="#/app/raum/${r.id}/meinraum">${icon("arrow-right")} Zur Raumaufsicht</a></td></tr>`).join("")}</tbody></table></div>`
   : `<div class="empty">${icon("calendar-plus")}<h3>Noch keine Raumaufsicht</h3><p>Erstellen Sie eine Raumaufsicht und ordnen Sie anschließend Teilnehmende und Aufsichtspersonen aus den Kursmitgliedern zu.</p></div>`}`;
 }
 function tabInfo(c) {
@@ -121,8 +123,8 @@ function tabInfo(c) {
 const STAGE_TXT = { 1: "Erstkorrektur", 2: "Zweitkorrektur", 3: "Endbeurteilung (Drittkorrektur)" };
 const targetLabel = (a) => a.kind === "group" ? `${icon("users")} Klasse/Kurs <b>${esc(byId("groups", a.target)?.name || "–")}</b>` : `${icon("user")} ${esc(personName(byId("persons", a.target)))}`;
 function tabCorrectors(c, p) {
-  const own = assignments(c).filter((a) => !a.org || a.org === p.org);
-  const ps = D.participants.filter((x) => byId("rooms", x.room)?.course === c.id && byId("rooms", x.room)?.org === p.org);
+  const own = assignments(c).filter((a) => !a.org || inOrg(p, a.org));
+  const ps = D.participants.filter((x) => byId("rooms", x.room)?.course === c.id && inOrg(p, byId("rooms", x.room)?.org));
   return `<div class="notice info small mb">${icon("info")}<span>Je Korrekturstufe können <b>mehrere Korrektor:innen als Gruppe</b> zugewiesen werden – für eine Klasse/einen Kurs oder für einzelne Prüflinge (Einzelzuweisung hat Vorrang). Alle Mitglieder sehen die gesamte Leistung, teilen die Korrektur eigenständig auf und erfassen <b>eine gemeinsame Bewertung</b>; sie ist final, wenn alle freigegeben haben. Gruppen gelten nur für diese Prüfung.</span></div>
   <div class="card pad row wrap" style="gap:24px;align-items:flex-end">
     <div class="field" style="margin:0"><label class="lbl" for="korrend">Ende des Korrekturzeitraums</label><input id="korrend" class="input" type="date" data-korrend value="${esc(c.korr_end || "")}"><p class="xs muted" style="margin:4px 0 0">Bis dahin können Freigaben zurückgezogen werden.</p></div>
@@ -137,10 +139,10 @@ function tabCorrectors(c, p) {
 }
 async function assignDialog(c, stage, editId) {
   const p = me(); const ex = assignments(c).find((a) => a.id === editId);
-  const ms = members(c).filter((m) => m.role === "teilnehmer" && byId("persons", m.person)?.org === p.org);
-  const groups = (c.groups || []).filter((g) => g.role === "teilnehmer").map((g) => byId("groups", g.group)).filter((g) => g && g.org === p.org);
+  const ms = members(c).filter((m) => m.role === "teilnehmer" && sameOrg(byId("persons", m.person), p));
+  const groups = (c.groups || []).filter((g) => g.role === "teilnehmer").map((g) => byId("groups", g.group)).filter((g) => g && inOrg(p, g.org));
   const pupils = [...new Set(ms.map((m) => m.person))].map((id) => byId("persons", id)).filter(Boolean).sort((a, b) => a.lastname.localeCompare(b.lastname));
-  const teachers = D.persons.filter((x) => x.org === p.org && x.kind === "lehrkraft").sort((a, b) => a.lastname.localeCompare(b.lastname));
+  const teachers = D.persons.filter((x) => sameOrg(x, p) && x.kind === "lehrkraft").sort((a, b) => a.lastname.localeCompare(b.lastname));
   const v0 = { kind: ex?.kind || "group", target: ex?.target || groups[0]?.id || "", correctors: new Set(ex?.correctors || []) };
   const res = await modal({ title: `${STAGE_TXT[stage]}: Korrektorengruppe ${ex ? "bearbeiten" : "zuweisen"}`, size: "wide",
     body: `<div class="nrgrid"><div>
@@ -187,7 +189,7 @@ async function addPersons(c, role, stage) {
   const p = me();
   const existing = new Set(members(c).filter((m) => m.role === role || (role === "mitbetreuung" && m.role === "besitzer")).map((m) => m.person));
   const kind = ROLE_FOR[role];
-  const cand = D.persons.filter((x) => x.org === p.org && (role === "pruefungseinsicht" ? x.kind !== "schueler" : x.kind === kind) && !existing.has(x.id)).sort((a, b) => a.lastname.localeCompare(b.lastname));
+  const cand = D.persons.filter((x) => sameOrg(x, p) && (role === "pruefungseinsicht" ? x.kind !== "schueler" : x.kind === kind) && !existing.has(x.id)).sort((a, b) => a.lastname.localeCompare(b.lastname));
   const title = { teilnehmer: "Schüler:innen hinzufügen", mitbetreuung: "Lehrkraft hinzufügen (Mitbetreuung)", raumaufsicht: "Raumaufsicht hinzufügen", korrektor: "Korrektor:in hinzufügen", pruefungseinsicht: "Prüfungseinsicht hinzufügen" }[role];
   const v = await modal({ title, size: "wide",
     body: `<div class="row between wrap mb"><span class="small">Personen der Organisation <b>${esc(orgName(p.org))}</b></span><div class="search" style="width:280px"><input class="input" data-s placeholder="Name oder Anmeldename suchen" aria-label="Suchen">${icon("search")}</div></div>
@@ -207,7 +209,7 @@ async function addPersons(c, role, stage) {
 async function addGroup(c, role) {
   const p = me();
   const have = new Set((c.groups || []).map((g) => g.group));
-  const cand = D.groups.filter((g) => g.org === p.org && g.source === "schulverwaltung" && !have.has(g.id)).sort((a, b) => a.name.localeCompare(b.name));
+  const cand = D.groups.filter((g) => inOrg(p, g.org) && g.source === "schulverwaltung" && !have.has(g.id)).sort((a, b) => a.name.localeCompare(b.name));
   const v = await modal({ title: "Klasse oder Kurs hinzufügen", size: "narrow",
     body: `<p class="small">Alle Mitglieder der Gruppe werden als <b>Teilnehmende</b> zugeordnet. Spätere Änderungen der Gruppe in der Schulverwaltung wirken sich automatisch aus.</p>${cand.length ? cand.map((g) => `<label class="checkbox" style="display:flex;margin:8px 0"><input type="checkbox" data-g="${g.id}"> <b>${esc(g.name)}</b>&nbsp;<span class="muted small">(${g.kind === "klasse" ? "Klasse" : "Kurs"}, ${(g.members || []).length} Mitglieder)</span></label>`).join("") : `<div class="empty small">Keine weiteren Gruppen verfügbar</div>`}`,
     footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Hinzufügen</button>`,
@@ -218,7 +220,7 @@ async function addGroup(c, role) {
 }
 async function ownGroup(c) {
   const p = me();
-  const pool = D.persons.filter((x) => x.org === p.org && x.kind === "schueler").sort((a, b) => a.lastname.localeCompare(b.lastname));
+  const pool = D.persons.filter((x) => inOrg(p, x.org) && x.kind === "schueler").sort((a, b) => a.lastname.localeCompare(b.lastname));
   const inCourse = new Set(members(c).filter((m) => m.role === "teilnehmer").map((m) => m.person));
   const v = await modal({ title: "Eigene Gruppe anlegen", size: "wide",
     body: `<div class="field"><label class="lbl">Gruppenname</label><input class="input" data-n placeholder="z. B. Nachschreiber, Gruppe A"></div>

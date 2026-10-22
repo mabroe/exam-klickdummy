@@ -1,10 +1,13 @@
 // Prüfling: Wartebereich, Prüfungsmodus (Dashboard, Aufgaben, Abgaben), Endbildschirm, Kursvorschau
-import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.4";
-import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, isFinished, isActive, isConnected, isOffline, HB_MS, $, examMark } from "../ui.js?v=8.4";
-import { EXAM, ALL_SUBTASKS, subtask, taskOf } from "../scenario.js?v=8.4";
-import { navigate, session, render, directHelp } from "../app.js?v=8.4";
-import * as W from "./dock.js?v=8.4";
-import { einsichtView } from "./results.js?v=8.4";
+import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.5";
+import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=8.5";
+import { EXAM, ALL_SUBTASKS, subtask, taskOf } from "../scenario.js?v=8.5";
+import { navigate, session, render, directHelp } from "../app.js?v=8.5";
+import * as W from "./dock.js?v=8.5";
+import { einsichtView } from "./results.js?v=8.5";
+import { einsichtFor } from "../access.js?v=8.5";
+import { markable, bindMarkables } from "../highlight.js?v=8.5";
+import { ruleMatches, evalState, runAction } from "../rules.js?v=8.5";
 // Punktebadge: grün, sobald für die (Teil-)Aufgabe eine Abgabe markiert ist, sonst grau
 const ptsBadge = (done, label, title = "") => `<span class="badge ${done ? "lime" : "gray"}" title="${title || (done ? "Abgabe markiert" : "noch nicht bearbeitet")}">${label}</span>`;
 const taskDone = (items, t) => t.subtasks.filter((s) => items.some((i) => i.submission === s.no)).length;
@@ -82,9 +85,10 @@ export function route(sub, q) {
   const phase = isFinished(p.status) ? "end" : isActive(p.status) ? "exam" : "wait";
   if (phase === "exam" && lastStatus && !isActive(lastStatus)) { countdownUntil = Date.now() + 5000; document.querySelectorAll(".backdrop").forEach((b) => b.remove()); }
   lastStatus = p.status;
-  if (phase === "wait") { W.closeAll(); return waitView(ctx); }
+  if (phase === "wait") { W.closeAll(); return isDistance(room) ? distanceWait(ctx) : waitView(ctx); }
   if (phase !== "exam" && document.fullscreenElement) document.exitFullscreen().catch(() => {});
-  if (phase === "end" && sub === "einsicht" && setting("einsicht", {}).released) { W.closeAll(); return einsichtView(p.id, { participantView: true }); }
+  if (phase === "end" && sub === "einsicht") { const k = einsichtFor(p); if (k) { W.closeAll(); return einsichtView(p.id, { participantView: true, kind: k }); } }
+  if (phase === "end" && sub === "erwartung" && isDistance(room) && room.show_horizon) { W.closeAll(); return horizonPage(ctx); }
   if (phase === "end") { W.closeAll(); return endView(ctx); }
   const tm = sub.match(/^aufgabe\/(\d)/);
   if (tm && taskBlocked(ctx, tm[1])) { blockedMsg = tm[1]; return { redirect: "#/tn/dashboard" }; }
@@ -122,7 +126,59 @@ function bindPagehide() {
     demoApi.beacon("participants", CTX.p.id, { last_seen: toPb(new Date(Date.now() - 10 * 60000)) });
   });
 }
-function stopTimers() { clearInterval(hbTimer); clearInterval(tickTimer); hbTimer = tickTimer = null; }
+function stopTimers() { clearInterval(hbTimer); clearInterval(tickTimer); clearInterval(RS.timer); hbTimer = tickTimer = RS.timer = null; }
+
+// ---------- Aufgabensteuerung (Regeln aus dem Kurs) ----------
+// Aktionen (geöffnete Aufgaben, Abgaben, E-Mails …) und Zeitfaktoren werden laufend ausgewertet; jede Regel löst je Prüfling einmal aus
+const RS = { key: null, progress: null, fired: null, lastActive: Date.now(), lastTick: 0, busy: false, timer: null, saved: 0 };
+const ruleCourse = (ctx) => byId("courses", ctx.preview ? store.get("pvfrom", null)?.course : ctx.room?.course);
+const activeRules = (ctx) => (ruleCourse(ctx)?.rules || []).filter((r) => r && r.active !== false);
+function rsInit(ctx) {
+  const key = ctx.preview ? "pv:" + (ruleCourse(ctx)?.id || "") : ctx.p.id + ":" + (ctx.p.attempt || 1);
+  if (RS.key === key) return;
+  RS.key = key; RS.lastActive = Date.now(); RS.lastTick = 0;
+  const pr = ctx.preview ? {} : JSON.parse(JSON.stringify(ctx.p.progress || {}));
+  RS.progress = { opened: pr.opened || {}, subopened: pr.subopened || {}, taskTime: pr.taskTime || {} };
+  RS.fired = ctx.preview ? [] : [...(ctx.p.fired || [])];
+}
+["mousedown", "keydown", "input", "wheel", "touchstart"].forEach((ev) => document.addEventListener(ev, () => (RS.lastActive = Date.now()), { capture: true, passive: true }));
+let lastMove = 0; document.addEventListener("mousemove", () => { const n = Date.now(); if (n - lastMove > 2000) { lastMove = n; RS.lastActive = n; } }, { passive: true });
+function trackOpen(ctx, sub) {
+  rsInit(ctx);
+  const m = sub.match(/^aufgabe\/(\d)(?:\/([\d.]+))?/); if (!m) return;
+  const ts = Date.now();
+  if (!RS.progress.opened[m[1]]) RS.progress.opened[m[1]] = ts;
+  if (m[2] && !RS.progress.subopened[m[2]]) RS.progress.subopened[m[2]] = ts;
+}
+async function rulesTick(ctx) {
+  rsInit(ctx);
+  const now = Date.now(); const cur = W.getTask();
+  if (cur && RS.lastTick && !document.querySelector(".fullgray")) RS.progress.taskTime[cur] = (RS.progress.taskTime[cur] || 0) + Math.min(10, (now - RS.lastTick) / 1000);
+  RS.lastTick = now;
+  const rules = activeRules(ctx);
+  if (!rules.length || RS.busy) return;
+  if (!ctx.preview && !["laeuft", "zeit_beendet"].includes(byId("participants", ctx.p.id)?.status || ctx.p.status)) return;
+  const st = evalState(ctx, { progress: RS.progress, fired: RS.fired, lastActive: RS.lastActive, progressPct: progressOf(ctx.items()) });
+  const due = rules.filter((r) => !RS.fired.includes(r.id) && ruleMatches(r, st));
+  if (!due.length) { if (!ctx.preview && now - RS.saved > 30000) { RS.saved = now; upd("participants", ctx.p.id, { progress: RS.progress }).catch(() => {}); } return; }
+  RS.busy = true;
+  try {
+    for (const r of due) {
+      RS.fired.push(r.id);
+      for (const a of r.actions || []) {
+        await runAction(a, ctx, cur);
+        if (a.type === "notice") toast("Hinweis", a.text || "", "info", { ms: 12000 });
+        else if (a.type === "mail") toast("Neue E-Mail", `${a.from || ""}: ${a.subject || ""}`, "info", { ms: 7000 });
+        else if (a.type === "event") toast("Neuer Termin im Kalender", a.title || "", "info", { ms: 7000 });
+        else if (a.type === "ticket") toast("Neues Ticket", a.subject || "", "info", { ms: 7000 });
+      }
+      if (ctx.preview) toast("Vorschau: Regel ausgelöst", r.name, "info", { ms: 5000 });
+      else log(ctx.p.room, ctx.p, "Aufgabensteuerung: Regel ausgelöst", r.name, "system");
+    }
+    if (!ctx.preview) { RS.saved = Date.now(); await upd("participants", ctx.p.id, { fired: RS.fired, progress: RS.progress }); }
+    setTimeout(syncDock, 100);
+  } finally { RS.busy = false; }
+}
 const stopTick = () => { clearInterval(tickTimer); tickTimer = null; }; // Heartbeat läuft beim Neuzeichnen weiter
 
 let loginRunning = false;
@@ -149,7 +205,7 @@ async function doLogin(ctx) {
 function swapAttachment(ctx, anchor, mailId, idx) {
   const m = ctx.items().find((x) => x.id === mailId); if (!m) return;
   const task = m.data.task || (m.submission || "1").split(".")[0];
-  const files = ctx.items().filter((f) => f.kind === "file" && (f.folder === "own" || f.folder === "abgabe") && String(f.data.task || "1") === String(task));
+  const files = ctx.items().filter((f) => f.kind === "file" && f.folder === "own" && String(f.data.task || "1") === String(task));
   const apply = async (f) => {
     const att = [...(m.data.attachments || [])]; const old = att[+idx]; att[+idx] = f.data.name;
     const refs = { ...(m.data.attach_refs || {}) }; delete refs[old]; refs[f.data.name] = f.id;
@@ -162,20 +218,26 @@ function swapAttachment(ctx, anchor, mailId, idx) {
     const rec = ctx.preview ? await ctx.add("file", "own", meta) : await ctx.addFile(meta, file); await apply(rec); }; i.click(); };
   popMenu(anchor, [{ header: "Neuere Datei wählen" }, ...files.filter((f) => f.data.name !== m.data.attachments[+idx] || m.data.attach_refs?.[f.data.name] !== f.id).map((f) => ({ label: `${f.data.name}${f.data.path ? " (" + f.data.path + ")" : ""}`, icon: "file", run: () => apply(f) })), "-", { label: "Neue Datei hochladen …", icon: "upload", run: upload }], { align: "left" });
 }
+// Erwartungshorizont und Bewertungskriterien einer Teilaufgabe (Vorschau für Lehrkräfte bzw. Distanzeinheit nach Abschluss)
+export function horizonHtml(st) {
+  return `<div class="hzbox mt-s"><div class="row between"><b>${icon("file-text")} Erwartungshorizont ${esc(st.no)} ${esc(st.title)}</b><span class="badge gray">${st.points} Punkte</span></div>
+    <ul class="hzlist">${(st.horizon || []).map(([t, p]) => `<li><span class="grow">${esc(t)}</span><b>${esc(p)}</b></li>`).join("")}</ul>
+    <div class="xs muted">Bewertungskriterien: ${(st.criteria || []).map(([c, p]) => `${esc(c)} (${p} P)`).join(" · ")}</div></div>`;
+}
 // Direkte Dateiabgabe in der Aufgabe (ohne Ablage unter „Eigene Dateien“)
 function uploadBox(st, subs) {
-  const files = subs.filter((i) => i.kind === "file" && i.folder === "abgabe");
-  return `<div class="uploadbox mt-s" data-dropst="${st.no}"><label class="btn primary sm">${icon("file-up")} Datei als Abgabe ${st.no} hochladen<input type="file" hidden data-stupload="${st.no}" accept=".pdf,.docx,.xlsx,.csv,.png,.jpg,.jpeg,.txt"></label><span class="small">oder Datei hierher ziehen · PDF, DOCX, XLSX, CSV, Bilder – max. 20 MB</span></div>
+  const files = subs.filter((i) => i.kind === "file" && i.data?.direct);
+  return `<div class="uploadbox mt-s" data-dropst="${st.no}"><label class="btn primary sm">${icon("file-up")} Datei als Abgabe ${st.no} hochladen<input type="file" hidden data-stupload="${st.no}" accept=".pdf,.docx,.xlsx,.csv,.png,.jpg,.jpeg,.txt"></label><span class="small">oder Datei hierher ziehen · PDF, DOCX, XLSX, CSV, Bilder – max. 20 MB · wird zusätzlich unter „Eigene Dateien › Dateiupload“ abgelegt</span></div>
     ${files.length ? `<div class="mt-s">${files.map((f) => `<div class="filerow" style="margin:0">${icon("file")}<div class="grow"><b>${esc(f.data.name)}</b><div class="xs muted">abgegeben ${esc(f.data.changed)} · ${esc(f.data.format)}</div></div><button class="btn sm ghost" data-stview="${f.id}">${icon("eye")} Ansehen</button><label class="btn sm ghost">${icon("repeat")} Ersetzen<input type="file" hidden data-strepl="${f.id}" data-st="${st.no}"></label><button class="iconbtn" data-stdel="${f.id}" aria-label="Abgabe entfernen" title="Abgabe entfernen">${icon("trash-2")}</button></div>`).join("")}</div>` : ""}`;
 }
 async function uploadSubmission(ctx, stNo, file, replaceId = "") {
   if (!file) return;
   if (file.size > 20 * 1048576) { toast("Datei zu groß", "Maximal 20 MB sind erlaubt.", "error"); return; }
   const ext = (file.name.split(".").pop() || "").toUpperCase();
-  const data = { task: stNo.split(".")[0], name: file.name, format: ext, size: (file.size / 1048576).toFixed(1).replace(".", ",") + " MB", changed: new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }), direct: true };
+  const data = { task: stNo.split(".")[0], name: file.name, format: ext, size: (file.size / 1048576).toFixed(1).replace(".", ",") + " MB", changed: new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }), direct: true, path: "Dateiupload" };
   try {
-    if (ctx.preview) await ctx.add("file", "abgabe", data, stNo);
-    else await createWithFile("items", { participant: ctx.p.id, kind: "file", folder: "abgabe", data, submission: stNo }, file);
+    if (ctx.preview) await ctx.add("file", "own", data, stNo);
+    else await createWithFile("items", { participant: ctx.p.id, kind: "file", folder: "own", data, submission: stNo }, file);
     if (replaceId) await ctx.del(replaceId);
     if (!ctx.preview) log(ctx.p.room, ctx.p, replaceId ? "Abgabedatei ersetzt" : "Datei als Abgabe hochgeladen", `${stNo}: ${file.name}`, "aktion");
     toast(replaceId ? "Abgabe ersetzt" : "Abgabe hochgeladen", `${file.name} ist als Abgabe ${stNo} gespeichert.`);
@@ -243,7 +305,7 @@ function waitView(ctx) {
       el.querySelectorAll("[data-pgstep]").forEach((b) => (b.onclick = () => { ui.pdfPage = Math.max(1, Math.min(3, ui.pdfPage + +b.dataset.pgstep)); render(false); }));
       const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
       const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
-      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.4").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
+      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.5").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
       // Prüfung läuft bereits, Bestätigung fehlt
       if (room.state === "RUNNING" && !confirmedBoth && !document.querySelector(".backdrop") && !store.get("bo." + p.id)) {
         store.set("bo." + p.id, 1);
@@ -317,6 +379,10 @@ function endView(ctx) {
     beendet: ["Die Prüfung wurde beendet", "Die Aufsicht hat die Prüfung beendet. Ihre markierten Abgaben wurden übermittelt."],
     nicht_teilnahme: ["Sie nehmen nicht an der Prüfung teil", "Bitte melden Sie sich bei der Aufsicht."],
   }[p.status] || ["Prüfung beendet", ""];
+  const dist = isDistance(ctx.room); const room = ctx.room;
+  if (dist && p.status === "abgegeben") { texts[0] = "Sie haben die Einheit abgeschlossen"; texts[1] = `Ihre markierten Abgaben wurden übermittelt (Durchlauf ${p.attempt || 1}).`; }
+  const canRepeat = dist && room.repeatable && windowState(room) === "open" && p.status === "abgegeben";
+  const ek = einsichtFor(p);
   const subs = ctx.items().filter((i) => i.submission);
   return {
     reroute: true,
@@ -324,9 +390,72 @@ function endView(ctx) {
     render: () => `<header class="topbar">${brand()}<span class="bold">${esc(p.firstname)} ${esc(p.lastname)}</span></header>
     <div class="endbox"><div class="ok">${icon(p.status === "nicht_teilnahme" ? "circle-x" : "circle-check", "xl")}</div><h1>${texts[0]}</h1><p class="lead mt">${texts[1]}</p>
     ${p.status !== "nicht_teilnahme" ? `<div class="card pad mt" style="text-align:left"><h3>Übermittelte Abgaben (${subs.length})</h3>${ALL_SUBTASKS.map((s) => { const n = subs.filter((i) => i.submission === s.no).length; return `<div class="row between small" style="padding:4px 0;border-bottom:1px solid var(--line-2)"><span>${s.no} ${esc(s.title)}</span>${n ? `<span class="badge green">${n} Abgabe${n > 1 ? "n" : ""}</span>` : `<span class="badge gray">keine Abgabe</span>`}</div>`; }).join("")}</div>` : ""}
-    ${p.status !== "nicht_teilnahme" ? (setting("einsicht", {}).released ? `<div class="notice success mt" style="justify-content:center">${icon("circle-check")}<span>Die Prüfungseinsicht ist freigegeben.</span></div><p class="mt"><a class="btn primary" href="#/tn/einsicht">${icon("eye")} Prüfungseinsicht öffnen</a></p>` : `<p class="muted small mt">Die Prüfungseinsicht wird nach Abschluss der Korrektur freigegeben.</p>`) : ""}
+    ${dist && (canRepeat || room.show_horizon) ? `<div class="row mt" style="justify-content:center;gap:8px">${room.show_horizon ? `<a class="btn" href="#/tn/erwartung">${icon("file-text")} Erwartungshorizont ansehen</a>` : ""}${canRepeat ? `<button class="btn primary" data-repeat>${icon("rotate-ccw")} Einheit erneut durchlaufen</button>` : ""}</div>${canRepeat ? `<p class="xs muted mt-s">Möglich bis ${fmtDateTime(parseDate(room.window_to))} Uhr. Beim erneuten Durchlauf wird Ihre bisherige Bearbeitung ersetzt.</p>` : ""}` : ""}
+    ${p.status !== "nicht_teilnahme" ? (ek ? `<div class="notice success mt" style="justify-content:center">${icon("circle-check")}<span>${ek === "pruefung" ? "Ihre Schule hat die Prüfungseinsicht freigegeben." : "Ihre Lehrkraft hat die Korrektur freigegeben."}</span></div><p class="mt"><a class="btn primary" href="#/tn/einsicht">${icon("eye")} ${ek === "pruefung" ? "Prüfungseinsicht öffnen" : "Korrektur und Ergebnis ansehen"}</a></p>` : `<p class="muted small mt">${courseOfRoom(room)?.kind === "unterricht" ? "Korrektur und Ergebnis sehen Sie, sobald Ihre Lehrkraft sie freigibt." : "Eine Prüfungseinsicht ist nur nach Freigabe durch Ihre Schule möglich."}</p>`) : ""}
     <p class="mt-l"><a class="btn" href="#/">Zur Rollenwahl</a></p></div>`,
-    mount() { stopTimers(); },
+    mount(el) { stopTimers(); const rb = el.querySelector("[data-repeat]"); if (rb) rb.onclick = () => repeatUnit(ctx); },
+  };
+}
+const courseOfRoom = (room) => byId("courses", room?.course);
+
+// ---------- Distanzunterricht ----------
+function distanceWait(ctx) {
+  const p = ctx.p, room = ctx.room;
+  return {
+    reroute: true, title: "Einheit im Distanzunterricht",
+    render: () => {
+      const ws = windowState(room); const ok = p.cheat_ack && p.health === "ok";
+      return `<header class="topbar">${brand()}<div class="usermenu"><button data-um>${icon("circle-user", "lg")}<span class="nm">${esc(p.firstname)} ${esc(p.lastname)}</span>${icon("chevron-down")}</button></div></header>
+      <div class="tn-page"><h1 class="mb">${esc(room.exam_name || room.name)}</h1>
+        <div class="warte"><section class="card pad"><h3>${icon("house")} Distanzunterricht</h3>
+          <p>Sie bearbeiten diese Einheit selbstständig. Innerhalb des Zeitraums entscheiden Sie, wann Sie beginnen. Nach dem Start läuft Ihre Bearbeitungszeit; sie endet spätestens mit dem Ende des Zeitraums. Danach wird automatisch abgegeben.</p>
+          <div class="kv">${icon("calendar")}<div><div class="small">Zeitraum</div><b>${fmtDateTime(parseDate(room.window_from))} – ${fmtDateTime(parseDate(room.window_to))} Uhr</b></div></div>
+          <div class="kv">${icon("clock")}<div><div class="small">Bearbeitungszeit</div><b>${room.duration_min} Minuten${p.nta ? ` + ${p.nta} Min. Nachteilsausgleich` : ""}</b></div></div>
+          <div class="kv">${icon("rotate-ccw")}<div><div class="small">Durchläufe</div><b>${room.repeatable ? "mehrfach möglich (z. B. zur Prüfungsvorbereitung)" : "einmalig"}</b>${(p.attempt || 1) > 1 ? ` · aktuell Durchlauf ${p.attempt}` : ""}</div></div>
+          <div class="kv">${icon("file-text")}<div><div class="small">Erwartungshorizont</div><b>${room.show_horizon ? "wird nach Abschluss angezeigt" : "wird nicht angezeigt"}</b></div></div></section>
+          <div class="col" style="gap:18px">
+            <div class="wcard countdown"><h3>${ws === "before" ? "Die Einheit ist ab" : ws === "after" ? "Der Zeitraum ist beendet" : "Die Einheit ist freigeschaltet"}</h3><span class="big">${icon("alarm-clock")}<span data-wcd>${ws === "before" ? fmtDateTime(parseDate(room.window_from)) : ws === "after" ? "abgelaufen" : "jetzt"}</span></span></div>
+            ${card("Belehrung zu Täuschungshandlungen", p.cheat_ack, "Bitte lesen Sie die Belehrung und bestätigen Sie, dass Sie die Einheit selbstständig bearbeiten.", "Zur Belehrung", "cheat")}
+            ${card("Gesundheitsabfrage", p.health === "ok", "Bitte bestätigen Sie, dass Sie sich in der Lage fühlen, die Einheit zu bearbeiten.", "Zur Gesundheitsabfrage", "health")}
+            <div class="wcard"><h3>Einheit starten</h3><p class="small">${ws === "open" ? (ok ? "Alles bestätigt. Mit dem Start beginnt Ihre Bearbeitungszeit." : "Bitte bestätigen Sie zuerst Belehrung und Gesundheitsabfrage.") : ws === "before" ? "Der Start ist erst ab Beginn des Zeitraums möglich." : "Der Zeitraum ist abgelaufen – ein Start ist nicht mehr möglich."}</p><div class="row end"><button class="btn primary" data-dstart ${ws === "open" && ok ? "" : "disabled"}>${icon("play")} Einheit jetzt starten</button></div></div>
+          </div></div></div>`;
+    },
+    async mount(el) {
+      startHeartbeat(ctx); await ensureLogin(ctx);
+      el.querySelector("[data-um]").onclick = (e) => popMenu(e.currentTarget, [{ label: "Rolle wechseln", icon: "refresh-cw", run: () => navigate("#/") }]);
+      const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
+      const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
+      const sb = el.querySelector("[data-dstart]"); if (sb) sb.onclick = async () => {
+        if (windowState(room) !== "open") { render(false); return; }
+        sb.disabled = true;
+        await upd("participants", p.id, { status: "laeuft", started_at: toPb(), present: true, attempt: p.attempt || 1, last_seen: toPb() });
+        log(p.room, p, "Einheit selbst gestartet", `Distanzunterricht · Durchlauf ${p.attempt || 1}`, "system");
+      };
+      const tick = () => { const before = windowState(room) === "before"; if (!before && el.querySelector("[data-dstart][disabled]") && p.cheat_ack && p.health === "ok" && windowState(room) === "open") render(false); };
+      tickTimer = setInterval(tick, 5000);
+    },
+    unmount: stopTick,
+  };
+}
+// Erneuter Durchlauf: bisherige Bearbeitung wird ersetzt (Materialien werden neu bereitgestellt)
+async function repeatUnit(ctx) {
+  const p = byId("participants", ctx.p.id) || ctx.p;
+  if (!(await confirmBox("Einheit erneut durchlaufen", "<p>Sie starten einen neuen Durchlauf. Ihre bisherige Bearbeitung und Abgaben werden durch den neuen Durchlauf <b>ersetzt</b>.</p>", "Neuen Durchlauf vorbereiten"))) return;
+  for (const i of D.items.filter((x) => x.participant === p.id)) await del("items", i.id);
+  for (const g of D.gradings.filter((x) => x.participant === p.id)) await del("gradings", g.id);
+  EXAM.tasks.forEach((t) => store.del(`sit.${p.id}.${t.no}`)); store.del("curTask." + p.id); delete announced[p.id];
+  const n = (p.attempt || 1) + 1;
+  await upd("participants", p.id, { status: "wartend_bestaetigt", started_at: "", finished_at: "", attempt: n, progress: {}, fired: [], bookmarks: [] });
+  log(p.room, p, "Neuer Durchlauf vorbereitet", `Distanzunterricht · Durchlauf ${n}`, "system");
+  toast("Neuer Durchlauf", `Durchlauf ${n} kann jetzt gestartet werden.`);
+}
+function horizonPage(ctx) {
+  const p = ctx.p;
+  return {
+    title: "Erwartungshorizont",
+    render: () => `<header class="topbar">${brand()}<span class="bold">${esc(p.firstname)} ${esc(p.lastname)}</span></header><div class="tn-page"><div class="breadcrumb"><a href="#/tn">${icon("arrow-left")} Zurück</a></div>
+      <div class="pagehead"><div><h1>Erwartungshorizont</h1><div class="sub">${esc(ctx.room.exam_name || "")} · freigegeben durch die Lehrkraft für den Distanzunterricht</div></div></div>
+      ${EXAM.tasks.map((t) => `<h2 class="mt mb">Aufgabe ${t.no} ${esc(t.title)}</h2>${t.subtasks.map((st) => horizonHtml(st)).join("")}`).join("")}</div>`,
   };
 }
 
@@ -385,8 +514,14 @@ function examView(ctx, sub, q) {
             toast("Verbindung wiederhergestellt", "Sie können direkt weiterarbeiten. Ihre Eingaben sind vollständig erhalten.");
           }).finally(() => (reconnectFlag = false));
         }
+        // Distanz: keine Lehrkraft sammelt ein – nach Ablauf der Bearbeitungszeit bzw. des Zeitraums wird automatisch abgegeben
+        if (!ctx.preview && isDistance(ctx.room) && ms <= 0 && ["laeuft", "zeit_beendet"].includes(ctx.p.status) && !timeFlag) {
+          timeFlag = true; W.closeAll();
+          upd("participants", ctx.p.id, { status: "abgegeben", finished_at: toPb() }).then(() => log(ctx.p.room, ctx.p, "Bearbeitungszeit abgelaufen – automatisch abgegeben", "Distanzunterricht", "system")).finally(() => (timeFlag = false));
+          return;
+        }
         // Zeitablauf: kein hartes Ende – Status „Bearbeitungszeit beendet“, Prüfung läuft weiter
-        if (!ctx.preview && ctx.room.state === "RUNNING" && !timeFlag) {
+        if (!ctx.preview && !isDistance(ctx.room) && ctx.room.state === "RUNNING" && !timeFlag) {
           if (ms <= 0 && ctx.p.status === "laeuft") {
             timeFlag = true;
             upd("participants", ctx.p.id, { status: "zeit_beendet" }).then(() => { if (!hasLog(ctx.p, "Bearbeitungszeit abgelaufen")) log(ctx.p.room, ctx.p, "Bearbeitungszeit abgelaufen", "Prüfung läuft weiter, neue Aufgaben gesperrt", "system"); }).finally(() => (timeFlag = false));
@@ -397,12 +532,13 @@ function examView(ctx, sub, q) {
         }
       };
       tick(); clearInterval(tickTimer); tickTimer = setInterval(tick, 1000);
+      trackOpen(ctx, sub); clearInterval(RS.timer); RS.timer = setInterval(() => rulesTick(ctx), 2000); setTimeout(() => rulesTick(ctx), 300);
       // Ausgangssituation beim ersten Öffnen einer Aufgabe
       const tm = sub.match(/^aufgabe\/(\d)/);
       if (tm && !timeOver(ctx)) store.set("curTask." + p.id, tm[1]); // zuletzt bearbeitete Aufgabe
       if (tm && !store.get(`sit.${p.id}.${tm[1]}`)) { store.set(`sit.${p.id}.${tm[1]}`, 1); situationModal(taskOf(tm[1])); }
     },
-    unmount() { stopTick(); document.body.classList.remove("exam-locked"); const wl = document.getElementById("winlayer"); if (wl) wl.inert = false; },
+    unmount() { stopTick(); clearInterval(RS.timer); RS.timer = null; document.body.classList.remove("exam-locked"); const wl = document.getElementById("winlayer"); if (wl) wl.inert = false; },
   };
 }
 
@@ -411,7 +547,7 @@ function examHead(ctx) {
   const conn = ctx.preview || online;
   const plus = (p.nta || 0) + (p.extra_time || 0) + (ctx.room.global_extra || 0);
   return `<button class="skiplink" data-skip>Zum Inhalt springen</button><div class="sr-only" aria-live="assertive" data-live></div><header class="examhead"><div class="examname"><span class="logo-mini ex">${examMark(30)}</span>${esc(ctx.preview ? ctx.course?.title || EXAM.name : ctx.room.exam_name)}${ctx.preview ? `<span class="preview-banner">${icon("eye")} Sie befinden sich im Vorschaumodus</span>` : ""}</div>
-  <div><div class="who">${esc(p.firstname)} ${esc(p.lastname)}&nbsp;&nbsp;P: ${esc(p.seat)}</div>
+  <div><div class="who">${esc(p.firstname)} ${esc(p.lastname)}&nbsp;&nbsp;${!ctx.preview && isDistance(ctx.room) ? `${icon("house")} Distanz${(p.attempt || 1) > 1 ? ` · Durchlauf ${p.attempt}` : ""}` : `P: ${esc(p.seat)}`}</div>
   <div class="meta"><span class="timer" title="Verbleibende Bearbeitungszeit">${icon("clock")} <span data-timer>--:--</span></span><span title="Fortschritt"><span class="progressbar"><i style="width:${prog}%"></i></span> ${prog}%</span><span class="conn ${conn ? "" : "off"}" title="${conn ? "Verbunden" : "Keine Verbindung"}">${icon("radio")}</span></div>${plus ? `<div class="xs" style="text-align:right;font-weight:600" title="Bereits in der Restzeit enthalten">inkl. ${p.nta ? `${p.nta} Min. Nachteilsausgleich` : ""}${p.nta && (p.extra_time || ctx.room.global_extra) ? " + " : ""}${(p.extra_time || 0) + (ctx.room.global_extra || 0) ? `${(p.extra_time || 0) + (ctx.room.global_extra || 0)} Min. Zusatzzeit` : ""}</div>` : ""}</div></header>`;
 }
 
@@ -440,7 +576,8 @@ function navTree(ctx, sub) {
 function pageBody(ctx, sub) {
   const parts = sub.split("/");
   const grid = (inner) => `<div class="tn-grid ${ui.navCollapsed ? "collapsed" : ""}">${navTree(ctx, sub)}<div>${inner}</div></div>`;
-  const endBtn = ctx.preview ? `<a class="btn" href="#/app/katalog/${ctx.course?.id || ""}">${icon("arrow-left")} Vorschau beenden</a><button class="btn primary" data-copy>${icon("copy")} Kurs kopieren</button>` : `<button class="btn soft" data-finish>Prüfung beenden</button>`;
+  const pvFrom = store.get("pvfrom", null);
+  const endBtn = ctx.preview ? (pvFrom?.course ? `<a class="btn" href="#/app/kurs/${pvFrom.course}/${pvFrom.tab || "info"}">${icon("arrow-left")} Vorschau beenden</a>` : `<a class="btn" href="#/app/katalog/${ctx.course?.id || ""}">${icon("arrow-left")} Vorschau beenden</a><button class="btn primary" data-copy>${icon("copy")} Kurs kopieren</button>`) : `<button class="btn soft" data-finish>Prüfung beenden</button>`;
   const over = timeOver(ctx) ? `<div class="notice warn mb" role="status">${icon("alarm-clock")}<span><b>Die Bearbeitungszeit ist abgelaufen.</b> ${allowedTask(ctx) ? `Sie können Aufgabe ${esc(allowedTask(ctx))} noch abschließen und Abgaben markieren;` : ""} neue Aufgaben können nicht mehr geöffnet werden. Die Prüfung wird durch die Aufsicht eingesammelt.</span></div>` : "";
   const head = (t) => over + `<div class="taskhead"><h1>${t}</h1><div class="row"><button class="helpbtn" data-help aria-label="Hilfe"><span class="q">?</span></button>${endBtn}</div></div>`;
 
@@ -496,7 +633,8 @@ function taskBody(ctx, t, st) {
   const tools = [["files", "folder", "Dateien", `${cnt("file")} Dateien`], ["mail", "mail", "Mail", `${items.filter((i) => i.kind === "mail" && i.folder === "inbox").length} im Posteingang`], ["calendar", "calendar", "Kalender", `${cnt("event")} Termine`], ["editor", "notepad-text", "Notizen", `${cnt("note")} Notizen`], ["tickets", "ticket", "Tickets", `${cnt("ticket")} Tickets`], ["erp", "package", "ERP-System", `${items.filter((i) => i.kind === "erp" && i.data.type === "artikel").length} Artikel, Bestellungen`], ["ide", "code-xml", "Entwicklungsumgebung", `${cnt("code")} Code-Dateien`], ["calc", "calculator", "Taschenrechner", "Grundrechenarten, Prozent"]];
   return tabs + `<div class="taskgrid"><div class="col" style="gap:20px">
     <button class="ausgang" data-sit="${t.no}"><span class="round">${icon("info")}</span><span class="grow">Ausgangssituation</span>${icon("arrow-right")}</button>
-    ${st ? `<div class="assignment"><h3>${icon("clipboard-list")} Arbeitsauftrag ${st.no}</h3><p>${esc(st.text)}</p>
+    ${st ? `<div class="assignment"><h3>${icon("clipboard-list")} Arbeitsauftrag ${st.no}</h3>${markable("auftrag:" + st.no, esc(st.text), { label: "Arbeitsauftrag", tag: "p" })}
+      ${ctx.preview ? `<div class="pvhz"><button class="btn sm ${ui.hz ? "primary" : ""}" data-hz aria-expanded="${!!ui.hz}">${icon("eye")} Erwartungshorizont ${ui.hz ? "ausblenden" : "einblenden"}</button>${ui.hz ? horizonHtml(st) : ""}</div>` : ""}
       ${st.tool === "upload" ? uploadBox(st, subs) + `<div class="row wrap between mt-s"><span></span>` : `<div class="row wrap between"><button class="btn primary sm" data-open="${st.tool}">${icon(toolLabel[st.tool][0])} ${toolLabel[st.tool][1]}</button>`}
       <span class="small">${subs.length ? `<span class="badge green">${icon("check")} ${subs.length} Abgabe${subs.length > 1 ? "n" : ""} markiert</span>` : `<span class="badge gray">noch keine Abgabe</span>`}</span></div></div>`
     : `<div class="card pad"><h3>Teilaufgaben</h3>${t.subtasks.map((s) => `<a class="subtask mt-s" href="${ctx.base}/aufgabe/${t.no}/${s.no}"><span class="stico ${items.some((i) => i.submission === s.no) ? "done" : "todo"}">${icon(items.some((i) => i.submission === s.no) ? "check" : "square-pen")}</span><span class="grow">${s.no} ${esc(s.title)}</span><span class="badge ${items.some((i) => i.submission === s.no) ? "lime" : "gray"}">${s.points} P</span></a>`).join("")}</div>`}
@@ -539,10 +677,11 @@ function abgabenBody(ctx) {
   }).join("");
 }
 
-function situationModal(t) {
+function situationModal(t, ctx = CTX) {
+  const mk = (key, txt, label) => markable(key, esc(txt), { label, tag: "p", cls: "prewrap" });
   modal({ title: t ? `Ausgangssituation Aufgabe ${t.no}` : "Ausgangssituation der Prüfung", info: true, size: "wide",
-    body: `${t ? `<details class="card pad soft"><summary class="bold">Ausgangssituation der Prüfung</summary><p style="white-space:pre-line">${esc(EXAM.ausgangssituation)}</p></details><h3 class="mt">Ausgangssituation Aufgabe ${t.no}</h3><p style="white-space:pre-line">${esc(t.situation)}</p>` : `<div class="row" style="align-items:flex-start;gap:18px">${companyLogo(80)}<p style="white-space:pre-line;margin:0">${esc(EXAM.ausgangssituation)}\n\n${esc(EXAM.company.allgemein)}</p></div>`}`,
-    footer: `<button class="btn primary" data-close>Schließen</button>` });
+    body: `${t ? `<details class="card pad soft"><summary class="bold">Ausgangssituation der Prüfung</summary>${mk("sit:0", EXAM.ausgangssituation, "Ausgangssituation der Prüfung")}</details><h3 class="mt">Ausgangssituation Aufgabe ${t.no}</h3>${mk("sit:" + t.no, t.situation, "Ausgangssituation Aufgabe " + t.no)}` : `<div class="row" style="align-items:flex-start;gap:18px">${companyLogo(80)}<div class="grow">${mk("sit:0", EXAM.ausgangssituation, "Ausgangssituation der Prüfung")}${mk("sit:firma", EXAM.company.allgemein, "Unternehmensprofil")}</div></div>`}`,
+    footer: `<button class="btn primary" data-close>Schließen</button>`, onMount: (m) => { if (ctx) bindMarkables(m, ctx); } });
 }
 
 function bindPage(el, ctx, sub) {
@@ -550,6 +689,7 @@ function bindPage(el, ctx, sub) {
   const p = ctx.p;
   el.querySelectorAll("[data-collapse]").forEach((b) => (b.onclick = () => { ui.navCollapsed = !ui.navCollapsed; refreshPage(); }));
   el.querySelectorAll(".tn-nav .nh .roundico").forEach((b) => (b.onclick = () => { if (ui.navCollapsed) { ui.navCollapsed = false; refreshPage(); } }));
+  bindMarkables(el, ctx);
   el.querySelectorAll("[data-tree]").forEach((b) => (b.onclick = () => { ui.openTree.all = ui.openTree.all === false; refreshPage(); }));
   el.querySelectorAll("[data-acc]").forEach((b) => (b.onclick = () => { ui.openAcc[b.dataset.acc] = !ui.openAcc[b.dataset.acc]; refreshPage(); }));
   el.querySelectorAll("[data-abgacc]").forEach((b) => (b.onclick = () => { ui["abgacc" + b.dataset.abgacc] = ui["abgacc" + b.dataset.abgacc] === false; refreshPage(); }));
@@ -560,10 +700,11 @@ function bindPage(el, ctx, sub) {
   el.querySelectorAll("[data-help]").forEach((b) => (b.onclick = () => directHelp(`<h3>Bedienung</h3><ul><li>Navigation links: Dashboard, Abgaben, Aufgaben</li><li>Taskleiste unten: Werkzeuge als Fenster öffnen, minimierte Fenster wiederherstellen; bei mehreren Fenstern erscheint eine Auswahlliste</li><li>Arbeitsmaterialien sind aufgabenspezifisch: Die Werkzeuge zeigen die Inhalte der geöffneten Aufgabe</li><li>Freitexte (E-Mail-Entwürfe, Notizen, Ticket-Lösungen) werden alle 15 Sekunden automatisch gespeichert</li><li>Häkchen-Symbol: Element als Abgabe markieren</li></ul><h3 class="mt">Tastatur</h3><table class="tbl"><tbody><tr><td><kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>8</kbd></td><td>Dateien, Mail, Kalender, Notizen, Tickets, Rechner, IDE öffnen</td></tr><tr><td><kbd>F6</kbd> / <kbd>Umschalt</kbd>+<kbd>F6</kbd></td><td>zwischen offenen Fenstern und Aufgabe wechseln</td></tr><tr><td><kbd>Esc</kbd></td><td>aktives Fenster minimieren</td></tr><tr><td><kbd>Strg</kbd> + <kbd>Enter</kbd></td><td>Programm in der IDE ausführen</td></tr><tr><td><kbd>Pfeiltasten</kbd></td><td>in Menüs und Auswahllisten navigieren</td></tr></tbody></table>`)));
   el.querySelectorAll("[data-open]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); W.open(b.dataset.open, { subtask: sub.split("/")[2] }); }));
   bindUploads(el, ctx);
+  const hz = el.querySelector("[data-hz]"); if (hz) hz.onclick = () => { ui.hz = !ui.hz; refreshPage(); };
   el.querySelectorAll("[data-swapatt]").forEach((b) => (b.onclick = () => swapAttachment(ctx, b, ...b.dataset.swapatt.split("|"))));
   el.querySelectorAll("[data-openmail]").forEach((b) => (b.onclick = () => W.open("mail", { mailId: b.dataset.openmail, subtask: sub.split("/")[2] })));
   const fin = el.querySelector("[data-finish]"); if (fin) fin.onclick = () => finishExam(ctx);
-  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.4").then((m) => m.copyCourse(ctx.course));
+  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.5").then((m) => m.copyCourse(ctx.course));
   const bm = el.querySelector("[data-bookmark]");
   if (bm) bm.onclick = () => {
     const parts = sub.split("/"); const key = parts[2] || parts[1];
@@ -599,11 +740,11 @@ function bindPage(el, ctx, sub) {
 // Prüfling gibt selbst ab: Bearbeitung für ihn beendet; final beendet die Raumaufsicht (Einsammeln/Beenden)
 async function finishExam(ctx) {
   const open = ALL_SUBTASKS.filter((s) => !ctx.items().some((i) => i.submission === s.no));
-  const ok = await confirmBox("Prüfung beenden", `${open.length ? `<p>Zu <b>${open.length} Teilaufgaben</b> haben Sie noch keine Abgabe markiert: ${open.map((s) => s.no).join(", ")}.</p>` : ""}<p>Möchten Sie Ihre Prüfung wirklich beenden und abgeben? Danach können Sie <b>nicht mehr weiterarbeiten</b>. Die Aufsicht schließt die Prüfung anschließend ab.</p>`, "Prüfung beenden");
+  const ok = await confirmBox("Prüfung beenden", `${open.length ? `<p>Zu <b>${open.length} Teilaufgaben</b> haben Sie noch keine Abgabe markiert: ${open.map((s) => s.no).join(", ")}.</p>` : ""}${isDistance(ctx.room) ? `<p>Möchten Sie die Einheit beenden und abgeben? Danach können Sie in diesem Durchlauf <b>nicht mehr weiterarbeiten</b>.${ctx.room.repeatable ? " Die Einheit kann innerhalb des Zeitraums erneut durchlaufen werden." : ""}</p>` : `<p>Möchten Sie Ihre Prüfung wirklich beenden und abgeben? Danach können Sie <b>nicht mehr weiterarbeiten</b>. Die Aufsicht schließt die Prüfung anschließend ab.</p>`}`, isDistance(ctx.room) ? "Einheit beenden" : "Prüfung beenden");
   if (!ok) return;
   W.closeAll();
   await upd("participants", ctx.p.id, { status: "abgegeben", finished_at: toPb() });
-  log(ctx.p.room, ctx.p, "Prüfling hat die Prüfung beendet und abgegeben", "Bearbeitung gesperrt, Abschluss durch die Aufsicht", "system");
+  log(ctx.p.room, ctx.p, isDistance(ctx.room) ? "Einheit beendet und abgegeben" : "Prüfling hat die Prüfung beendet und abgegeben", isDistance(ctx.room) ? `Distanzunterricht · Durchlauf ${ctx.p.attempt || 1}` : "Bearbeitung gesperrt, Abschluss durch die Aufsicht", "system");
 }
 function blockedModal(ctx, no) {
   if ([...document.querySelectorAll(".backdrop h2")].some((h) => h.textContent === "Bearbeitungszeit abgelaufen")) return;

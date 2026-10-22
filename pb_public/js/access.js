@@ -3,11 +3,16 @@
 //    Besitzer/Mitbetreuung des Unterrichtskurses
 //  - Raumaufsicht (Prüfungsebene): sieht nur Raumaufsichten, in denen sie als Aufsichtsperson eingetragen ist
 //  - Schuladministration (Prüfungsebene): sieht die Prüfungs-Raumaufsichten ihrer Organisation
-import { D, byId } from "./data.js?v=8.4";
-import { store } from "./ui.js?v=8.4";
+import { D, byId } from "./data.js?v=8.5";
+import { store, isFinished } from "./ui.js?v=8.5";
 
 export const me = () => byId("persons", store.get("person"));
 export const orgOf = (p) => byId("orgs", p?.org);
+// Lehrkräfte können mehreren Organisationen angehören (org = Stammschule, orgs = weitere)
+export const orgIds = (p) => (p ? [p.org, ...((p.orgs || []).filter((o) => o && o !== p.org))] : []);
+export const inOrg = (p, orgId) => !!orgId && orgIds(p).includes(orgId);
+export const sameOrg = (a, b) => { const B = orgIds(b); return orgIds(a).some((o) => B.includes(o)); };
+export const orgsLabel = (p) => orgIds(p).map((o) => byId("orgs", o)?.short || "–").join(" · ");
 export const orgName = (id) => byId("orgs", id)?.name || "–";
 export const orgShort = (id) => byId("orgs", id)?.short || "–";
 export const personName = (p) => (p ? `${p.lastname}, ${p.firstname}` : "–");
@@ -61,7 +66,7 @@ export function roomCandidates(room, kind, p = me()) {
   const roles = kind === "teilnehmer" ? ["teilnehmer"] : c.kind === "pruefung" ? ["raumaufsicht"] : ["besitzer", "mitbetreuung"];
   const ids = [...new Set(members(c).filter((m) => roles.includes(m.role)).map((m) => m.person))];
   let list = ids.map((id) => byId("persons", id)).filter(Boolean);
-  if (c.kind === "pruefung" && room.org) list = list.filter((x) => x.org === room.org); // Prüfung: nur Personen der Organisation des Raums
+  if (c.kind === "pruefung" && room.org) list = list.filter((x) => inOrg(x, room.org)); // Prüfung: nur Personen der Organisation des Raums
   return list.sort((a, b) => a.lastname.localeCompare(b.lastname));
 }
 // Unterricht: genau eine korrigierende Lehrkraft (Standard: Besitzer); sie kann die Korrektur an eine andere Lehrkraft des Kurses weitergeben
@@ -107,4 +112,14 @@ export function approvalStateFor(c, p, stage) {
   const g = D.gradings.find((x) => x.participant === p.id && +x.corrector === +stage);
   const ok = (g?.approvals || []).filter((x) => group.includes(x));
   return { assignment, group, n: ok.length, of: group.length, final: group.length > 0 && ok.length === group.length };
+}
+
+// ---------- Einsicht der eigenen Ergebnisse ----------
+//  - Prüfung: nur nach Freigabe durch die Organisation (Schuladministration) des Prüfungsraums; Inhalt: Endnote und Abgabe mit Korrekturzeichen
+//  - Unterricht: nach Freigabe der Durchführung durch die Lehrkraft; Inhalt: Korrektur und Ergebnisse (Punkte, Note, Begründung, Korrekturzeichen)
+export const einsichtReleased = (room) => { const c = courseOf(room); if (!room || !c) return false; return c.kind === "pruefung" ? !!c.einsicht?.[room.org] : !!room.released; };
+export function einsichtFor(p) {
+  const room = byId("rooms", p?.room); const c = courseOf(room);
+  if (!p || !c || !isFinished(p.status) || p.status === "nicht_teilnahme" || !einsichtReleased(room)) return null;
+  return c.kind === "pruefung" ? "pruefung" : "unterricht";
 }

@@ -2,8 +2,8 @@
 const t = "text", n = "number", b = "bool", j = "json", d = "date", f = "file";
 const F = (s) => Object.fromEntries(s.split(" ").map((x) => { const [k, ty] = x.split(":"); return [k, ty]; }));
 export const SCHEMA = {
-  rooms: F(`name:${t} exam_name:${t} exam_code:${t} state:${t} planned_start:${d} start_earliest:${t} start_latest:${t} duration_min:${n} global_extra:${n} capacity:${n} rows:${n} cols:${n} started_at:${d} paused_at:${d} paused_total_s:${n} created_label:${t} lockdown:${b} course:${t} org:${t} owner:${t} layout:${t} venue:${t} group_size:${n}`),
-  participants: F(`lastname:${t} firstname:${t} username:${t} group_name:${t} org:${t} room:${t} seat:${t} present:${b} status:${t} extra_time:${n} nta:${n} comment:${t} health:${t} cheat_ack:${b} last_seen:${d} started_at:${d} finished_at:${d} bookmarks:${j} simulated:${b} violations:${n} offline_until:${d} relogin:${b} person:${t}`),
+  rooms: F(`name:${t} exam_name:${t} exam_code:${t} state:${t} planned_start:${d} start_earliest:${t} start_latest:${t} duration_min:${n} global_extra:${n} capacity:${n} rows:${n} cols:${n} started_at:${d} paused_at:${d} paused_total_s:${n} created_label:${t} lockdown:${b} course:${t} org:${t} owner:${t} layout:${t} venue:${t} group_size:${n} mode:${t} window_from:${d} window_to:${d} repeatable:${b} show_horizon:${b} released:${b}`),
+  participants: F(`lastname:${t} firstname:${t} username:${t} group_name:${t} org:${t} room:${t} seat:${t} present:${b} status:${t} extra_time:${n} nta:${n} comment:${t} health:${t} cheat_ack:${b} last_seen:${d} started_at:${d} finished_at:${d} bookmarks:${j} simulated:${b} violations:${n} offline_until:${d} relogin:${b} person:${t} attempt:${n} progress:${j} fired:${j}`),
   supervisors: F(`lastname:${t} firstname:${t} short:${t} username:${t} room:${t} present:${b} from:${t} to:${t} periods:${j} person:${t}`),
   protocol: F(`room:${t} ts:${d} participant:${t} username:${t} seat:${t} action:${t} comment:${t} kind:${t}`),
   items: F(`participant:${t} kind:${t} folder:${t} data:${j} submission:${t} file:${f}`),
@@ -14,10 +14,10 @@ export const SCHEMA = {
   settings: F(`key:${t} value:${j}`),
   kfiles: F(`participant:${t} subtask:${t} corrector:${n} name:${t} file:${f} kind:${t} source:${t} orig:${t}`),
   orgs: F(`name:${t} short:${t} city:${t}`),
-  persons: F(`lastname:${t} firstname:${t} username:${t} org:${t} kind:${t} short:${t} email:${t}`),
+  persons: F(`lastname:${t} firstname:${t} username:${t} org:${t} kind:${t} short:${t} email:${t} orgs:${j}`),
   groups: F(`name:${t} org:${t} kind:${t} source:${t} course:${t} members:${j}`),
-  courses: F(`title:${t} kind:${t} catalog:${t} org:${t} orgs:${j} owner:${t} members:${j} groups:${j} status:${t} exam_code:${t} description:${t} corrector:${t} corrections:${j} third:${j} korr_end:${t} dk_threshold:${n}`),
-  venues: F(`org:${t} name:${t} building:${t} rows:${n} cols:${n} capacity:${n} layout:${t}`),
+  courses: F(`title:${t} kind:${t} catalog:${t} org:${t} orgs:${j} owner:${t} members:${j} groups:${j} status:${t} exam_code:${t} description:${t} corrector:${t} corrections:${j} third:${j} korr_end:${t} dk_threshold:${n} rules:${j} einsicht:${j}`),
+  venues: F(`org:${t} name:${t} building:${t} rows:${n} cols:${n} capacity:${n} layout:${t} group_size:${n}`),
 };
 const DEF = { text: "", number: 0, bool: false, json: null, date: "", file: "" };
 // Wert wie PocketBase normalisieren

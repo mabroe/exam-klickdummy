@@ -1,5 +1,5 @@
 // Gemeinsame UI-Helfer
-import { ICONS } from "./icons.js?v=8.4";
+import { ICONS } from "./icons.js?v=8.5";
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const icon = (name, cls = "") => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ""}</svg>`;
@@ -46,9 +46,23 @@ export const mmss = (ms) => {
   return (h ? h + ":" + String(m).padStart(2, "0") : String(m).padStart(2, "0")) + ":" + String(s).padStart(2, "0");
 };
 
+// Distanzunterricht: fester Zeitraum, Teilnehmende starten selbst; keine Steuerung durch die Lehrkraft
+export const isDistance = (room) => room?.mode === "distanz";
+export function windowState(room, now = Date.now()) {
+  const a = parseDate(room?.window_from)?.getTime(), b = parseDate(room?.window_to)?.getTime();
+  if (a && now < a) return "before";
+  if (b && now >= b) return "after";
+  return "open";
+}
 // Bearbeitungsende eines Teilnehmenden
 export function endTime(room, p) {
   if (!room) return null;
+  if (isDistance(room)) {
+    const st = parseDate(p?.started_at); if (!st) return null;
+    const mins = (room.duration_min || 0) + (p?.extra_time || 0) + (p?.nta || 0);
+    const e = new Date(st.getTime() + mins * 60000); const w = parseDate(room.window_to);
+    return w && w < e ? w : e;
+  }
   const start = parseDate(p?.started_at) || parseDate(room.started_at);
   if (!start) return null;
   const mins = (room.duration_min || 0) + (room.global_extra || 0) + (p?.extra_time || 0) + (p?.nta || 0);

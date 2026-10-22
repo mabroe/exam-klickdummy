@@ -1,12 +1,12 @@
 // Ergebnisse (Task 28/30/36) und Prüfungseinsicht (Task 37/38)
-import { D, byId, upd, setting, setSetting } from "../data.js?v=8.4";
-import { icon, esc, toast, confirmBox, brand, modal } from "../ui.js?v=8.4";
-import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.4";
-import { navigate, redraw, session } from "../app.js?v=8.4";
-import { grading, stPoints, candidates, fmtP } from "./correction.js?v=8.4";
-import { linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=8.4";
-import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, orgShort } from "../access.js?v=8.4";
-import { roPaper, fitRoPapers } from "./kmode.js?v=8.4";
+import { D, byId, upd } from "../data.js?v=8.5";
+import { icon, esc, toast, confirmBox, brand, modal } from "../ui.js?v=8.5";
+import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.5";
+import { navigate, redraw, session } from "../app.js?v=8.5";
+import { grading, stPoints, candidates, fmtP } from "./correction.js?v=8.5";
+import { linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=8.5";
+import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, orgShort } from "../access.js?v=8.5";
+import { roPaper, fitRoPapers } from "./kmode.js?v=8.5";
 
 // Endpunkte je Teilaufgabe: Endbeurteilung (falls angefordert und erfasst), sonst Mittelwert Erst/Zweit, sonst Erstkorrektur
 export function finalPoints(pid, st) {
@@ -58,7 +58,9 @@ export function overview() {
       const maxD = Math.max(1, ...dist);
       const pass = done.length ? Math.round((notes.filter((g) => g <= 4.0 + 1e-9).length / done.length) * 100) : null;
       const rec = rows.filter((r) => r.t.o.recommend && !r.t.o.third);
-      const released = !!setting("einsicht", {}).released;
+      const myOrg = pe?.org; const examCourse = !lesson ? ps.map((p) => courseOfParticipant(p)).find(Boolean) || D.courses.find((c) => c.kind === "pruefung" && (c.orgs || []).includes(myOrg)) : null;
+      const released = adm && examCourse ? !!examCourse.einsicht?.[myOrg] : false;
+      const lessonRooms = lesson ? [...new Set(ps.map((p) => p.room))].map((id) => byId("rooms", id)).filter(Boolean) : [];
       const course = ps.map((p) => courseOfParticipant(p)).find(Boolean);
       const stStats = ALL_SUBTASKS.map((s) => { const vals = ps.map((p) => finalPoints(p.id, s.no).v).filter((x) => x !== null); const m = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null; return { s, n: vals.length, m, pct: m === null ? 0 : Math.round((m / s.points) * 100), min: vals.length ? Math.min(...vals) : null, max: vals.length ? Math.max(...vals) : null }; });
       const head = lesson
@@ -75,8 +77,10 @@ export function overview() {
       }).join("");
       return `<div class="pagehead"><div><h1>Ergebnisse</h1><div class="sub">${lesson ? "Unterricht · eine Korrektur je Teilnehmende/r" : `${esc(EXAM.name)}${adm ? ` · Prüflinge Ihrer Schule (${esc(orgShort(pe.org))})` : " · Prüflinge Ihrer Korrektorengruppen"}`}</div></div>
         <div class="row wrap"><button class="btn" data-key>${icon("sigma")} Notenschlüssel</button><a class="btn" href="#/app/korrektur">${icon("file-pen-line")} Zur Korrektur</a><button class="btn" data-csv>${icon("download")} CSV exportieren</button>
-        ${adm ? `<button class="btn ${released ? "" : "primary"}" data-einsicht>${icon(released ? "lock" : "eye")} ${released ? "Einsicht-Freigabe zurückziehen" : "Prüfungseinsicht freigeben"}</button>` : ""}</div></div>
-      ${released ? `<div class="notice success mb">${icon("circle-check")}<span>Die Prüfungseinsicht ist freigegeben. Prüflinge sehen Punkte, Begründungen und Korrekturzeichen nach Prüfungsende.</span></div>` : ""}
+        ${adm && examCourse ? `<button class="btn ${released ? "" : "primary"}" data-einsicht="${examCourse.id}">${icon(released ? "lock" : "eye")} ${released ? "Einsicht-Freigabe zurückziehen" : "Prüfungseinsicht freigeben"}</button>` : ""}</div></div>
+      ${adm ? (released ? `<div class="notice success mb">${icon("circle-check")}<span>Die Prüfungseinsicht ist für die Prüflinge Ihrer Schule (${esc(orgShort(myOrg))}) freigegeben. Sie sehen nach Prüfungsende <b>nur ihre Endnote und ihre Abgaben mit Korrekturzeichen</b> – keine Punkte je Teilaufgabe, Begründungen oder Kommentare.</span></div>` : `<div class="notice info small mb">${icon("lock")}<span>Die Prüfungseinsicht ist noch nicht freigegeben. Prüflinge erhalten sie ausschließlich über die Freigabe ihrer Schule.</span></div>`) : ""}
+      ${lesson && lessonRooms.length ? `<div class="card pad mb"><h3>Freigabe der Korrektur für die Schüler:innen</h3><p class="xs muted">Nach der Freigabe sehen die Schüler:innen einer Durchführung ihre eigene Korrektur und ihr Ergebnis (Punkte, Note, Begründung und Korrekturzeichen).</p>
+        <div class="col" style="gap:6px">${lessonRooms.map((r) => `<div class="row between wrap"><span><b>${esc(r.name)}</b> <span class="xs muted">${r.mode === "distanz" ? "Distanz" : "Präsenz"} · ${ps.filter((p) => p.room === r.id).length} mit Abgabe</span></span><label class="checkbox"><input type="checkbox" data-relroom="${r.id}" ${r.released ? "checked" : ""}> Korrektur und Ergebnisse freigegeben</label></div>`).join("")}</div></div>` : ""}
       ${adm && rec.length ? `<div class="notice warn mb">${icon("triangle-alert")}<span><b>Drittkorrektur empfohlen</b> für ${rec.length} Prüfling${rec.length === 1 ? "" : "e"}: Die Noten aus Erst- und Zweitkorrektur weichen um mindestens ${fmtNote(dkThreshold(course))} Notenstufen voneinander ab. Ob eine Endbeurteilung erfolgt, entscheiden Sie. Ohne Drittkorrektur gilt der Mittelwert.</span></div>` : ""}
       <div class="statgrid">
         <div class="stat"><div class="small muted">Prüflinge mit Abgaben</div><div class="v">${ps.length}</div></div>
@@ -117,10 +121,12 @@ export function overview() {
       }));
       const ei = el.querySelector("[data-einsicht]");
       if (ei) ei.onclick = async () => {
-        const rel = !!setting("einsicht", {}).released;
-        if (!rel && !(await confirmBox("Prüfungseinsicht freigeben", "Prüflinge können nach Prüfungsende ihre Punkte, Begründungen und die Korrekturzeichen aller Korrekturen einsehen. Interne Kommentare bleiben verborgen.", "Freigeben", "Abbrechen", false))) return;
-        await setSetting("einsicht", { released: !rel }); toast(rel ? "Einsicht-Freigabe zurückgezogen" : "Prüfungseinsicht freigegeben");
+        const c = byId("courses", ei.dataset.einsicht); const org = me()?.org; if (!c || !org) return;
+        const rel = !!c.einsicht?.[org];
+        if (!rel && !(await confirmBox("Prüfungseinsicht freigeben", `<p>Die Prüflinge Ihrer Schule (${esc(orgShort(org))}) erhalten nach Prüfungsende eine Einsicht.</p><p>Sie sehen <b>nur die Endnote und ihre Abgaben inkl. Korrekturzeichen</b>. Punkte je Teilaufgabe, Begründungen, Bemerkungen, Kommentare und der Erwartungshorizont bleiben verborgen.</p>`, "Freigeben", "Abbrechen", false))) return;
+        await upd("courses", c.id, { einsicht: { ...(c.einsicht || {}), [org]: !rel } }); toast(rel ? "Einsicht-Freigabe zurückgezogen" : "Prüfungseinsicht freigegeben", orgShort(org));
       };
+      el.querySelectorAll("[data-relroom]").forEach((cb) => (cb.onchange = async () => { const r = byId("rooms", cb.dataset.relroom); await upd("rooms", r.id, { released: cb.checked }); toast(cb.checked ? "Korrektur freigegeben" : "Freigabe zurückgezogen", r.name); }));
     },
   };
 }
@@ -142,18 +148,29 @@ function keyDialog() {
 }
 
 // ---------- Prüfungseinsicht ----------
-export function einsichtView(pid, { participantView = false } = {}) {
+// Ansichten: Personal (vollständig), Prüfling (nur Endnote und Abgabe mit Korrekturzeichen – ohne Punkte, Begründungen und Kommentare),
+// Schüler:in im Unterricht (eigene Korrektur und Ergebnisse: Punkte je Teilaufgabe, Note, Begründung und Korrekturzeichen)
+export function einsichtView(pid, { participantView = false, kind = "" } = {}) {
   const p = byId("participants", pid);
-  if (!p) return { redirect: "#/app/ergebnisse" };
+  if (!p) return { redirect: participantView ? "#/tn" : "#/app/ergebnisse" };
+  const room = byId("rooms", p.room); const c = courseOf(room); const lesson = c?.kind === "unterricht";
+  const limited = participantView && kind === "pruefung"; // Prüfling: eingeschränkte Einsicht
+  const showPts = !limited, showNotes = !limited;
+  const stages = lesson ? [1] : [1, 2, 3];
   const open = new Set([ALL_SUBTASKS[0].no]);
+  const title = lesson ? (participantView ? "Korrektur und Ergebnis" : "Einsicht Unterricht") : "Prüfungseinsicht";
   const body = () => {
-    const t = totals(pid);
-    return `<div class="pagehead"><div><h1>Prüfungseinsicht</h1><div class="sub">${esc(p.lastname)}, ${esc(p.firstname)} · ${esc(EXAM.name)}</div></div>
-      <div class="stat" style="min-width:220px"><div class="small muted">Ergebnis</div><div class="v">${t.note !== null ? `Note ${fmtNote(t.note)}` : "noch offen"}</div>${t.note !== null ? `<div class="small">${GRADE_TXT[noteBucket(t.note)]} · ${esc(t.o.src)}${t.complete ? ` · ${fmtP(t.sum)} / ${TOTAL_POINTS} Endpunkte` : ""}</div>` : ""}</div></div>
-    <div class="row wrap small mb" style="gap:16px">${[1, 2, 3].map((c) => `<span class="row" style="gap:6px"><i class="cdot" style="background:${CORRECTORS[c].color}"></i>${CORRECTORS[c].label} (${CORRECTORS[c].side === "right" ? "rechter Rand" : "linker Rand"})</span>`).join("")}</div>
-    ${EXAM.tasks.map((task) => `<h2 class="mt mb">Aufgabe ${task.no} ${esc(task.title)} <span class="badge cyan">${fmtP(task.subtasks.reduce((a, s) => a + (t.per[s.no].v || 0), 0))} / ${task.points} P</span></h2>
-      ${task.subtasks.map((s) => { const f = t.per[s.no]; const notes = [3, 2, 1].map((c) => ({ c, n: grading(pid, c)?.notes?.[s.no] })).filter((x) => x.n); return `<details class="einsicht card" data-st="${s.no}" ${open.has(s.no) ? "open" : ""}><summary><span class="grow"><b>${s.no} ${esc(s.title)}</b></span>${[1, 2, 3].map((c) => { const v = stPoints(grading(pid, c), s.no); return v === null ? "" : `<span class="xs" style="color:${CORRECTORS[c].color}">${CORRECTORS[c].short} ${fmtP(v)}</span>`; }).join(" ")}<span class="badge ${f.v === null ? "gray" : "green"}">${f.v === null ? "offen" : `${fmtP(f.v)} / ${s.points} P`}</span>${icon("chevron-down")}</summary>
-        <div class="einsicht-b">${notes.length ? notes.map((x) => `<div class="notice info small" style="border-left:3px solid ${CORRECTORS[x.c].color};padding-left:10px"><span><b>Begründung ${esc(CORRECTORS[x.c].short)}:</b> ${esc(x.n)}</span></div>`).join("") : ""}<div data-paper-slot="${s.no}"></div></div></details>`; }).join("")}`).join("")}`;
+    const t = totals(pid); const note = lesson ? t.o.ek.note : t.note;
+    const sum = lesson ? t.o.ek.pts : t.sum;
+    return `<div class="pagehead"><div><h1>${title}</h1><div class="sub">${esc(p.lastname)}, ${esc(p.firstname)} · ${esc(room?.exam_name || EXAM.name)}${lesson && room ? ` · ${esc(room.name)}` : ""}</div></div>
+      <div class="stat" style="min-width:220px"><div class="small muted">${limited ? "Endnote" : "Ergebnis"}</div><div class="v">${note !== null && note !== undefined ? `Note ${fmtNote(note)}` : "noch offen"}</div>${note !== null && note !== undefined ? `<div class="small">${GRADE_TXT[noteBucket(note)]}${limited ? "" : `${lesson ? "" : ` · ${esc(t.o.src)}`}${sum !== null && sum !== undefined ? ` · ${fmtP(sum)} / ${TOTAL_POINTS} Punkte` : ""}`}</div>` : ""}</div></div>
+    ${limited ? `<div class="notice info small mb">${icon("info")}<span>Die Prüfungseinsicht wurde von Ihrer Schule freigegeben. Sie sehen Ihre <b>Endnote</b> und Ihre <b>Abgaben mit den Korrekturzeichen</b>. Punkte je Teilaufgabe, Begründungen, Bemerkungen und der Erwartungshorizont sind nicht Bestandteil der Einsicht.</span></div>` : ""}
+    ${participantView && lesson ? `<div class="notice info small mb">${icon("info")}<span>Ihre Lehrkraft hat die Korrektur freigegeben. Sie sehen nur Ihre eigenen Ergebnisse.</span></div>` : ""}
+    <div class="row wrap small mb" style="gap:16px">${stages.map((k) => `<span class="row" style="gap:6px"><i class="cdot" style="background:${CORRECTORS[k].color}"></i>${lesson ? "Korrektur der Lehrkraft" : CORRECTORS[k].label} (${CORRECTORS[k].side === "right" ? "rechter Rand" : "linker Rand"})</span>`).join("")}</div>
+    ${EXAM.tasks.map((task) => `<h2 class="mt mb">Aufgabe ${task.no} ${esc(task.title)}${showPts ? ` <span class="badge cyan">${fmtP(task.subtasks.reduce((a, s) => a + ((lesson ? stPoints(grading(pid, 1), s.no) : t.per[s.no].v) || 0), 0))} / ${task.points} P</span>` : ""}</h2>
+      ${task.subtasks.map((s) => { const f = lesson ? { v: stPoints(grading(pid, 1), s.no) } : t.per[s.no]; const notes = showNotes ? stages.slice().reverse().map((k) => ({ c: k, n: grading(pid, k)?.notes?.[s.no] })).filter((x) => x.n) : [];
+        return `<details class="einsicht card" data-st="${s.no}" ${open.has(s.no) ? "open" : ""}><summary><span class="grow"><b>${s.no} ${esc(s.title)}</b></span>${showPts && !lesson ? stages.map((k) => { const v = stPoints(grading(pid, k), s.no); return v === null ? "" : `<span class="xs" style="color:${CORRECTORS[k].color}">${CORRECTORS[k].short} ${fmtP(v)}</span>`; }).join(" ") : ""}${showPts ? `<span class="badge ${f.v === null ? "gray" : "green"}">${f.v === null ? "offen" : `${fmtP(f.v)} / ${s.points} P`}</span>` : ""}${icon("chevron-down")}</summary>
+        <div class="einsicht-b">${notes.map((x) => `<div class="notice info small" style="border-left:3px solid ${CORRECTORS[x.c].color};padding-left:10px"><span><b>Begründung${lesson ? "" : " " + esc(CORRECTORS[x.c].short)}:</b> ${esc(x.n)}</span></div>`).join("")}<div data-paper-slot="${s.no}"></div></div></details>`; }).join("")}`).join("")}`;
   };
   const mountPapers = (el) => {
     el.querySelectorAll("details.einsicht").forEach((d) => {
@@ -163,13 +180,13 @@ export function einsichtView(pid, { participantView = false } = {}) {
     });
   };
   if (participantView) return {
-    title: "Prüfungseinsicht",
+    title,
     render: () => `<header class="topbar">${brand()}<span class="bold">${esc(p.firstname)} ${esc(p.lastname)}</span></header><div class="tn-page"><div class="breadcrumb"><a href="#/tn">${icon("arrow-left")} Zurück</a></div>${body()}</div>`,
     mount: (el) => mountPapers(el),
   };
   return {
-    shell: "staff", rail: "ergebnisse", title: "Prüfungseinsicht",
-    render: () => `<div class="breadcrumb"><a href="#/app/ergebnisse">Ergebnisse</a>${icon("chevron-right")}<b>Prüfungseinsicht</b></div>${body()}`,
+    shell: "staff", rail: "ergebnisse", title,
+    render: () => `<div class="breadcrumb"><a href="#/app/ergebnisse">Ergebnisse</a>${icon("chevron-right")}<b>${title}</b></div>${body()}`,
     mount: (el) => mountPapers(el),
   };
 }

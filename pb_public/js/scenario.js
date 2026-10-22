@@ -50,7 +50,7 @@ export const EXAM = {
           criteria: [["Terminwahl", 4], ["Vollständigkeit", 4], ["Darstellung", 2]],
           horizon: [["Termin kollidiert nicht mit bestehenden Terminen", "4 P"], ["Titel, Ort und Beschreibung vollständig", "4 P"], ["Aussagekräftige Bezeichnung", "2 P"]] },
         { no: "2.3", title: "Nachkalkulation", points: 10, tool: "upload",
-          text: "Führen Sie eine Nachkalkulation für den Auftrag durch (Tabellenkalkulation, Textverarbeitung oder PDF) und laden Sie die Datei direkt hier als Abgabe hoch. Eine Ablage unter „Eigene Dateien“ ist nicht nötig.",
+          text: "Führen Sie eine Nachkalkulation für den Auftrag durch (Tabellenkalkulation, Textverarbeitung oder PDF) und laden Sie die Datei direkt hier als Abgabe hoch. Die Datei wird automatisch im Ordner „Eigene Dateien › Dateiupload“ abgelegt.",
           criteria: [["Berechnung", 5], ["Interpretation", 3], ["Darstellung", 2]],
           horizon: [["Abweichungen korrekt berechnet", "5 P"], ["Ursachen der Abweichungen benannt", "3 P"], ["Übersichtliche Darstellung", "2 P"]] },
       ],

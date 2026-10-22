@@ -1,15 +1,16 @@
 // Raumaufsicht: Übersicht der Raumaufsichten und Steuerkonsole eines Raums
-import { D, byId, upd, create, log, demoApi } from "../data.js?v=8.4";
-import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=8.4";
-import { navigate, redraw, session, directHelp } from "../app.js?v=8.4";
-import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, KIND, members } from "../access.js?v=8.4";
-import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=8.4";
+import { D, byId, upd, create, del, log, demoApi } from "../data.js?v=8.5";
+import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, isDistance, windowState, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=8.5";
+import { navigate, redraw, session, directHelp } from "../app.js?v=8.5";
+import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, orgsLabel, KIND, members } from "../access.js?v=8.5";
+import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=8.5";
 
 const MR = { status: "", q: "" }; // Filter „Mein Raum“ (Großraum)
 const pending = new Set();
 const S = { ov: { page: 1, per: 9, q: "", filters: [] }, tn: { page: 1, per: 10, sort: "seat", dir: 1, sel: new Set() }, sv: { sel: new Set(), page: 1, per: 5 }, pr: { page: 1, per: 10, q: "", filters: ["participant", "seat", "action"], dir: -1 } };
 const ROOM_STATE = { CREATED: ["In Vorbereitung", "gray"], RUNNING: ["Prüfung läuft", "cyan"], PAUSED: ["Prüfung pausiert", "yellowb"], TERMINATED: ["Prüfung beendet", "green"] };
-const stateBadge = (r) => `<span class="badge ${ROOM_STATE[r.state]?.[1] || "gray"}">${ROOM_STATE[r.state]?.[0] || r.state}</span>`;
+const DIST_STATE = { before: ["Distanz · geplant", "gray"], open: ["Distanz · Zeitraum läuft", "cyan"], after: ["Distanz · Zeitraum beendet", "green"] };
+const stateBadge = (r) => { const x = isDistance(r) ? DIST_STATE[windowState(r)] : ROOM_STATE[r.state]; return `<span class="badge ${x?.[1] || "gray"}">${x?.[0] || r.state}</span>`; };
 let tick = null;
 const connState = new Map();
 
@@ -35,10 +36,10 @@ export function overview() {
       const page = rows.slice((st.page - 1) * st.per, st.page * st.per);
       const scope = !p ? "" : p.kind === "schuladmin" ? `Prüfungs-Raumaufsichten Ihrer Schule (${esc(orgShort(p.org))})` : session.role === "aufsicht" ? "Raumaufsichten, in denen Sie als Aufsichtsperson eingetragen sind, sowie eigene" : "Raumaufsichten, die Ihr Konto betreffen (Eigentümer, Aufsichtsperson oder Lehrkraft des Unterrichts)";
       return `<div class="pagehead"><div><h1>Übersicht Raumaufsicht</h1>${p ? `<div class="sub">${esc(personName(p))} · ${scope}</div>` : ""}</div></div>
-      <div class="row between wrap mb">${visibleCourses(p).length ? `<button class="btn" data-new>${icon("plus")} Neue Raumaufsicht erstellen</button>` : "<span></span>"}
+      <div class="row between wrap mb"><div class="row">${visibleCourses(p).length ? `<button class="btn" data-new>${icon("plus")} Neue Raumaufsicht erstellen</button>` : ""}${p?.kind === "schuladmin" ? `<a class="btn" href="#/app/raeume">${icon("door-open")} Prüfungsräume verwalten</a>` : ""}</div>
         <div class="row">${ddHtml("f", "Filtern nach", [["today", "Prüfungsdatum: heute"], ["running", "Status: läuft/pausiert"], ["exam", "Prüfungskurs: FA230"]], st.filters, st)}<div class="search"><input class="input" style="width:240px" placeholder="Suche" data-q value="${esc(st.q)}">${icon("search")}</div></div></div>
       <div class="tablewrap"><table class="tbl"><thead><tr><th>Raumname</th><th>Kurs / Prüfung</th><th>Ebene</th><th>Schule</th><th class="num">Aufsichten</th><th class="num">Teilnehmende</th><th class="num">Sitzplätze</th><th>Start</th><th>Ende</th><th>Status</th><th>Erstelldatum</th><th></th></tr></thead>
-      <tbody>${page.length ? page.map(({ r, c, sup, tn }) => `<tr><td><b>${esc(r.name)}</b><div class="xs muted">${r.venue ? `Schulraum${byId("venues", r.venue)?.building ? " · " + esc(byId("venues", r.venue).building) : ""}` : `ohne realen Raum · ${esc(LAYOUTS[layoutOf(r)].label)}`}</div></td><td>${esc(r.exam_name || "–")}</td><td>${c ? `<span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span>` : "–"}</td><td>${esc(orgShort(r.org))}</td><td class="num">${sup}</td><td class="num">${tn}</td><td class="num">${seatCount(r)}</td><td>${fmtDateTime(parseDate(r.planned_start))}</td><td>${fmtTime(plannedEnd(r))}</td><td>${stateBadge(r)}</td><td>${esc(r.created_label)}</td><td><a class="linkarrow" href="#/app/raum/${r.id}/meinraum">${icon("arrow-right")} Zur Raumaufsicht</a></td></tr>`).join("") : `<tr><td colspan="12"><div class="empty">${icon("search")}<div>Keine Raumaufsichten für Ihr Konto</div></div></td></tr>`}</tbody></table>
+      <tbody>${page.length ? page.map(({ r, c, sup, tn }) => `<tr class="rowlink" data-href="#/app/raum/${r.id}/meinraum" tabindex="0"><td><b>${esc(r.name)}</b><div class="xs muted">${r.venue ? `Schulraum${byId("venues", r.venue)?.building ? " · " + esc(byId("venues", r.venue).building) : ""}` : isDistance(r) ? `Distanzunterricht · bis ${fmtDateTime(parseDate(r.window_to))}` : `ohne realen Raum · ${esc(LAYOUTS[layoutOf(r)].label)}`}</div></td><td>${esc(r.exam_name || "–")}</td><td>${c ? `<span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span>` : "–"}</td><td>${esc(orgShort(r.org))}</td><td class="num">${sup}</td><td class="num">${tn}</td><td class="num">${seatCount(r)}</td><td>${fmtDateTime(parseDate(r.planned_start))}</td><td>${fmtTime(plannedEnd(r))}</td><td>${stateBadge(r)}</td><td>${esc(r.created_label)}</td><td><a class="linkarrow" href="#/app/raum/${r.id}/meinraum">${icon("arrow-right")} Zur Raumaufsicht</a></td></tr>`).join("") : `<tr><td colspan="12"><div class="empty">${icon("search")}<div>Keine Raumaufsichten für Ihr Konto</div></div></td></tr>`}</tbody></table>
       ${pager(rows.length, st.page, st.per, [5, 9, 20])}</div>`;
     },
     mount(el) {
@@ -49,6 +50,70 @@ export function overview() {
       const nb = el.querySelector("[data-new]"); if (nb) nb.onclick = () => newRoomDialog();
     },
   };
+}
+// ---------- Prüfungsräume der Schule (Schuladministration) ----------
+// Reale Räume sind organisationsspezifisch; sie stehen bei Prüfungs-Raumaufsichten der Schule zur Auswahl
+const VS = { q: "" };
+const venueUse = (v) => D.rooms.filter((r) => r.venue === v.id);
+export function venues() {
+  return {
+    shell: "staff", rail: "raeume", title: "Prüfungsräume",
+    render() {
+      const p = me();
+      if (p?.kind !== "schuladmin") return `<div class="empty">${icon("lock")} Prüfungsräume verwaltet die Schuladministration.</div>`;
+      let list = venuesOf(p.org);
+      if (VS.q) { const q = VS.q.toLowerCase(); list = list.filter((v) => (v.name + " " + v.building).toLowerCase().includes(q)); }
+      const now = Date.now();
+      return `<div class="pagehead"><div><h1>Prüfungsräume</h1><div class="sub">${esc(personName(p))} · ${esc(byId("orgs", p.org)?.name || "")}</div></div></div>
+      <div class="notice info small mb">${icon("info")}<span>Prüfungsräume gehören zu Ihrer Schule (${esc(orgShort(p.org))}). Sie stehen beim Anlegen einer Prüfungs-Raumaufsicht zur Auswahl; ein Raum kann je Zeitraum nur einmal belegt werden. Im Unterricht wird ohne reale Räume gearbeitet.</span></div>
+      <div class="row between wrap mb"><button class="btn primary" data-vnew>${icon("plus")} Prüfungsraum anlegen</button><div class="search"><input class="input" style="width:240px" placeholder="Suche" data-vq value="${esc(VS.q)}" aria-label="Prüfungsräume durchsuchen">${icon("search")}</div></div>
+      <div class="tablewrap"><table class="tbl"><thead><tr><th>Raum</th><th>Gebäude / Lage</th><th>Anordnung</th><th class="num">Sitzplätze</th><th>Belegungen</th><th></th></tr></thead><tbody>${list.length ? list.map((v) => {
+        const use = venueUse(v); const next = use.filter((r) => r.state !== "TERMINATED" && (parseDate(r.planned_start)?.getTime() || 0) > now - 6 * 3600000).sort((a, b) => String(a.planned_start).localeCompare(String(b.planned_start)))[0];
+        return `<tr data-vrow="${v.id}"><td><b>${esc(v.name)}</b></td><td>${esc(v.building || "–")}</td><td>${layoutIcon(layoutOf(v))} <span class="small">${esc(LAYOUTS[layoutOf(v)].label)}</span></td><td class="num">${seatCount(v)}</td><td class="small">${use.length ? `${use.length} Raumaufsicht${use.length === 1 ? "" : "en"}${next ? `<div class="xs muted">nächste: ${esc(next.exam_name || next.name)}, ${fmtDateTime(parseDate(next.planned_start))}</div>` : ""}` : `<span class="muted">nicht belegt</span>`}</td>
+          <td class="row" style="justify-content:flex-end"><button class="iconbtn" data-vedit="${v.id}" title="Bearbeiten" aria-label="${esc(v.name)} bearbeiten">${icon("pencil")}</button><button class="iconbtn" data-vdel="${v.id}" title="${use.length ? "Raum ist verplant – Löschen nicht möglich" : "Löschen"}" aria-label="${esc(v.name)} löschen" ${use.length ? "disabled" : ""}>${icon("trash-2")}</button></td></tr>`;
+      }).join("") : `<tr><td colspan="6"><div class="empty small">Noch keine Prüfungsräume angelegt.</div></td></tr>`}</tbody></table></div>`;
+    },
+    mount(el) {
+      const q = el.querySelector("[data-vq]"); if (q) q.oninput = () => { VS.q = q.value; const pos = q.selectionStart; redraw(); const n = document.querySelector("[data-vq]"); n.focus(); n.setSelectionRange(pos, pos); };
+      const nb = el.querySelector("[data-vnew]"); if (nb) nb.onclick = () => venueDialog();
+      el.querySelectorAll("[data-vedit]").forEach((b) => (b.onclick = () => venueDialog(byId("venues", b.dataset.vedit))));
+      el.querySelectorAll("[data-vdel]").forEach((b) => (b.onclick = async () => {
+        const v = byId("venues", b.dataset.vdel); if (!v || venueUse(v).length) return;
+        if (!(await confirmBox("Prüfungsraum löschen?", `„${esc(v.name)}“ wird aus der Liste der Prüfungsräume Ihrer Schule entfernt.`, "Löschen"))) return;
+        await del("venues", v.id); toast("Prüfungsraum gelöscht", v.name);
+      }));
+    },
+  };
+}
+async function venueDialog(v0) {
+  const p = me(); if (!p) return;
+  const used = v0 ? venueUse(v0).filter((r) => r.state !== "CREATED") : [];
+  const v = { name: v0?.name || "", building: v0?.building || "", layout: layoutOf(v0 || {}), capacity: v0 ? seatCount(v0) : 24, cols: v0?.cols || 6, group_size: v0?.group_size || 4 };
+  const res = await modal({
+    title: v0 ? "Prüfungsraum bearbeiten" : "Prüfungsraum anlegen", size: "wide",
+    body: `<div class="grid2"><div class="field"><label class="lbl" for="vn">Raumbezeichnung</label><input id="vn" class="input" data-vf="name" value="${esc(v.name)}" placeholder="z. B. Raum 305"></div>
+      <div class="field"><label class="lbl" for="vb">Gebäude / Lage</label><input id="vb" class="input" data-vf="building" value="${esc(v.building)}" placeholder="z. B. Hauptgebäude, 3. OG"></div></div>
+      ${used.length ? `<div class="notice warn small mb">${icon("triangle-alert")}<span>Der Raum wird in laufenden oder beendeten Raumaufsichten genutzt. Änderungen gelten nur für künftige Planungen.</span></div>` : ""}
+      <h3 class="mt">Sitzordnung</h3><div data-vseat>${seatingForm(v)}</div>`,
+    footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>${v0 ? "Speichern" : "Anlegen"}</button>`,
+    onMount: (m, close) => {
+      bindSeating(m.querySelector("[data-vseat]"), v);
+      m.querySelector("[data-ok]").onclick = () => {
+        const name = m.querySelector('[data-vf="name"]').value.trim(), building = m.querySelector('[data-vf="building"]').value.trim();
+        if (!name) { toast("Bezeichnung fehlt", "Bitte geben Sie eine Raumbezeichnung ein.", "error"); return; }
+        if (D.venues.some((x) => x.org === p.org && x.id !== v0?.id && x.name.toLowerCase() === name.toLowerCase())) { toast("Raum existiert bereits", `An Ihrer Schule gibt es bereits „${name}“.`, "error"); return; }
+        close({ name, building, ...seatingValues(v) });
+      };
+    },
+  });
+  if (!res) return;
+  const rec = { org: p.org, name: res.name, building: res.building, layout: res.layout, capacity: res.capacity, cols: res.cols, rows: res.rows || Math.ceil(res.capacity / Math.max(1, res.cols || 1)), group_size: res.group_size };
+  if (v0) {
+    await upd("venues", v0.id, rec);
+    // geplante (noch nicht gestartete) Raumaufsichten übernehmen die neue Sitzordnung
+    for (const r of venueUse(v0).filter((r) => r.state === "CREATED")) await upd("rooms", r.id, { name: rec.name, capacity: rec.capacity, rows: rec.rows, cols: rec.cols, layout: rec.layout, group_size: rec.group_size });
+    toast("Prüfungsraum gespeichert", rec.name);
+  } else { await create("venues", rec); toast("Prüfungsraum angelegt", `${rec.name} · ${rec.capacity} Plätze`); }
 }
 // ---------- Sitzordnung (Unterricht) ----------
 // Formular für Anzahl der Sitzplätze und Anordnung mit Live-Vorschau; v wird beim Bearbeiten fortgeschrieben
@@ -89,11 +154,12 @@ export async function newRoomDialog(courseId = "") {
   const d = new Date(Date.now() + 86400000); const ds = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   const pick = courses.find((c) => c.id === courseId) || courses[0];
   const tnCount = (c) => new Set(members(c).filter((m) => m.role === "teilnehmer").map((m) => m.person)).size;
-  const v = { course: pick.id, name: "", date: ds, time: "08:30", duration_min: 90, venue: "", seat: { capacity: tnCount(pick) || 24, layout: "reihen", cols: 5, group_size: 4 } };
+  const d2 = new Date(d.getTime() + 6 * 86400000); const ds2 = new Date(d2.getTime() - d2.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const v = { course: pick.id, name: "", date: ds, time: "08:30", duration_min: 90, venue: "", mode: "praesenz", wto: ds2, wtoT: "20:00", repeatable: false, show_horizon: false, seat: { capacity: tnCount(pick) || 24, layout: "reihen", cols: 5, group_size: 4 } };
   const orgOf = (c) => p?.org || c.org || "";
   const planOf = () => ({ planned_start: toPb(new Date(`${v.date}T${v.time || "08:00"}`)), duration_min: +v.duration_min || 0 });
   const body = (m) => {
-    const c = byId("courses", v.course); const lesson = c.kind === "unterricht";
+    const c = byId("courses", v.course); const lesson = c.kind === "unterricht"; const dist = lesson && v.mode === "distanz";
     const venues = lesson ? [] : venuesOf(orgOf(c));
     const opts = venues.map((x) => { const hit = venueConflict(x.id, planOf()); return `<option value="${x.id}" ${x.id === v.venue ? "selected" : ""} ${hit ? "disabled" : ""}>${esc(x.name)} · ${seatCount(x)} Plätze${hit ? ` – ${esc(conflictText(hit))}` : ""}</option>`; }).join("");
     if (!lesson && v.venue && venueConflict(v.venue, planOf())) v.venue = "";
@@ -102,15 +168,21 @@ export async function newRoomDialog(courseId = "") {
       <div class="field"><label class="lbl" for="nr-c">${courses.some((x) => x.kind === "pruefung") && courses.some((x) => x.kind === "unterricht") ? "Kurs" : p?.kind === "schuladmin" ? "Prüfung" : "Unterricht (Kurs)"}</label><select id="nr-c" class="select" data-v="course">${courses.map((x) => `<option value="${x.id}" ${x.id === v.course ? "selected" : ""}>${esc(x.title)}</option>`).join("")}</select></div>
       ${lesson ? `<div class="field"><label class="lbl" for="nr-n">Bezeichnung</label><input id="nr-n" class="input" data-v="name" value="${esc(v.name)}" placeholder="z. B. Klassenarbeit ${esc(c.title.replace(/^Zentrale /, ""))} · Gruppe A"></div>`
         : `<div class="field"><label class="lbl" for="nr-v">Prüfungsraum</label><select id="nr-v" class="select" data-v="venue"><option value="">Raum auswählen</option>${opts}</select></div>`}
-      <div class="field"><label class="lbl" for="nr-d">Datum</label><input id="nr-d" class="input" type="date" data-v="date" value="${v.date}"></div>
-      <div class="field"><label class="lbl" for="nr-t">Frühester Start</label><input id="nr-t" class="input" type="time" data-v="time" value="${v.time}"></div>
+      ${lesson ? `<fieldset class="field modepick"><legend class="lbl">Durchführung</legend><label class="radio"><input type="radio" name="nr-mode" data-v="mode" value="praesenz" ${v.mode !== "distanz" ? "checked" : ""}> ${icon("school")} Präsenz <span class="xs muted">– Lehrkraft startet, pausiert und sammelt ein</span></label><label class="radio"><input type="radio" name="nr-mode" data-v="mode" value="distanz" ${v.mode === "distanz" ? "checked" : ""}> ${icon("house")} Distanz <span class="xs muted">– fester Zeitraum, Start durch die Schüler:innen</span></label></fieldset>` : ""}
+      ${dist ? `<div class="field"><label class="lbl" for="nr-d">Zeitraum von</label><div class="inline-fields"><input id="nr-d" class="input" type="date" data-v="date" value="${v.date}"><input class="input" type="time" data-v="time" value="${v.time}" aria-label="Uhrzeit von"></div></div>
+      <div class="field"><label class="lbl" for="nr-wt">Zeitraum bis</label><div class="inline-fields"><input id="nr-wt" class="input" type="date" data-v="wto" value="${v.wto}"><input class="input" type="time" data-v="wtoT" value="${v.wtoT}" aria-label="Uhrzeit bis"></div></div>`
+      : `<div class="field"><label class="lbl" for="nr-d">Datum</label><input id="nr-d" class="input" type="date" data-v="date" value="${v.date}"></div>
+      <div class="field"><label class="lbl" for="nr-t">Frühester Start</label><input id="nr-t" class="input" type="time" data-v="time" value="${v.time}"></div>`}
       <div class="field"><label class="lbl" for="nr-du">Bearbeitungszeit (Minuten)</label><input id="nr-du" class="input" type="number" min="5" data-v="duration_min" value="${v.duration_min}"></div></div>
-      ${lesson ? `<div data-seathost>${seatingForm(v.seat)}</div>`
+      ${dist ? `<div class="card pad mb"><label class="checkbox"><input type="checkbox" data-vc="repeatable" ${v.repeatable ? "checked" : ""}> Mehrfach durchlaufbar <span class="xs muted">(z. B. zur Prüfungsvorbereitung)</span></label><label class="checkbox mt-s"><input type="checkbox" data-vc="show_horizon" ${v.show_horizon ? "checked" : ""}> Erwartungshorizont nach Abschluss anzeigen</label>
+        <p class="xs muted" style="margin:8px 0 0">Im Distanzunterricht entscheiden die Teilnehmenden innerhalb des Zeitraums, wann sie die Einheit bearbeiten. Es gibt keine direkte Steuerung durch die Lehrkraft (kein Starten, Sperren, Pausieren oder Einsammeln) und keine Sitzordnung. Nach Ablauf der Bearbeitungszeit bzw. des Zeitraums wird automatisch abgegeben.</p></div>`
+      : lesson ? `<div data-seathost>${seatingForm(v.seat)}</div>`
         : `<div class="notice info small mb">${icon("info")}<span>Reale Räume Ihrer Schule können je Zeitraum nur <b>einmal</b> belegt werden (Bearbeitungszeit zzgl. 30 Minuten). Belegte Räume sind ausgegraut.</span></div>
           ${ven ? `<div class="seating"><div class="seating-l small"><b>${esc(ven.name)}</b>${ven.building ? ` · ${esc(ven.building)}` : ""}<br>${esc(describe(ven))}</div><div class="seating-r">${previewHtml(ven)}</div></div>` : `<p class="small muted">Wählen Sie einen freien Raum aus.</p>`}`}
-      <p class="xs muted mt-s">${p?.kind === "lehrkraft" ? "Sie werden automatisch als Aufsichtsperson eingetragen." : "Aufsichtspersonen und Teilnehmende ordnen Sie anschließend aus den Mitgliedern der Prüfung Ihrer Schule zu."}</p>`;
-    m.querySelectorAll("[data-v]").forEach((f) => (f.onchange = () => { v[f.dataset.v] = f.value; if (["course", "date", "time", "duration_min", "venue"].includes(f.dataset.v)) { if (f.dataset.v === "course") { v.venue = ""; v.seat.capacity = tnCount(byId("courses", v.course)) || v.seat.capacity; } body(m); } }));
+      <p class="xs muted mt-s">${p?.kind === "lehrkraft" ? (dist ? "Sie werden als betreuende Lehrkraft eingetragen." : "Sie werden automatisch als Aufsichtsperson eingetragen.") : "Aufsichtspersonen und Teilnehmende ordnen Sie anschließend aus den Mitgliedern der Prüfung Ihrer Schule zu."}</p>`;
+    m.querySelectorAll("[data-v]").forEach((f) => (f.onchange = () => { v[f.dataset.v] = f.value; if (f.dataset.v === "mode") { if (!f.checked) return; v.mode = f.value; body(m); return; } if (["course", "date", "time", "duration_min", "venue"].includes(f.dataset.v)) { if (f.dataset.v === "course") { v.venue = ""; v.seat.capacity = tnCount(byId("courses", v.course)) || v.seat.capacity; } body(m); } }));
     m.querySelectorAll('[data-v="name"]').forEach((f) => (f.oninput = () => { v.name = f.value; f.style.borderColor = ""; }));
+    m.querySelectorAll("[data-vc]").forEach((f) => (f.onchange = () => (v[f.dataset.vc] = f.checked)));
     const host = m.querySelector("[data-seathost]"); if (host) bindSeating(host, v.seat);
   };
   const ok = await modal({ title: "Neue Raumaufsicht erstellen", size: "wide", body: `<div data-nr></div>`,
@@ -118,16 +190,19 @@ export async function newRoomDialog(courseId = "") {
     onMount: (m, close) => { body(m); m.querySelector("[data-ok]").onclick = () => {
       const c = byId("courses", v.course);
       if (c.kind === "unterricht" && !v.name.trim()) { const f = m.querySelector('[data-v="name"]'); f.style.borderColor = "var(--red)"; f.focus(); return; }
+      if (c.kind === "unterricht" && v.mode === "distanz" && !(new Date(`${v.wto}T${v.wtoT || "20:00"}`) > new Date(`${v.date}T${v.time || "08:00"}`))) { toast("Zeitraum ungültig", "Das Ende des Zeitraums muss nach dem Beginn liegen.", "error"); return; }
       if (c.kind !== "unterricht") { if (!v.venue) { const f = m.querySelector('[data-v="venue"]'); f.style.borderColor = "var(--red)"; f.focus(); return; } const hit = venueConflict(v.venue, planOf()); if (hit) { toast("Raum bereits belegt", conflictText(hit), "error"); return; } }
       close(true); } } });
   if (!ok) return;
   const c = byId("courses", v.course);
   const start = new Date(`${v.date}T${v.time}`);
-  const place = c.kind === "unterricht" ? { name: v.name.trim(), venue: "", ...seatingValues(v.seat) } : (() => { const x = byId("venues", v.venue); return { name: x.name, venue: x.id, capacity: x.capacity, rows: x.rows, cols: x.cols, layout: x.layout || "reihen", group_size: 0 }; })();
+  const distMode = c.kind === "unterricht" && v.mode === "distanz";
+  const place = distMode ? { name: v.name.trim(), venue: "", layout: "reihen", capacity: Math.max(30, tnCount(c)), cols: 5, rows: Math.ceil(Math.max(30, tnCount(c)) / 5), group_size: 0, mode: "distanz", window_from: toPb(start), window_to: toPb(new Date(`${v.wto}T${v.wtoT || "20:00"}`)), repeatable: !!v.repeatable, show_horizon: !!v.show_horizon, start_earliest: "", start_latest: "" }
+    : c.kind === "unterricht" ? { name: v.name.trim(), venue: "", mode: "praesenz", ...seatingValues(v.seat) } : (() => { const x = byId("venues", v.venue); return { name: x.name, venue: x.id, capacity: x.capacity, rows: x.rows, cols: x.cols, layout: x.layout || "reihen", group_size: +x.group_size || 0 }; })();
   let r;
-  try { r = await create("rooms", { ...place, exam_name: c.title, exam_code: c.exam_code || "", course: c.id, org: orgOf(c), owner: p?.id || "", state: "CREATED", planned_start: toPb(start), start_earliest: v.time, start_latest: fmtTime(new Date(start.getTime() + 30 * 60000)), duration_min: +v.duration_min, global_extra: 0, paused_total_s: 0, created_label: fmtDateTime(new Date()) }); }
+  try { r = await create("rooms", { ...place, exam_name: c.title, exam_code: c.exam_code || "", course: c.id, org: orgOf(c), owner: p?.id || "", state: "CREATED", planned_start: toPb(start), start_earliest: v.time, start_latest: fmtTime(new Date(start.getTime() + 30 * 60000)), duration_min: +v.duration_min, global_extra: 0, paused_total_s: 0, created_label: fmtDateTime(new Date()), ...place }); }
   catch (e) { toast("Raumaufsicht nicht erstellt", e?.response?.message || e?.message || "", "error"); return; }
-  log(r.id, null, "Raumaufsicht wurde angelegt", `${c.title} (${KIND[c.kind]}) · ${describe(r)}${r.venue ? "" : " · ohne realen Raum"}`, "system", actor());
+  log(r.id, null, "Raumaufsicht wurde angelegt", `${c.title} (${KIND[c.kind]}) · ${distMode ? `Distanz ${fmtDateTime(parseDate(r.window_from))}–${fmtDateTime(parseDate(r.window_to))}` : describe(r)}${r.venue ? "" : " · ohne realen Raum"}`, "system", actor());
   if (p?.kind === "lehrkraft") { const to = fmtTime(new Date(start.getTime() + (+v.duration_min + 30) * 60000)); await create("supervisors", { lastname: p.lastname, firstname: p.firstname, short: p.short || "", username: p.username, person: p.id, room: r.id, present: false, from: v.time, to, periods: [{ from: v.time, to }] }); }
   toast("Raumaufsicht erstellt", `${r.name} wurde angelegt. Ordnen Sie jetzt die Teilnehmenden zu.`);
   navigate(`#/app/raum/${r.id}/teilnehmende`);
@@ -140,9 +215,11 @@ export function room(id, tab) {
   if (!canSeeRoom(r)) return { shell: "staff", rail: "schule", title: "Kein Zugriff", render: () => `<div class="empty">${icon("lock")}<h2>Kein Zugriff auf diese Raumaufsicht</h2><p>Die Raumaufsicht betrifft Ihr Konto bzw. Ihre Organisation nicht.</p><a class="btn" href="#/app/raumaufsicht">Zur Übersicht</a></div>` };
   // Unterricht: kein Prüfungsprotokoll (nur bei Prüfungen)
   const lesson = courseOf(r)?.kind === "unterricht";
-  const tabs = [["pruefung", "Prüfung"], ["meinraum", "Mein Raum"], ["teilnehmende", "Teilnehmende"], ["aufsicht", "Aufsichtspersonen"], ...(lesson ? [] : [["protokoll", "Prüfungsprotokoll"]])];
+  const dist = isDistance(r);
+  const tabs = [["pruefung", dist ? "Einstellungen" : "Prüfung"], ["meinraum", "Mein Raum"], ["teilnehmende", "Teilnehmende"], ["aufsicht", dist ? "Lehrkräfte" : "Aufsichtspersonen"], ...(lesson ? [] : [["protokoll", "Prüfungsprotokoll"]])];
   if (lesson && tab === "protokoll") tab = "meinraum";
-  if (tab === "meinraum" && isLargeRoom(r)) tab = "teilnehmende";
+  if (tab === "meinraum" && (isLargeRoom(r) || dist)) tab = "teilnehmende";
+  const planOff = (room) => isLargeRoom(room) || isDistance(room);
   return {
     shell: "staff", rail: "schule", title: r.name,
     render() {
@@ -150,15 +227,15 @@ export function room(id, tab) {
       const ended = room.state === "TERMINATED";
       const body = { pruefung: tabPruefung, meinraum: tabMeinRaum, teilnehmende: tabTeilnehmende, aufsicht: tabAufsicht, protokoll: tabProtokoll }[tab] || tabMeinRaum;
       return `<div class="breadcrumb"><a href="#/app/raumaufsicht">Übersicht Raumaufsicht</a>${icon("chevron-right")}<b>${esc(room.name)}</b></div><div class="pagehead"><div><h1>${esc(room.name)}</h1><div class="sub">${esc(room.exam_name || "Noch keine Prüfung zugeordnet")}</div>
-        <div class="row mt-s small">${stateBadge(room)}<span>Geplanter Start: <b>${fmtDateTime(parseDate(room.planned_start))}</b></span>${room.started_at ? `<span>Gestartet: <b>${fmtTime(parseDate(room.started_at))}</b></span>` : ""}${room.global_extra ? `<span class="badge yellowb">+${room.global_extra} Min. global</span>` : ""}</div></div>
+        <div class="row mt-s small">${stateBadge(room)}${dist ? `<span>Zeitraum: <b>${fmtDateTime(parseDate(room.window_from))} – ${fmtDateTime(parseDate(room.window_to))}</b></span><span>Bearbeitungszeit: <b>${room.duration_min} Min.</b></span>${room.repeatable ? `<span class="badge gray">${icon("rotate-ccw")} mehrfach durchlaufbar</span>` : ""}${room.show_horizon ? `<span class="badge gray">${icon("file-text")} Erwartungshorizont nach Abschluss</span>` : ""}` : `<span>Geplanter Start: <b>${fmtDateTime(parseDate(room.planned_start))}</b></span>`}${room.started_at ? `<span>Gestartet: <b>${fmtTime(parseDate(room.started_at))}</b></span>` : ""}${room.global_extra ? `<span class="badge yellowb">+${room.global_extra} Min. global</span>` : ""}</div></div>
         <div class="actions-bar">
           ${lesson ? "" : `<button class="btn" data-incident>${icon("message-square-warning", "red")} Besondere Vorkommnisse</button>`}
           ${tab === "protokoll" ? `<button class="btn" data-download ${room.state === "TERMINATED" ? "" : `disabled title="Erst nach Beendigung der Prüfung verfügbar"`}>${icon("download")} Protokoll herunterladen (PDF)</button>${room.state === "TERMINATED" ? "" : `<span class="xs muted" style="align-self:center">Download nach Prüfungsende</span>`}` : ""}
-          ${tab !== "aufsicht" && tab !== "protokoll" ? `${room.state === "CREATED" ? `<button class="btn primary" data-start>${icon("play")} Prüfung starten</button>` : room.state === "RUNNING" ? `<button class="btn primary" data-pause>${icon("pause")} Prüfung pausieren</button>` : room.state === "PAUSED" ? `<button class="btn primary" data-resume>${icon("play")} Prüfung fortsetzen</button>` : ""}
+          ${dist ? `<span class="xs muted" style="align-self:center;max-width:340px">${icon("info")} Distanzunterricht: Die Schüler:innen starten selbst – kein Starten, Sperren, Pausieren oder Einsammeln durch die Lehrkraft.</span>` : tab !== "aufsicht" && tab !== "protokoll" ? `${room.state === "CREATED" ? `<button class="btn primary" data-start>${icon("play")} Prüfung starten</button>` : room.state === "RUNNING" ? `<button class="btn primary" data-pause>${icon("pause")} Prüfung pausieren</button>` : room.state === "PAUSED" ? `<button class="btn primary" data-resume>${icon("play")} Prüfung fortsetzen</button>` : ""}
           <button class="btn" data-collect ${room.state === "RUNNING" || room.state === "PAUSED" ? "" : "disabled"}>${icon("download")} Prüfung einsammeln</button>
           <button class="btn" data-end ${ended || room.state === "CREATED" ? "disabled" : ""}>${icon("log-in")} Prüfung beenden</button>` : ""}
         </div></div>
-      <nav class="tabs">${tabs.map(([k, l]) => k === "meinraum" && isLargeRoom(room) ? `<span class="tabdis" aria-disabled="true" title="Mehr als ${PLAN_MAX} Teilnehmende: kein Sitzplan – Steuerung im Reiter „Teilnehmende“">${l}</span>` : `<a href="#/app/raum/${id}/${k}" class="${k === tab ? "active" : ""}">${l}</a>`).join("")}</nav>
+      <nav class="tabs">${tabs.map(([k, l]) => k === "meinraum" && planOff(room) ? `<span class="tabdis" aria-disabled="true" title="${isDistance(room) ? "Distanzunterricht: kein Sitzplan" : `Mehr als ${PLAN_MAX} Teilnehmende: kein Sitzplan – Steuerung im Reiter „Teilnehmende“`}">${l}</span>` : `<a href="#/app/raum/${id}/${k}" class="${k === tab ? "active" : ""}">${l}</a>`).join("")}</nav>
       ${body(room)}`;
     },
     mount(el) {
@@ -273,7 +350,32 @@ async function setPresent(room, p, val) {
 }
 
 // ---------- Tab Prüfung ----------
+const dtLocal = (d) => (d ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "");
+function tabDistanz(room) {
+  const locked = windowState(room) === "after";
+  return `<div style="max-width:620px"><div class="notice info mb">${icon("house")}<span><b>Distanzunterricht.</b> Die Teilnehmenden bearbeiten die Einheit innerhalb des Zeitraums selbstständig und starten sie selbst. Es gibt keine direkte Steuerung durch die Lehrkraft und keine Sitzordnung.</span></div>
+  <div class="field"><label class="lbl" for="ds-n">Bezeichnung</label><input id="ds-n" class="input" data-d="name" value="${esc(room.name)}"></div>
+  <div class="grid2"><div class="field"><label class="lbl" for="ds-f">Zeitraum von</label><input id="ds-f" class="input" type="datetime-local" data-d="window_from" value="${dtLocal(parseDate(room.window_from))}"></div>
+  <div class="field"><label class="lbl" for="ds-t">Zeitraum bis</label><input id="ds-t" class="input" type="datetime-local" data-d="window_to" value="${dtLocal(parseDate(room.window_to))}"></div></div>
+  <div class="field"><label class="lbl" for="ds-du">Bearbeitungszeit (Minuten)</label><input id="ds-du" class="input" type="number" min="5" data-d="duration_min" value="${room.duration_min}"><p class="xs muted" style="margin:4px 0 0">Beginnt mit dem Start durch die Teilnehmenden und endet spätestens mit dem Ende des Zeitraums.</p></div>
+  <div class="field"><label class="checkbox"><input type="checkbox" data-dc="repeatable" ${room.repeatable ? "checked" : ""}> Mehrfach durchlaufbar (z. B. zur Prüfungsvorbereitung)</label></div>
+  <div class="field"><label class="checkbox"><input type="checkbox" data-dc="show_horizon" ${room.show_horizon ? "checked" : ""}> Erwartungshorizont nach Abschluss anzeigen</label></div>
+  ${locked ? `<p class="xs muted">Der Zeitraum ist beendet. Sie können ihn verlängern, indem Sie das Ende neu festlegen.</p>` : ""}
+  <div class="row end mt"><button class="btn" data-dsave>${icon("save")} Speichern</button><a class="btn primary" href="#/app/raum/${room.id}/teilnehmende">${icon("arrow-right")} Teilnehmende bearbeiten</a></div></div>`;
+}
+function bindDistanz(el, room) {
+  const b = el.querySelector("[data-dsave]"); if (!b) return;
+  b.onclick = async () => {
+    const o = {}; el.querySelectorAll("[data-d]").forEach((f) => (o[f.dataset.d] = f.value));
+    const a = new Date(o.window_from), z = new Date(o.window_to);
+    if (!o.name.trim() || isNaN(a) || isNaN(z) || z <= a) { toast("Angaben prüfen", "Bezeichnung und ein gültiger Zeitraum (Ende nach Beginn) sind erforderlich.", "error"); return; }
+    const patch = { name: o.name.trim(), window_from: toPb(a), window_to: toPb(z), planned_start: toPb(a), duration_min: Math.max(5, +o.duration_min || 45) };
+    el.querySelectorAll("[data-dc]").forEach((f) => (patch[f.dataset.dc] = f.checked));
+    await upd("rooms", room.id, patch); log(room.id, null, "Einstellungen der Distanzeinheit geändert", `${fmtDateTime(a)}–${fmtDateTime(z)}`, "aktion", actor()); toast("Einstellungen gespeichert");
+  };
+}
 function tabPruefung(room) {
+  if (isDistance(room)) return tabDistanz(room);
   const exams = [...new Set(D.rooms.map((r) => r.exam_name).filter(Boolean))];
   const ps = parseDate(room.planned_start); const ds = ps ? new Date(ps.getTime() - ps.getTimezoneOffset() * 60000).toISOString().slice(0, 10) : "";
   const locked = room.state !== "CREATED";
@@ -303,6 +405,7 @@ function placeSection(room, locked) {
     <p class="xs muted" style="margin:4px 0 0">${esc(describe(room))}. Ein realer Raum kann je Zeitraum nur einmal belegt werden${ps ? "" : ""}.</p></div>`;
 }
 function bindPruefung(el, room) {
+  if (isDistance(room)) return bindDistanz(el, room);
   const host = el.querySelector("[data-seathost]"); if (host && room.state === "CREATED") bindSeating(host, SEAT_EDIT.get(room.id));
   const lk = el.querySelector("[data-lock]"); if (lk) lk.onchange = async () => { await upd("rooms", room.id, { lockdown: lk.checked }); log(room.id, null, lk.checked ? "Vollbildmodus erzwungen" : "Vollbildmodus nicht erzwungen", "", "aktion", actor()); toast("Einstellung gespeichert"); };
   const s = el.querySelector("[data-save]"); if (!s) return;
@@ -311,7 +414,7 @@ function bindPruefung(el, room) {
     const planned = new Date(`${o.date}T${o.start_earliest || "08:00"}`);
     const patch = { exam_name: o.exam_name, start_earliest: o.start_earliest, start_latest: o.start_latest, duration_min: +o.duration_min, planned_start: toPb(planned) };
     if (isVirtual(room)) { if (!o.name?.trim()) { toast("Bezeichnung fehlt", "Bitte geben Sie eine Bezeichnung ein.", "error"); return; } Object.assign(patch, { name: o.name.trim() }, seatingValues(SEAT_EDIT.get(room.id))); }
-    else if (o.venue) { const x = byId("venues", o.venue); const hit = venueConflict(o.venue, patch, room.id); if (hit) { toast("Raum bereits belegt", conflictText(hit), "error"); return; } Object.assign(patch, { venue: x.id, name: x.name, capacity: x.capacity, rows: x.rows, cols: x.cols, layout: x.layout || "reihen" }); }
+    else if (o.venue) { const x = byId("venues", o.venue); const hit = venueConflict(o.venue, patch, room.id); if (hit) { toast("Raum bereits belegt", conflictText(hit), "error"); return; } Object.assign(patch, { venue: x.id, name: x.name, capacity: x.capacity, rows: x.rows, cols: x.cols, layout: x.layout || "reihen", group_size: +x.group_size || 0 }); }
     try { await upd("rooms", room.id, patch); } catch (e) { toast("Nicht gespeichert", e?.response?.message || e?.message || "", "error"); return; }
     SEAT_EDIT.delete(room.id);
     log(room.id, null, "Prüfungseinstellungen geändert", "", "aktion", actor());
@@ -388,10 +491,11 @@ async function detailsModal(room, p) {
   const taken = new Set(inRoom(room).map((x) => x.seat));
   const free = freeSeats(room, taken);
   const e = endTime(room, p) || plannedEnd(room, p);
-  const act = isActive(p.status);
-  const v = await modal({ title: `<span class="row" style="justify-content:space-between;width:100%"><label class="toggle"><input type="checkbox" data-pres ${p.present ? "checked" : ""}><span></span></label>${connChip(p)}<span>${esc(p.seat || "–")}</span></span>`, size: "narrow",
+  const act = isActive(p.status); const dist = isDistance(room);
+  const v = await modal({ title: `<span class="row" style="justify-content:space-between;width:100%"><label class="toggle" ${dist ? "hidden" : ""}><input type="checkbox" data-pres ${p.present ? "checked" : ""}><span></span></label>${connChip(p)}<span>${esc(p.seat || "–")}</span></span>`, size: "narrow",
     body: `<div style="text-align:center"><h3>${esc(p.lastname)}, ${esc(p.firstname)}</h3><div class="small">Anmeldename: <b>${esc(p.username)}</b></div><div class="mt-s">${statusChip(p.status)}</div></div>
-    <div class="row mt" style="justify-content:center;gap:16px">
+    ${dist ? `<div class="notice info small mt">${icon("house")}<span>Distanzunterricht: keine Steuerung durch die Lehrkraft. ${p.started_at ? `Gestartet ${fmtDateTime(parseDate(p.started_at))}` : "Noch nicht gestartet"} · Durchlauf ${p.attempt || 1}.</span></div>` : ""}
+    <div class="row mt" style="justify-content:center;gap:16px;${dist ? "display:none" : ""}">
       <button class="btn" style="flex-direction:column;width:110px;height:86px;background:var(--bg-soft)" data-value="pause" ${act ? "" : "disabled"}>${icon(p.status === "pausiert" ? "play" : "pause", "xl")}${p.status === "pausiert" ? "Fortsetzen" : "Pausieren"}</button>
       <button class="btn" style="flex-direction:column;width:110px;height:86px;background:var(--bg-soft)" data-value="lock" ${act ? "" : "disabled"}>${icon(p.status === "gesperrt" ? "lock" : "ban", "xl")}${p.status === "gesperrt" ? "Entsperren" : "Sperren"}</button>
       <button class="btn" style="flex-direction:column;width:110px;height:86px;background:var(--bg-soft)" data-value="collect" ${act ? "" : "disabled"}>${icon("download", "xl")}Einsammeln</button></div>
@@ -402,7 +506,7 @@ async function detailsModal(room, p) {
     <div class="field"><label class="lbl">Zusatzzeit (individuell, z. B. nach Störung)</label><select class="select" data-f="extra_time">${[0, 5, 10, 15, 20, 30].map((m) => `<option value="${m}" ${m === (p.extra_time || 0) ? "selected" : ""}>${m ? m + " Minuten" : "-- Minuten"}</option>`).join("")}</select></div>
     <div class="field"><label class="lbl">Kommentar</label><textarea class="input" data-f="comment" maxlength="150" placeholder="Hier Kommentar eingeben (max. 150 Zeichen)">${esc(p.comment)}</textarea></div>
     <div class="field"><label class="lbl">Nachteilsausgleich (NTA, vorab genehmigt)</label>${room.state !== "CREATED" ? `<p class="xs muted" style="margin:0 0 4px">${icon("lock")} Nur vor dem Prüfungsstart änderbar. Für Störungen während der Prüfung nutzen Sie die Zusatzzeit.</p>` : ""}<select class="select" data-f="nta" ${room.state !== "CREATED" ? "disabled" : ""}>${[0, 10, 15, 20, 30, 45].map((m) => `<option value="${m}" ${m === (p.nta || 0) ? "selected" : ""}>${m ? m + " Minuten" : "-- Minuten"}</option>`).join("")}</select></div>
-    <div class="field"><label class="lbl">Sitzplatz ändern</label><select class="select" data-f="seat"><option value="${esc(p.seat)}">${esc(p.seat || "–")} (aktuell)</option>${free.map((s) => `<option>${s}</option>`).join("")}</select></div>
+    <div class="field" ${dist ? "hidden" : ""}><label class="lbl">Sitzplatz ändern</label><select class="select" data-f="seat"><option value="${esc(p.seat)}">${esc(p.seat || "–")} (aktuell)</option>${free.map((s) => `<option>${s}</option>`).join("")}</select></div>
     <div class="field"><label class="lbl">Versetzung in anderen Raum</label><select class="select" data-f="move"><option value="">Raum auswählen</option>${others.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select></div>`,
     footer: `<details class="demo-tests"><summary class="xs muted">Testfälle (Demo)</summary><div class="row wrap mt-s"><button class="btn xs" data-value="offline">${icon("radio")} Verbindungsabbruch 20 s</button></div></details><button class="btn primary block" data-ok>Speichern</button>`,
     onMount: (m, close) => {
@@ -473,7 +577,7 @@ async function addParticipants(room, seat) {
 
 // ---------- Tab Teilnehmende ----------
 function tabTeilnehmende(room) {
-  const st = S.tn; const all = inRoom(room); const big = isLargeRoom(room);
+  const st = S.tn; const all = inRoom(room); const big = isLargeRoom(room); const dist = isDistance(room);
   const ps = all.filter((p) => (!st.status || p.status === st.status) && (!st.q || (p.lastname + " " + p.firstname + " " + p.username + " " + p.seat).toLowerCase().includes(st.q.toLowerCase())));
   const counts = {}; all.forEach((p) => (counts[p.status] = (counts[p.status] || 0) + 1));
   const off = all.filter((p) => isActive(p.status) && !isConnected(p)).length;
@@ -482,14 +586,14 @@ function tabTeilnehmende(room) {
   const sorted = [...ps].sort((a, b) => cmp(key(a), key(b)) * st.dir);
   const page = sorted.slice((st.page - 1) * st.per, st.page * st.per);
   const th = (k, l) => `<th class="sortable" data-sort="${k}">${icon(st.sort === k ? (st.dir > 0 ? "chevron-up" : "chevron-down") : "list")} ${l}</th>`;
-  return `${big ? `<div class="notice info small mb">${icon("users")}<span><b>Großraum mit ${all.length} Teilnehmenden:</b> Ab ${PLAN_MAX + 1} Teilnehmenden wird kein Sitzplan angezeigt („Mein Raum“ ist ausgegraut). Anwesenheit, Verbindung, Status und Details steuern Sie hier in der Liste – mit Suche und Statusfilter.</span></div>
+  return `${dist ? `<div class="notice info small mb">${icon("house")}<span><b>Distanzunterricht:</b> Die Teilnehmenden starten die Einheit innerhalb des Zeitraums selbst. Sie sehen hier Status und Fortschritt; eine Steuerung (Start, Sperre, Pause, Einsammeln) ist nicht vorgesehen.</span></div>` : ""}${big ? `<div class="notice info small mb">${icon("users")}<span><b>Großraum mit ${all.length} Teilnehmenden:</b> Ab ${PLAN_MAX + 1} Teilnehmenden wird kein Sitzplan angezeigt („Mein Raum“ ist ausgegraut). Anwesenheit, Verbindung, Status und Details steuern Sie hier in der Liste – mit Suche und Statusfilter.</span></div>
   <div class="row between wrap mb"><div class="row wrap"><div class="search"><input class="input" style="width:260px" data-tnq placeholder="Name, Anmeldename oder Platz" value="${esc(st.q || "")}" aria-label="Teilnehmende suchen">${icon("search")}</div><button class="btn ghost sm" data-simulate>${icon("users")} Demo: übrige Teilnehmende anmelden</button></div>
     <div class="legend small">${Object.entries(counts).map(([k, n]) => `<button class="legend-btn ${st.status === k ? "on" : ""}" data-tnst="${k}" title="Nach Status filtern">${statusChip(k)} ${n}</button>`).join("")}${off ? `<span class="badge red">${icon("radio")} ${off} nicht verbunden</span>` : ""}</div></div>` : ""}
-  <div class="row between wrap mb"><div class="row wrap"><button class="btn" data-addtn>${icon("plus")} Teilnehmende hinzufügen</button><div class="notice success small">${icon("circle-check")}<span>Es sind aktuell <b>${all.length} von ${seatCount(room)} Sitzplätzen</b> im Raum belegt.</span></div></div>
+  <div class="row between wrap mb"><div class="row wrap"><button class="btn" data-addtn>${icon("plus")} Teilnehmende hinzufügen</button><div class="notice success small">${icon("circle-check")}<span>${dist ? `<b>${all.length} Teilnehmende</b> zugeordnet · ${all.filter((p) => isFinished(p.status)).length} abgeschlossen · ${all.filter((p) => isActive(p.status)).length} in Bearbeitung` : `Es sind aktuell <b>${all.length} von ${seatCount(room)} Sitzplätzen</b> im Raum belegt.`}</span></div></div>
     <div class="row wrap"><button class="btn" data-delgrp ${ps.length ? "" : "disabled"}>${icon("users")} Gruppe entfernen</button><button class="btn" data-deltn ${st.sel.size ? "" : "disabled"}>${icon("trash-2")} Ausgewählte entfernen${st.sel.size ? ` (${st.sel.size})` : ""}</button></div></div>
-  ${ps.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th><input type="checkbox" data-all aria-label="Alle auswählen"></th>${th("lastname", "Name")}${th("seat", "Platz")}<th>Anwesend</th><th>Anmeldung / Verbindung</th>${th("status", "Status")}<th>Zeitgutschrift</th>${th("end", "Ende")}<th><span class="sr-only">Details</span></th></tr></thead>
-  <tbody>${page.map((p) => `<tr><td><input type="checkbox" data-sel="${p.id}" ${st.sel.has(p.id) ? "checked" : ""} aria-label="${esc(p.lastname)} auswählen"></td><td><b>${esc(p.lastname)}, ${esc(p.firstname)}</b><div class="sub">${esc(p.username)}</div></td><td>${esc(p.seat)}</td>
-    <td><label class="toggle"><input type="checkbox" data-present="${p.id}" ${p.present ? "checked" : ""} aria-label="Anwesenheit ${esc(p.lastname)}"><span></span></label></td>
+  ${ps.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th><input type="checkbox" data-all aria-label="Alle auswählen"></th>${th("lastname", "Name")}${dist ? "<th>Durchlauf</th><th>Start</th>" : `${th("seat", "Platz")}<th>Anwesend</th>`}<th>Anmeldung / Verbindung</th>${th("status", "Status")}<th>Zeitgutschrift</th>${th("end", "Ende")}<th><span class="sr-only">Details</span></th></tr></thead>
+  <tbody>${page.map((p) => `<tr><td><input type="checkbox" data-sel="${p.id}" ${st.sel.has(p.id) ? "checked" : ""} aria-label="${esc(p.lastname)} auswählen"></td><td><b>${esc(p.lastname)}, ${esc(p.firstname)}</b><div class="sub">${esc(p.username)}</div></td><td>${dist ? `<span class="xs muted">${(p.attempt || 1) > 1 || isFinished(p.status) ? `Durchlauf ${p.attempt || 1}` : "–"}</span>` : esc(p.seat)}</td>
+    <td>${dist ? `<span class="xs muted">${p.started_at ? "gestartet " + fmtDateTime(parseDate(p.started_at)) : "noch nicht gestartet"}</span>` : `<label class="toggle"><input type="checkbox" data-present="${p.id}" ${p.present ? "checked" : ""} aria-label="Anwesenheit ${esc(p.lastname)}"><span></span></label>`}</td>
     <td>${connChip(p)}</td>
     <td>${statusChip(p.status)}</td><td><span class="row wrap" style="gap:3px">${timeBadges(p, room) || "–"}</span></td><td class="nowrap">${fmtTime(endTime(room, p) || plannedEnd(room, p))} Uhr</td>
     <td class="nowrap"><button class="iconbtn" data-rmtn="${p.id}" title="Aus der Raumaufsicht entfernen" aria-label="${esc(p.lastname)}, ${esc(p.firstname)} aus der Raumaufsicht entfernen">${icon("trash-2")}</button><button class="iconbtn" data-details="${p.id}" title="Teilnehmerdetails" aria-label="Teilnehmerdetails ${esc(p.lastname)}">${icon("arrow-right")}</button></td></tr>`).join("")}</tbody></table>${pager(ps.length, st.page, st.per, [5, 10, 25, 100])}</div>`
@@ -587,7 +691,7 @@ function bindAufsicht(el, room) {
     const have = new Set(D.supervisors.filter((s) => s.room === room.id).map((s) => s.person || s.lastname));
     const cand = roomCandidates(room, "aufsicht").filter((pe) => !have.has(pe.id));
     const v = await modal({ title: "Aufsichtspersonen hinzufügen", size: "wide", body: `<p class="xs muted">${c?.kind === "pruefung" ? `Zur Auswahl stehen Personen mit der Rolle „Raumaufsicht“ in der Prüfung „${esc(c.title)}“ (Schule ${esc(orgShort(room.org))}). Weitere ordnet die Schuladministration unter Prüfungen › Mitglieder zu.` : c ? `Zur Auswahl stehen die Lehrkräfte des Unterrichts „${esc(c.title)}“ (Besitzer und Mitbetreuung).` : ""}</p>
-      <div class="tablewrap"><table class="tbl"><thead><tr><th></th><th>Nachname</th><th>Vorname</th><th>Kürzel</th><th>Schule</th></tr></thead><tbody>${cand.length ? cand.map((pe) => `<tr><td><input type="checkbox" data-i="${pe.id}" aria-label="${esc(personName(pe))}"></td><td>${esc(pe.lastname)}</td><td>${esc(pe.firstname)}</td><td>${esc(pe.short || "")}</td><td>${esc(orgShort(pe.org))}</td></tr>`).join("") : `<tr><td colspan="5"><div class="empty small">Keine weiteren Personen verfügbar${c ? ` – Mitglieder verwalten Sie im <a href="#/app/kurs/${c.id}/mitglieder">Kurs</a>` : ""}</div></td></tr>`}</tbody></table></div>`,
+      <div class="tablewrap"><table class="tbl"><thead><tr><th></th><th>Nachname</th><th>Vorname</th><th>Kürzel</th><th>Schule</th></tr></thead><tbody>${cand.length ? cand.map((pe) => `<tr><td><input type="checkbox" data-i="${pe.id}" aria-label="${esc(personName(pe))}"></td><td>${esc(pe.lastname)}</td><td>${esc(pe.firstname)}</td><td>${esc(pe.short || "")}</td><td>${esc(orgsLabel(pe))}</td></tr>`).join("") : `<tr><td colspan="5"><div class="empty small">Keine weiteren Personen verfügbar${c ? ` – Mitglieder verwalten Sie im <a href="#/app/kurs/${c.id}/mitglieder">Kurs</a>` : ""}</div></td></tr>`}</tbody></table></div>`,
       footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Aufsichtspersonen hinzufügen</button>`, onMount: (m, close) => (m.querySelector("[data-ok]").onclick = () => close([...m.querySelectorAll("[data-i]:checked")].map((x) => byId("persons", x.dataset.i)))) });
     if (!v || !v.length) return;
     for (const pe of v) { await create("supervisors", { lastname: pe.lastname, firstname: pe.firstname, short: pe.short || "", username: pe.username, person: pe.id, room: room.id, present: false, from: room.start_earliest, to: "", periods: [{ from: room.start_earliest || "", to: "" }] }); log(room.id, null, `Aufsichtsperson ${pe.lastname}, ${pe.firstname} hinzugefügt`, "", "aktion", actor()); }
@@ -596,7 +700,7 @@ function bindAufsicht(el, room) {
   el.querySelector("[data-delsv]").onclick = async () => {
     const list = [...st.sel].map((id) => byId("supervisors", id)).filter(Boolean);
     if (!(await confirmBox("Aufsichtspersonen löschen", list.map((s) => `${esc(s.lastname)}, ${esc(s.firstname)}`).join("<br>"), "Löschen"))) return;
-    const { del } = await import("../data.js?v=8.4");
+    const { del } = await import("../data.js?v=8.5");
     for (const s of list) { await del("supervisors", s.id); log(room.id, null, `Aufsichtsperson ${s.lastname} entfernt`, "", "aktion", actor()); }
     st.sel.clear(); toast("Aufsichtspersonen entfernt");
   };
@@ -628,4 +732,4 @@ function bindProtokoll(el, room) {
     if (v !== null && v !== undefined) { await upd("protocol", r.id, { comment: v }); toast("Kommentar gespeichert"); }
   }));
 }
-function downloadProtocol(room) { import("./protocolpdf.js?v=8.4").then((m) => m.protocolPdf(room)); }
+function downloadProtocol(room) { import("./protocolpdf.js?v=8.5").then((m) => m.protocolPdf(room)); }

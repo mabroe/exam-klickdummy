@@ -2,13 +2,13 @@
 //  - Erstkorrektur: rot, rechter Rand · Zweitkorrektur: grün, linker Rand · Drittkorrektur (Endbeurteilung): braun, linker Rand außen
 //  - Unterstreichen horizontal (einfach, doppelt, gekringelt) und vertikal (Randstrich)
 //  - Stift: Gesten für Linien, handschriftliche Korrekturzeichen werden erkannt und an den Rand gesetzt
-import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=8.4";
-import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=8.4";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS } from "../scenario.js?v=8.4";
-import { navigate, redraw, session } from "../app.js?v=8.4";
-import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer, lessonMode } from "./correction.js?v=8.4";
-import { pdfPages, cachedPages, isPdf, isImage, isOffice, officeToPdf, downloadUrl, extOf } from "../docs.js?v=8.4";
-import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=8.4";
+import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=8.5";
+import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=8.5";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS } from "../scenario.js?v=8.5";
+import { navigate, redraw, session } from "../app.js?v=8.5";
+import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer, lessonMode } from "./correction.js?v=8.5";
+import { pdfPages, cachedPages, isPdf, isImage, isOffice, officeToPdf, downloadUrl, extOf } from "../docs.js?v=8.5";
+import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=8.5";
 
 const PW = 900, ML = 110, MR = 790;               // Papierbreite, Textspalte links/rechts
 const VX = { 1: MR + 8, 2: ML - 8, 3: ML - 16 };    // Randstrich je Korrektor
@@ -126,7 +126,7 @@ function paperFor(it, p) {
       return `<div class="kattach"><b>${icon("paperclip")} Anhang: ${esc(a)}</b>${f?.data?.att_changed || it.data.att_changed ? ` <span class="xs" style="color:#777">(Anhang ausgetauscht ${esc(it.data.att_changed || "")})</span>` : ""}${u ? fileBlock(f.id, { name: f.data.name, url: u, pid: p.id, st: it.submission }) : a.toLowerCase().includes("vergleich") ? sheetTable() : ""}</div>`; }).join("")}`;
   }
   if (it.kind === "ticket") return `<div class="letterhead"><b>${icon("ticket")} Ticket #${esc(it.data.no)} – ${esc(it.data.subject)}</b><span style="font-size:12px">${esc(name)} · Status: ${esc(it.data.status)}</span></div><p style="color:#555;font-size:13px"><b>Anfrage:</b> ${esc(it.data.desc || "")}</p><h3>Lösung</h3><div class="ptext">${it.data.solution || "<p><i>keine Lösung eingetragen</i></p>"}</div>`;
-  if (it.kind === "file" && fileUrl(it)) return `<div class="letterhead"><b>${icon("file")} ${esc(it.data.name)}</b><span style="font-size:12px">${esc(name)} · ${it.folder === "abgabe" ? "direkt in der Aufgabe hochgeladen" : "Eigene Dateien"} · ${esc(it.data.changed)}</span></div>${fileBlock(it.id, { name: it.data.name, url: fileUrl(it), pid: p.id, st: it.submission })}`;
+  if (it.kind === "file" && fileUrl(it)) return `<div class="letterhead"><b>${icon("file")} ${esc(it.data.name)}</b><span style="font-size:12px">${esc(name)} · ${it.data?.direct ? "direkt in der Aufgabe hochgeladen (Ordner Dateiupload)" : "Eigene Dateien"} · ${esc(it.data.changed)}</span></div>${fileBlock(it.id, { name: it.data.name, url: fileUrl(it), pid: p.id, st: it.submission })}`;
   if (it.kind === "erp") { const d = it.data; const sum = (d.pos || []).reduce((a, x) => a + x.menge * x.preis, 0); const eur = (v) => (+v || 0).toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " €";
     return d.type === "bestellung" ? `<div class="letterhead"><b>${icon("package")} ERP – Bestellung ${esc(d.nr)}</b><span style="font-size:12px">${esc(name)} · ${esc(d.datum)}</span></div><p>Lieferant: <b>${esc(d.lieferant_name || d.lieferant)}</b>${d.termin ? ` · Liefertermin ${esc(d.termin)}` : ""} · Status: ${esc(d.status)}</p><table><tr><th>Artikel</th><th>Menge</th><th>Einzelpreis</th><th>Gesamt</th></tr>${(d.pos || []).map((x) => `<tr><td>${esc(x.name || x.artikel)}</td><td>${x.menge}</td><td>${eur(x.preis)}</td><td>${eur(x.menge * x.preis)}</td></tr>`).join("")}<tr><td colspan="3"><b>Summe</b></td><td><b>${eur(sum)}</b></td></tr></table>`
       : `<div class="letterhead"><b>${icon("package")} ERP – Lieferant ${esc(d.nr)}</b><span style="font-size:12px">${esc(name)}</span></div><table><tr><th>Name</th><td>${esc(d.name)}</td></tr><tr><th>Ort</th><td>${esc(d.ort || "")}</td></tr><tr><th>E-Mail</th><td>${esc(d.mail || "")}</td></tr><tr><th>Zahlungsbedingungen</th><td>${esc(d.zahlung || "")}</td></tr></table>`; }
@@ -151,7 +151,7 @@ function origFilesOf(pid, st) {
   const subs = D.items.filter((i) => i.participant === pid && i.submission === st);
   const out = [];
   subs.forEach((it) => {
-    if (it.kind === "file" && fileUrl(it)) out.push({ f: it, name: it.data.name, how: it.folder === "abgabe" ? "direkt in der Aufgabe hochgeladen" : "aus „Eigene Dateien“" });
+    if (it.kind === "file" && fileUrl(it)) out.push({ f: it, name: it.data.name, how: it.data?.direct ? "direkt in der Aufgabe hochgeladen (Ordner Dateiupload)" : "aus „Eigene Dateien“" });
     if (it.kind === "mail") (it.data.attachments || []).forEach((a) => { const f = attachmentItem(it, a); if (f && fileUrl(f)) out.push({ f, name: f.data.name, how: `Anhang der E-Mail „${it.data.subject}“` }); });
   });
   return out;

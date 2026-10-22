@@ -1,4 +1,4 @@
-# Exam Klickdummy – Prüfungsplattform Bildschirmarbeitsplatz
+# Exam Klickdummy – Prüfungsplattform Exam
 
 Interaktiver Klickdummy der Prüfungsplattform. Er ist in HTML/CSS/JS nach den Figma-Screens nachgebaut und läuft entweder mit **PocketBase** als lokaler Datenbank und Webserver oder als **statische Seite (z. B. GitHub Pages)** mit einer Datenbank im Browser. Die Rollen sind über Realtime live gekoppelt. Startet die Raumaufsicht die Prüfung, wechselt der Prüfling im anderen Browserfenster sofort vom Wartebereich in die Prüfung. Markierte Abgaben erscheinen direkt in der Korrektur.
 
@@ -53,7 +53,7 @@ Auf der Startseite meldet man sich als **konkrete Person** an. Zwei fiktive Schu
 | Person | Schule | Rolle im Demo |
 |---|---|---|
 | Amir Eggert | AFS | Lehrkraft, Besitzer „Zentrale Klassenarbeit HTML“ (Gruppe A in Reihen, Gruppe B in U-Form) |
-| Ilyas Morawetz | AFS | Lehrkraft, eigener Unterricht (Gruppentische, versetzte Reihen) |
+| Ilyas Morawetz | AFS · BTS | Lehrkraft in **zwei Organisationen**: eigener Unterricht an der AFS, Mitbetreuung „Zentrale Klassenarbeit CSS“ (BTS), Raumaufsicht und Zweitkorrektur der FA230-Prüfung an der BTS |
 | Thea Riedmüller, Lina Voigt | AFS | Raumaufsichten der FA230-Prüfung (Raum 123) |
 | Gesa Ohm + Lina Voigt, Ayla Steinhoff, Dr. Karim Ebeling | AFS | Korrektorengruppen FA230 (FA230a): Erstkorrektur (Gruppe aus zwei Personen), Zweitkorrektur, Endbeurteilung |
 | Marit Hinrichs | AFS | Schuladministration |
@@ -63,6 +63,10 @@ Auf der Startseite meldet man sich als **konkrete Person** an. Zwei fiktive Schu
 **Räume und Sitzordnungen**
 - **Unterricht:** Es wird **kein realer Raum** gebucht. Die Lehrkraft gibt der Raumaufsicht eine Bezeichnung und wählt **Anzahl der Sitzplätze** und **Anordnung**: Reihen (Plätze je Reihe), Reihen versetzt, U-Form oder Gruppentische (4 oder 6 Plätze). Eine Vorschau zeigt den Sitzplan; bis zum Start lässt er sich im Reiter „Prüfung“ ändern. Platzbezeichnungen: Reihe-Platz (`2-1`), U-Form fortlaufend (`7`), Gruppentische Tisch-Platz (`T2-3`).
 - **Prüfung:** Die Schuladministration wählt einen **realen Raum ihrer Schule** (Raumliste je Schule). Ein Raum kann je Zeitraum (Bearbeitungszeit zzgl. 30 Minuten) nur einmal belegt werden; belegte Räume sind in der Auswahl gesperrt und der Server weist Doppelbelegungen ab.
+
+**Prüfungsräume** verwaltet die Schuladministration unter **„Prüfungsräume“** (Navigation bzw. „Prüfungsräume verwalten“ in der Raumaufsicht): anlegen, bearbeiten (Bezeichnung, Gebäude, Sitzplätze und Anordnung) und löschen, solange der Raum nicht verplant ist. Räume gehören zu einer Schule und stehen nur deren Prüfungs-Raumaufsichten zur Auswahl.
+
+**Lehrkräfte in mehreren Organisationen** (`persons.orgs`): Sie sehen die berechtigten Informationen aller ihrer Schulen – Kurse, in denen sie Mitglied sind, und können von jeder ihrer Schulen als Raumaufsicht, Korrektor:in oder Lehrkraft zugeordnet werden. In Listen erscheinen sie mit allen Schulkürzeln (z. B. „AFS · BTS“).
 
 Klassen und Kurse der Schulverwaltung: FA230a, WG12a, WG12b, Informatik J1 (AFS) sowie die Klassen des Großraums (BTS).
 
@@ -223,7 +227,30 @@ Das Prüfungsprotokoll gibt es **nur bei Prüfungen** (nicht im Unterricht). Der
 - **Noten**: linearer Notenschlüssel bezogen auf die Maximalpunktzahl – Note = 6 − 5 · Punkte / Maximalpunkte, auf eine Nachkommastelle zugunsten des Prüflings abgerundet. Bei 100 Punkten entspricht das exakt der Tabelle „Notenschlüssel 100 P“ (geprüft gegen alle Werte der Vorlage, auch für 60 bzw. 50 Punkte); „Notenschlüssel“ zeigt die Tabelle für eine wählbare Maximalpunktzahl.
 - **Gesamtnote**: Mittelwert der Noten aus Erst- und Zweitkorrektur (auf eine Nachkommastelle abgerundet). Ist eine Endbeurteilung angefordert, gilt deren Note. Im Unterricht gibt es nur eine Korrektur.
 - **Drittkorrektur**: Weichen die Noten aus Erst- und Zweitkorrektur um mindestens die eingestellte Schwelle ab (Standard 1,0 Notenstufen, im Reiter „Korrektoren“ einstellbar), wird die Zeile hervorgehoben und „Drittkorrektur empfohlen“ angezeigt. Die **Entscheidung trifft die Schuladministration** („anfordern“ bzw. „zurücknehmen“); erst dann erhält die Korrektorengruppe der Endbeurteilung Zugriff auf den Prüfling.
-- **Prüfungseinsicht**: wird in den Ergebnissen freigegeben. Lehrkräfte öffnen sie je Prüfling, Prüflinge nach Prüfungsende über den Endbildschirm. Sie zeigt Punkte je Teilaufgabe, Begründungen und die Arbeit mit den Randzeichen aller Korrekturen (schreibgeschützt). Interne Kommentare bleiben verborgen.
+- **Prüfungseinsicht (Prüfung)**: nur über die **Freigabe der Organisation** – die Schuladministration gibt sie in den Ergebnissen für die Prüflinge ihrer Schule frei (`courses.einsicht`, je Schule). Prüflinge sehen danach über den Endbildschirm **nur die Endnote und ihre Abgaben inkl. Korrekturzeichen**; Punkte je Teilaufgabe, Begründungen, Bemerkungen, Kommentare und der Erwartungshorizont bleiben verborgen. Ohne Freigabe ist die Einsicht auch per Direktaufruf nicht erreichbar. Lehrkräfte und Schuladministration sehen weiterhin die vollständige Einsicht.
+- **Korrektur und Ergebnis (Unterricht)**: Die Lehrkraft gibt die Korrektur **je Durchführung** frei (Ergebnisse › „Freigabe der Korrektur für die Schüler:innen“, `rooms.released`). Schüler:innen sehen anschließend **nur ihre eigenen** Ergebnisse: Punkte je Teilaufgabe, Note, Begründung und Korrekturzeichen. Demo: „Klassenarbeit HTML · Probelauf“ (Brockmann, Reinholz, Thamm) ist korrigiert und freigegeben.
+
+## Aufgabensteuerung
+
+Im Kurs (Reiter **„Aufgabensteuerung“**, Unterricht: Lehrkraft, Prüfung: Schuladministration) werden Regeln konfiguriert, die während der Bearbeitung automatisch neue Inhalte bereitstellen.
+- **Bedingungen** – *Aktion ausgeführt*: Aufgabe/Teilaufgabe geöffnet, Abgabe markiert, E-Mail gesendet, Termin/Ticket angelegt, Datei hochgeladen, Bestellung im ERP-System; *zeitliche Faktoren*: Minuten seit Bearbeitungsbeginn, keine Aktivität seit n Minuten, Minuten in einer Aufgabe, Restzeit ≤ n Minuten; *Bearbeitungsstand*: Fortschritt in Prozent, noch keine Abgabe zu einer Teilaufgabe, andere Regel ausgelöst (Verkettung).
+- **Verknüpfung**: Bedingungen einer Gruppe mit **UND** bzw. **ODER**, mehrere Gruppen untereinander ebenfalls mit UND bzw. ODER – z. B. „(E-Mail gesendet ODER 10 Minuten in Aufgabe 1)“ oder „Restzeit ≤ 15 Min. UND keine Abgabe zu 3.1“.
+- **Aktionen**: neue E-Mail im Posteingang, neuer Kalendertermin, neues Ticket (jeweils in einer gewählten oder der aktuellen Aufgabe) oder ein eingeblendeter Hinweis.
+- Jede Regel löst je Teilnehmer:in **einmal** aus (`participants.fired`, Bearbeitungsstand in `participants.progress`) und wird im Prüfungsprotokoll vermerkt. In der **Vorschau** lassen sich die Regeln testen. Vorlagen erleichtern den Einstieg; die FA230-Prüfung enthält vier Beispielregeln (u. a. „Aufgabe 2 gestartet → E-Mail“, „3 Minuten ohne Aktivität → Erinnerung“).
+
+## Distanzunterricht
+
+Beim Erstellen einer Raumaufsicht im Unterricht wählt die Lehrkraft **Präsenz** oder **Distanz**.
+- **Distanz**: fester **Zeitraum** (von–bis) und Bearbeitungszeit; die Teilnehmenden entscheiden selbst, wann sie beginnen („Einheit jetzt starten“ nach Belehrung und Gesundheitsabfrage). Die Bearbeitungszeit endet spätestens mit dem Zeitraum, danach wird automatisch abgegeben. Es gibt **keine Steuerung durch die Lehrkraft** (kein Starten, Sperren, Pausieren oder Einsammeln) und keinen Sitzplan; die Lehrkraft sieht Status, Start und Durchlauf.
+- Optionen: **mehrfach durchlaufbar** (z. B. zur Prüfungsvorbereitung; ein neuer Durchlauf ersetzt die bisherige Bearbeitung) und **Erwartungshorizont nach Abschluss anzeigen**.
+- Demo: „WG12a · Übung zuhause (Distanz)“ (Zeitraum gestern bis in 6 Tagen; Nowak, Marquardt, Thierfelder, Nolting).
+
+## Vorschau und Markierungen
+
+- Die **Vorschau** aus einem Kurs (Lehrkraft bzw. Schuladministration) führt mit „Vorschau beenden“ zurück in den Kurs; ein Wechsel in den Katalog ist dort nicht vorgesehen. Je Teilaufgabe lässt sich der **Erwartungshorizont** einblenden.
+- **Textmarkierungen** (gelb, grün, rot) sind außer in E-Mails auch im **Arbeitsauftrag** und in der **Ausgangssituation** möglich; sie bleiben je Prüfling gespeichert und werden nicht bewertet.
+- Direkt in der Aufgabe hochgeladene Dateien liegen zusätzlich unter **Eigene Dateien › Dateiupload**.
+- Tabellenzeilen (Raumaufsichten, Kurse) öffnen sich per Klick in die Zeile oder mit Enter.
 
 ## Schneller korrigieren
 
@@ -260,18 +287,20 @@ pb_public/       Frontend (ohne Build-Schritt) – wird auf GitHub Pages veröff
   js/seats.js    Sitzordnungen (Reihen, versetzt, U-Form, Gruppentische) und Raumbelegung
   js/docs.js     PDF-Darstellung (PDF.js), Office-Vorschau und Umwandlung in PDF (mammoth, SheetJS, jsPDF)
   js/grades.js   Linearer Notenschlüssel, Gruppenfreigaben, Gesamtnote
+  js/rules.js    Aufgabensteuerung: Bedingungen, Aktionen, Auswertung
+  js/highlight.js Textmarkierungen in Arbeitsauftrag und Ausgangssituation
   samples/       Beispieldateien (Materialien, E-Mail-Anlagen, Beispielabgaben)
   css/app.css    Designsystem nach Figma (Gelb-Header, Rail, Tabs, Modals, Toasts, Status-Chips …)
   js/app.js      Router, Shells, Rollenwahl
   js/data.js     Backend-Erkennung, PocketBase-Client bzw. Browser-Datenbank, Realtime-Spiegel
   js/scenario.js Prüfungsinhalt (Szenario FunSport, Aufgaben, Kriterien, Erwartungshorizont, Korrekturzeichen)
   js/ink.js      Stiftgesten und Handschrifterkennung der Korrekturzeichen
-  js/views/      participant.js · dock.js (Fenster, Taskleiste, Rechner, IDE) · proctor.js · correction.js · kmode.js (Korrekturmodus) · results.js (Ergebnisse, Einsicht) · teacher.js
+  js/views/      participant.js · dock.js (Fenster, Taskleiste, Rechner, IDE) · proctor.js · correction.js · kmode.js (Korrekturmodus) · results.js (Ergebnisse, Einsicht) · rules.js (Aufgabensteuerung) · teacher.js
 ```
 
 ### Datenmodell (Collections)
 
-`orgs` (Schulen), `persons` (Konten: Lehrkraft, Schüler:in, Schuladmin), `groups` (Klassen/Kurse der Schulverwaltung und eigene Gruppen), `courses` (Unterricht bzw. Prüfung mit Mitgliedern `[{ person, role, stage }]` und Gruppen), `venues` (reale Räume je Schule, nur für Prüfungen), `rooms` (Raumaufsichten mit Kurs, Schule, Eigentümer, Sitzordnung `layout`/`capacity`/`cols`/`group_size` und ggf. realem Raum `venue`), `participants` (Teilnahmen, mit Person verknüpft), `supervisors`, `protocol`, `items` (Dateien inkl. Upload, Mails, Termine, Notizen, Tickets, Code und Abgabe-Markierungen je Prüfling, Zuordnung zur Aufgabe in `data.task`), `gradings` (Punkte, Korrekturzeichen, Begründungen und Freigabe je Korrektor), `kfiles` (Dateien der Korrigierenden), `comments`, `tasks` (Aufgabensteuerung), `catalog`, `settings`.
+`orgs` (Schulen), `persons` (Konten: Lehrkraft, Schüler:in, Schuladmin; `orgs` = weitere Schulen), `groups` (Klassen/Kurse der Schulverwaltung und eigene Gruppen), `courses` (Unterricht bzw. Prüfung mit Mitgliedern `[{ person, role, stage }]`, Gruppen, Aufgabensteuerung `rules` und Einsicht-Freigabe je Schule `einsicht`), `venues` (Prüfungsräume je Schule, von der Schuladministration gepflegt), `rooms` (Raumaufsichten mit Kurs, Schule, Eigentümer, Sitzordnung `layout`/`capacity`/`cols`/`group_size` und ggf. realem Raum `venue`; Distanz: `mode`, `window_from`/`window_to`, `repeatable`, `show_horizon`; Freigabe der Korrektur `released`), `participants` (Teilnahmen, mit Person verknüpft), `supervisors`, `protocol`, `items` (Dateien inkl. Upload, Mails, Termine, Notizen, Tickets, Code und Abgabe-Markierungen je Prüfling, Zuordnung zur Aufgabe in `data.task`), `gradings` (Punkte, Korrekturzeichen, Begründungen und Freigabe je Korrektor), `kfiles` (Dateien der Korrigierenden), `comments`, `tasks` (Aufgabensteuerung), `catalog`, `settings`.
 
 ### Teilnehmenden-Status
 

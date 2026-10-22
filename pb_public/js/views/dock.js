@@ -3,10 +3,10 @@
 // - mehrere Fenster je Kategorie (z. B. jede geöffnete E-Mail, jede Notiz)
 // - Klick außerhalb eines Fensters minimiert alle sichtbaren Fenster
 // - Wiederherstellen über die Taskleiste (Dock); bei mehreren Fenstern Auswahlliste
-import { onChange, fileUrl } from "../data.js?v=8.4";
-import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.4";
-import { EXAM, subtask } from "../scenario.js?v=8.4";
-import { isOffice, officeHtml, downloadUrl } from "../docs.js?v=8.4";
+import { onChange, fileUrl } from "../data.js?v=8.5";
+import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.5";
+import { EXAM, subtask } from "../scenario.js?v=8.5";
+import { isOffice, officeHtml, downloadUrl } from "../docs.js?v=8.5";
 
 let ctx = null;
 export const setCtx = (c) => { ctx = c; };
@@ -285,9 +285,11 @@ function filesWin(w) {
     const groups = {}; list.forEach((f) => (groups[f.data.path || "Bereitgestellte Dateien"] ||= []).push(f));
     html += Object.entries(groups).map(([g, fs]) => `<div class="bold row mt-s">${icon("chevron-down")} ${icon("folder")} ${esc(g)}</div>${fs.map((f) => row(f, false)).join("")}`).join("");
   } else {
-    const rootL = list.filter((f) => !f.data.path), mailL = list.filter((f) => f.data.path === "E-Mail-Anlagen");
+    const rootL = list.filter((f) => !f.data.path);
+    const sub = (title, hint, l) => `<div class="bold row mt-s" style="margin-left:24px">${icon("chevron-down")} ${icon("folder")} ${title} <span class="xs muted" style="font-weight:400">${hint}</span></div>` + (l.length ? l.map((f) => row(f, true).replace("margin-left:24px", "margin-left:48px").replace(`Format: ${esc(f.data.format)}`, `${f.data.fromSubject ? `Aus E-Mail „${esc(f.data.fromSubject)}“ · ` : f.data.direct ? `Abgabe ${esc(f.submission || "")} · ` : ""}Format: ${esc(f.data.format)}`)).join("") : `<div class="xs muted" style="margin-left:52px">leer</div>`);
     html += `<div class="bold row">${icon("chevron-down")} ${icon("folder")} Eigene Dateien</div>` + (rootL.length ? rootL.map((f) => row(f, true)).join("") : `<div class="empty small">${icon("folder")}<div>Noch keine eigenen Dateien</div></div>`) +
-      `<div class="bold row mt-s" style="margin-left:24px">${icon("chevron-down")} ${icon("folder")} E-Mail-Anlagen <span class="xs muted" style="font-weight:400">automatisch aus empfangenen E-Mails</span></div>` + (mailL.length ? mailL.map((f) => row(f, true).replace('margin-left:24px', 'margin-left:48px').replace(`Format: ${esc(f.data.format)}`, `Aus E-Mail „${esc(f.data.fromSubject || "")}“ · Format: ${esc(f.data.format)}`)).join("") : `<div class="xs muted" style="margin-left:52px">Keine Anlagen</div>`) +
+      sub("E-Mail-Anlagen", "automatisch aus empfangenen E-Mails", list.filter((f) => f.data.path === "E-Mail-Anlagen")) +
+      sub("Dateiupload", "direkt in Aufgaben als Abgabe hochgeladen", list.filter((f) => f.data.path === "Dateiupload")) +
       `<h3 class="mt">Dateien hochladen</h3><div class="uploadbox mt-s"><label class="btn">${icon("upload")} Datei auswählen<input type="file" hidden data-upload></label><span class="small">Erlaubte Formate: PDF, JPG, PNG, CSV, XLSX, DOCX – Maximalgröße: 20 MB</span></div>`;
   }
   return { html, bind(el) {
@@ -336,7 +338,7 @@ function fileWin(w) {
     : `<div class="card" style="width:240px;aspect-ratio:1/1.3;display:grid;place-items:center;background:var(--bg-soft);text-align:center">${icon("file-text", "xl")}<div class="small">${esc(f.data.format)}-Vorschau<br><span class="muted xs">${url ? "keine Vorschau – bitte herunterladen" : "(bereitgestellte Demo-Datei)"}</span></div></div>`;
   return { html: `<div class="row" style="align-items:flex-start;gap:24px;flex-wrap:wrap"><div style="flex:1 1 320px">${prev}</div>
     <div class="col" style="gap:6px"><div><b>Name:</b> ${esc(f.data.name)}</div><div><b>Format:</b> ${esc(f.data.format)}</div><div><b>Größe:</b> ${esc(f.data.size)}</div><div><b>Geändert:</b> ${esc(f.data.changed)}</div><div><b>Ordner:</b> ${f.folder === "provided" ? "Bereitgestellte Dateien" : "Eigene Dateien"}</div><div><b>Abgabe:</b> ${f.submission ? "Teilaufgabe " + esc(f.submission) : "nicht markiert"}</div>${url ? `<a class="btn sm mt-s" href="${url}?download=1" download>${icon("download")} Herunterladen</a>` : ""}</div></div>`,
-    footer: (url ? `<button class="btn sm ghost" data-dl>${icon("download")} Herunterladen</button>` : "") + (f.folder === "abgabe" ? `<span class="xs muted">Direkt in der Aufgabe hochgeladene Abgabe ${esc(f.submission)}</span>` : f.folder === "own" ? `<button class="btn sm" data-mk>${icon("circle-check")} ${f.submission ? "Markierung ändern" : "Als Abgabe markieren"}</button>` : `<button class="btn sm" data-cp>${icon("copy")} In eigene Dateien kopieren</button>`),
+    footer: (url ? `<button class="btn sm ghost" data-dl>${icon("download")} Herunterladen</button>` : "") + (f.data?.direct ? `<span class="xs muted">Direkt in der Aufgabe hochgeladene Abgabe ${esc(f.submission)}</span>` : f.folder === "own" ? `<button class="btn sm" data-mk>${icon("circle-check")} ${f.submission ? "Markierung ändern" : "Als Abgabe markieren"}</button>` : `<button class="btn sm" data-cp>${icon("copy")} In eigene Dateien kopieren</button>`),
     bind(el) {
       const op = el.querySelector("[data-office]"); if (op) officeHtml(op.dataset.office, op.dataset.oname).then((h) => (op.innerHTML = h)).catch(() => (op.textContent = "Vorschau nicht verfügbar – bitte herunterladen"));
       const dl = el.querySelector("[data-dl]"); if (dl) dl.onclick = () => download(f);

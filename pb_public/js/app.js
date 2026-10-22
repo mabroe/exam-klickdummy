@@ -1,19 +1,19 @@
 // Exam Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.4";
-import { lock as lockGate } from "./gate.js?v=8.4";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.4";
-import * as TN from "./views/participant.js?v=8.4";
-import * as PR from "./views/proctor.js?v=8.4";
-import * as KO from "./views/correction.js?v=8.4";
-import * as LK from "./views/teacher.js?v=8.4";
-import * as RS from "./views/results.js?v=8.4";
-import * as KU from "./views/courses.js?v=8.4";
-import * as GD from "./guide.js?v=8.4";
-import { CORRECTORS } from "./scenario.js?v=8.4";
-import { me, personName, orgShort, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.4";
-import { seatCount, seatCmp } from "./seats.js?v=8.4";
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.5";
+import { lock as lockGate } from "./gate.js?v=8.5";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.5";
+import * as TN from "./views/participant.js?v=8.5";
+import * as PR from "./views/proctor.js?v=8.5";
+import * as KO from "./views/correction.js?v=8.5";
+import * as LK from "./views/teacher.js?v=8.5";
+import * as RS from "./views/results.js?v=8.5";
+import * as KU from "./views/courses.js?v=8.5";
+import * as GD from "./guide.js?v=8.5";
+import { CORRECTORS } from "./scenario.js?v=8.5";
+import { me, personName, orgShort, orgsLabel, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.5";
+import { seatCount, seatCmp } from "./seats.js?v=8.5";
 
-export const VERSION = "8.4";
+export const VERSION = "8.5";
 export const VERSION_LABEL = `Version ${VERSION} · 22.10.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },
@@ -57,6 +57,7 @@ const routes = [
   [/^app\/kurs\/([^/]+)(?:\/([^/]+))?$/, (m) => KU.detail(m[1], m[2] || "mitglieder")],
   [/^app\/vorschau\/([^/]+)(?:\/(.*))?$/, (m, q) => TN.preview(m[1], m[2] || "", q)],
   [/^app\/admin$/, () => LK.admin()],
+  [/^app\/raeume$/, () => PR.venues()],
 ];
 
 let current = null;
@@ -138,6 +139,7 @@ function staffShell(v) {
     ["kurse", "#/app/kurse", adm ? "clipboard-list" : "book-open", adm ? "Prüfungen" : "Mein Unterricht"],
     ["ergebnisse", "#/app/ergebnisse", "chart-pie", "Ergebnisse"],
     ["schule", "#/app/raumaufsicht", "school", "Meine Schule"],
+    ...(adm ? [["raeume", "#/app/raeume", "door-open", "Prüfungsräume"]] : []),
     ["admin", "#/app/admin", "sliders-horizontal", "Administration"],
   ];
   return `<button class="skiplink" data-skip>Zum Inhalt springen</button><header class="topbar">${brand()}${userMenu()}</header>
@@ -166,7 +168,7 @@ export function directHelp(extra = "") {
     body: `<p>Dieser Klickdummy bildet die Prüfungsplattform am Bildschirmarbeitsplatz nach. Alle Daten sind Demodaten und werden lokal in PocketBase gespeichert.</p>${extra}` });
 }
 function aboutBox() {
-  modal({ title: "Informationen", size: "wide", body: `<p><b>Exam Klickdummy – Prüfungsplattform Bildschirmarbeitsplatz</b></p>
+  modal({ title: "Informationen", size: "wide", body: `<p><b>Exam Klickdummy – Prüfungsplattform Exam</b></p>
   <p>Grundlage sind die Figma-Screens (Wartebereich, Teilnahmemodus, Raumaufsicht, Korrekturworkflow, Aufgabensteuerung, Katalog) sowie die Rollen- und Aufgabenbeschreibungen der Instanzen OPE, OPP und OPU.</p>
   <p>Die Rollen sind live gekoppelt: Öffnen Sie z. B. die Raumaufsicht und den Prüfling in zwei Browserfenstern, um Start, Pause und Einsammeln in Echtzeit zu sehen.</p>` });
 }
@@ -187,7 +189,7 @@ function notFound() {
 
 // ---------- Rollen- und Personenwahl ----------
 const P = (kind) => D.persons.filter((p) => p.kind === kind).sort((a, b) => a.org.localeCompare(b.org) || a.lastname.localeCompare(b.lastname));
-const optP = (list, sel) => list.map((p) => `<option value="${p.id}" ${p.username === sel ? "selected" : ""}>${esc(personName(p))} (${esc(orgShort(p.org))})</option>`).join("");
+const optP = (list, sel) => list.map((p) => `<option value="${p.id}" ${p.username === sel ? "selected" : ""}>${esc(personName(p))} (${esc(orgsLabel(p))})</option>`).join("");
 export function login(person, role, extra = {}) { store.set("person", person?.id || ""); setRole(role, extra); }
 function startView() {
   const room = D.rooms.find((r) => r.name === "Raum 123") || D.rooms[0];
@@ -202,7 +204,7 @@ function startView() {
   correctors.sort((a, b) => a.stage - b.stage || orgShort(a.pe.org).localeCompare(orgShort(b.pe.org)) || a.pe.lastname.localeCompare(b.pe.lastname));
   return {
     title: "Rollenwahl",
-    render: () => `<div class="start"><header class="topbar">${brand()}<span class="bold">Klickdummy · Prüfungsplattform Bildschirmarbeitsplatz</span></header>
+    render: () => `<div class="start"><header class="topbar">${brand()}<span class="bold">Klickdummy · Prüfungsplattform Exam</span></header>
     <div class="wrap">
       <h1>Anmelden als …</h1>
       <p class="lead mt">Wählen Sie eine Person. Zwei Schulen sind angelegt (AFS und BTS), damit die Sichtbarkeit je Konto und Organisation testbar ist. Die Rollen sind live gekoppelt – öffnen Sie z. B. Raumaufsicht und Prüfling in zwei Browserfenstern${backend.mode === "local" ? " bzw. Tabs dieses Browsers" : ""}.</p>
@@ -275,6 +277,15 @@ async function boot() {
     refresh();
   });
   window.addEventListener("hashchange", () => render());
+  // Vorschau: Herkunft merken (aus einem Kurs → zurück zum Kurs, aus dem Katalog → zurück zum Katalog)
+  // Tabellenzeilen mit data-href: Klick in die Zeile öffnet den Eintrag (Schaltflächen und Links in der Zeile behalten ihre Funktion)
+  document.addEventListener("click", (e) => {
+    const pv = e.target.closest("[data-pvfrom]"); if (pv) store.set("pvfrom", { course: pv.dataset.pvfrom, tab: "info" });
+    if (e.target.closest("[data-pvcat], a[href^='#/app/katalog']")) store.set("pvfrom", null);
+    const tr = e.target.closest("tr[data-href]");
+    if (tr && !e.target.closest("a, button, input, select, textarea, label")) navigate(tr.dataset.href);
+  });
+  document.addEventListener("keydown", (e) => { const tr = e.target.closest?.("tr[data-href]"); if (tr && e.target === tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); navigate(tr.dataset.href); } });
   render();
 }
 boot();

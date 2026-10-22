@@ -4,7 +4,7 @@
 // Alle Personennamen sind zufällig erzeugte Fantasienamen – Ähnlichkeiten mit realen Personen sind nicht beabsichtigt.
 (function (root) {
   // Stand der Demodaten. Erhöhen, wenn sich die Demodaten ändern – ältere Datenbestände werden beim Start automatisch neu aufgebaut.
-  var SEED_VERSION = 12;
+  var SEED_VERSION = 13;
   var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings"];
 
   // Bewertungskriterien je Teilaufgabe (Maximalpunkte) – muss zu js/scenario.js passen
@@ -40,6 +40,8 @@
     var T = {};
     [["Eggert", "Amir", "AE"], ["Riedmüller", "Thea", "TR"], ["Voigt", "Lina", "LV"], ["Ohm", "Gesa", "GO"], ["Steinhoff", "Ayla", "AS"], ["Ebeling", "Karim", "KE"], ["Morawetz", "Ilyas", "IM"]]
       .forEach(function (x) { T[x[0]] = P(x[0], x[1], afs, "lehrkraft", x[2]); });
+    // Lehrkraft mit Abordnung: Stammschule AFS, zusätzlich der BTS zugeordnet (sieht die berechtigten Informationen beider Schulen)
+    T.Morawetz.orgs = [afs.id, bts.id];
     T.Hinrichs = P("Hinrichs", "Marit", afs, "schuladmin", "MH");
     T.Ammermann = P("Ammermann", "Ilka", bts, "schuladmin", "IA");
     T.Gaspari = P("Gaspari", "Emil", bts, "lehrkraft", "EG");
@@ -76,7 +78,7 @@
     var pr2 = CO({ title: "Interne Evaluation", kind: "pruefung", orgs: [afs.id], exam_code: "" });
     var u1 = CO({ title: "Zentrale Klassenarbeit HTML", kind: "unterricht", catalog: catWeb.id, org: afs.id, owner: T.Eggert.id, members: [{ person: T.Eggert.id, role: "besitzer" }] });
     var u2 = CO({ title: "Klassenarbeit HTML WG12b", kind: "unterricht", catalog: catWeb.id, org: afs.id, owner: T.Morawetz.id, members: [{ person: T.Morawetz.id, role: "besitzer" }] });
-    var u3 = CO({ title: "Zentrale Klassenarbeit CSS", kind: "unterricht", catalog: catWeb.id, org: bts.id, owner: T.Gaspari.id, members: [{ person: T.Gaspari.id, role: "besitzer" }] });
+    var u3 = CO({ title: "Zentrale Klassenarbeit CSS", kind: "unterricht", catalog: catWeb.id, org: bts.id, owner: T.Gaspari.id, members: [{ person: T.Gaspari.id, role: "besitzer" }, { person: T.Morawetz.id, role: "mitbetreuung" }] });
 
     // ---------- Raumaufsichten ----------
     // Prüfung: realer Raum (venue) der Schule. Unterricht: kein realer Raum – Sitzplätze und Anordnung legt die Lehrkraft fest.
@@ -246,7 +248,7 @@
       var fmt = ["pdf", "docx", "xlsx"][idx % 3];
       add("items", { participant: pid, kind: "file", folder: "own", submission: "1.2", data: { task: "1", name: "Kalkulation_" + l + "." + fmt, format: fmt.toUpperCase(), size: "0,1 MB", changed: "21.10.26", url: "samples/abgaben/Kalkulation_" + l + "." + fmt } });
       // Abgabe 2.3: direkt in der Aufgabe hochgeladene Datei (nicht in „Eigene Dateien“)
-      if (idx < 4) { var f2 = ["xlsx", "pdf", "docx", "xlsx"][idx]; add("items", { participant: pid, kind: "file", folder: "abgabe", submission: "2.3", data: { task: "2", name: "Nachkalkulation_" + l + "." + f2, format: f2.toUpperCase(), size: "0,1 MB", changed: "21.10.26", url: "samples/abgaben/Nachkalkulation_" + l + "." + f2, direct: true } }); }
+      if (idx < 4) { var f2 = ["xlsx", "pdf", "docx", "xlsx"][idx]; add("items", { participant: pid, kind: "file", folder: "own", submission: "2.3", data: { task: "2", path: "Dateiupload", name: "Nachkalkulation_" + l + "." + f2, format: f2.toUpperCase(), size: "0,1 MB", changed: "21.10.26", url: "samples/abgaben/Nachkalkulation_" + l + "." + f2, direct: true } }); }
       if (idx % 4 !== 3) add("items", { participant: pid, kind: "code", folder: "ide", submission: "1.3", data: { task: "1", name: "bestellmenge.py", lang: "python", code: "# Aufgabe 1.3 – Bestellmenge\n\ndef bestellmenge(lagerbestand, meldebestand, hoechstbestand):\n    if lagerbestand < meldebestand:\n        return hoechstbestand - lagerbestand\n" + (idx % 2 ? "    return 0\n" : "    else:\n        return 0\n") + "\n\nprint(\"Bestellmenge:\", bestellmenge(120, 150, 400))\n" } });
       add("items", { participant: pid, kind: "note", folder: "notes", submission: "2.1", data: { task: "2", title: "Anfrage", html: "<p>Sehr geehrte Damen und Herren,</p><p>wir bitten um ein Angebot über 500 Kugellager Typ 608-2RS …</p>" } });
 
@@ -323,13 +325,54 @@
     var btsGroups = Object.keys(groupMembers).filter(function (k) { return groupMembers[k].org === bts; }).map(function (k) { return GR(k, bts, "klasse", groupMembers[k].ids); });
     // Mitglieder der Prüfung (pflegt die Schuladministration der jeweiligen Schule) und des Unterrichts (pflegt die Lehrkraft)
     pr1.groups = [{ group: gFA.id, role: "teilnehmer" }].concat(btsGroups.map(function (g) { return { group: g.id, role: "teilnehmer" }; }));
-    pr1.members = [{ person: T["Riedmüller"].id, role: "raumaufsicht" }, { person: T.Voigt.id, role: "raumaufsicht" }, { person: T.Hinrichs.id, role: "pruefungseinsicht" }, { person: T.Gaspari.id, role: "raumaufsicht" }, { person: T["Dähne"].id, role: "raumaufsicht" }];
+    pr1.members = [{ person: T["Riedmüller"].id, role: "raumaufsicht" }, { person: T.Voigt.id, role: "raumaufsicht" }, { person: T.Hinrichs.id, role: "pruefungseinsicht" }, { person: T.Gaspari.id, role: "raumaufsicht" }, { person: T["Dähne"].id, role: "raumaufsicht" }, { person: T.Morawetz.id, role: "raumaufsicht" }];
     // Korrektorengruppen je Korrekturstufe (Zuweisung für die Klasse FA230a bzw. die Klassen der BTS); Endbeurteilung nur auf Anforderung
     var K = function (stage, group, correctors, org) { return { id: rid(), stage: stage, kind: "group", target: group.id, correctors: correctors.map(function (x) { return x.id; }), org: org.id }; };
     pr1.corrections = [K(1, gFA, [T.Ohm, T.Voigt], afs), K(2, gFA, [T.Steinhoff], afs), K(3, gFA, [T.Ebeling], afs)]
-      .concat(btsGroups.map(function (g) { return K(1, g, [T.Gaspari], bts); }), btsGroups.map(function (g) { return K(2, g, [T["Dähne"]], bts); }));
+      .concat(btsGroups.map(function (g) { return K(1, g, [T.Gaspari], bts); }), btsGroups.map(function (g) { return K(2, g, [T["Dähne"], T.Morawetz], bts); }));
     pr1.third = {}; pr1.korr_end = "2026-11-06"; pr1.dk_threshold = 1;
+    // Aufgabensteuerung (Beispielregeln): Aktion ausgeführt bzw. zeitliche Faktoren, verknüpft mit UND/ODER
+    var mailA = function (task, subject, body) { return { id: rid(), type: "mail", task: task, from: "Bäumler, Karim", from_mail: "Karim.Baeumler@funsport-innovations.de", subject: subject, body: body }; };
+    var exampleRules = function () { return [
+      { id: rid(), name: "Rückfrage nach Start von Aufgabe 2", active: true, match: "all", groups: [{ id: rid(), match: "all", conditions: [{ id: rid(), type: "task_opened", task: "2" }] }],
+        actions: [mailA("2", "Kurze Rückfrage zur Kalkulation", "Hallo,\n\nbitte berücksichtigen Sie bei der Kalkulation zusätzlich den Mindermengenzuschlag von 25 € je Bestellung.\n\nViele Grüße\nKarim Bäumler")] },
+      { id: rid(), name: "Erinnerung nach 3 Minuten ohne Aktivität", active: true, match: "all", groups: [{ id: rid(), match: "all", conditions: [{ id: rid(), type: "inactive_minutes", min: 3 }] }],
+        actions: [mailA("", "Wie ist der Stand?", "Hallo,\n\nich habe seit einigen Minuten nichts von Ihnen gehört. Wie ist der aktuelle Stand?\n\nViele Grüße\nKarim Bäumler")] },
+      { id: rid(), name: "Terminvorschlag nach Angebotsvergleich", active: true, match: "all", groups: [{ id: rid(), match: "any", conditions: [{ id: rid(), type: "mail_sent", task: "1" }, { id: rid(), type: "minutes_in_task", task: "1", min: 10 }] }],
+        actions: [{ id: rid(), type: "event", task: "1", title: "Abstimmung Lieferantenauswahl", day: 2, start: "10:00", end: "10:30", location: "Besprechungsraum 1", text: "Ergebnis des Angebotsvergleichs vorstellen" }] },
+      { id: rid(), name: "Hinweis auf fehlende Abgabe 3.1", active: true, match: "all", groups: [{ id: rid(), match: "all", conditions: [{ id: rid(), type: "remaining_minutes", min: 15 }, { id: rid(), type: "no_submission", subtask: "3.1" }] }],
+        actions: [{ id: rid(), type: "notice", text: "Zu Teilaufgabe 3.1 ist noch keine Abgabe markiert. Denken Sie daran, Ihre Ergebnisse als Abgabe zu markieren." }] },
+    ]; };
+    pr1.rules = exampleRules(); u1.rules = exampleRules().slice(0, 2);
+    pr1.einsicht = {};
     u1.groups = [{ group: gWG.id, role: "teilnehmer" }];
+
+    // ---------- Unterricht: Distanzeinheit (fester Zeitraum, Start durch die Schüler:innen, mehrfach durchlaufbar) ----------
+    var wFrom = new Date(now.getTime() - 86400000); wFrom.setHours(8, 0, 0, 0);
+    var wTo = new Date(now.getTime() + 6 * 86400000); wTo.setHours(20, 0, 0, 0);
+    var dist = R(Object.assign(V_("WG12a · Übung zuhause (Distanz)", 30, "reihen", { cols: 5 }), { exam_name: u1.title, planned_start: iso(wFrom), course: u1.id, org: afs.id, owner: T.Eggert.id,
+      mode: "distanz", window_from: iso(wFrom), window_to: iso(wTo), duration_min: 45, repeatable: true, show_horizon: true, start_earliest: "", start_latest: "" }));
+    var LP = function (per, roomId, extra) { return add("participants", Object.assign({ lastname: per.lastname, firstname: per.firstname, username: per.username, group_name: "WG12a", org: afs.name, person: per.id, room: roomId, seat: "", present: false, status: "nicht_eingeloggt", extra_time: 0, comment: "", health: "", cheat_ack: false, bookmarks: [], nta: 0, violations: 0, attempt: 1 }, extra || {})); };
+    wg.slice(0, 4).forEach(function (per, i) {
+      LP(per, dist.id, i === 1 ? { status: "abgegeben", cheat_ack: true, health: "ok", present: true, started_at: iso(new Date(now.getTime() - 3 * 3600000)), finished_at: iso(new Date(now.getTime() - 2.4 * 3600000)) } : {});
+    });
+    add("protocol", { room: dist.id, ts: iso(new Date(now.getTime() - 2.4 * 3600000)), participant: wg[1].lastname + ", " + wg[1].firstname, username: wg[1].username, seat: "–", action: "Einheit beendet und abgegeben", comment: "Distanzunterricht · Durchlauf 1", kind: "system" });
+
+    // ---------- Unterricht: abgeschlossene, korrigierte Präsenzeinheit (Korrektur für die Schüler:innen freigegeben) ----------
+    var past = R(Object.assign(V_("Klassenarbeit HTML · Probelauf", 12, "reihen", { cols: 4 }), { exam_name: u1.title, planned_start: day(-6), started_at: day(-6), course: u1.id, org: afs.id, owner: T.Eggert.id, state: "TERMINATED", released: true }));
+    u1.corrector = T.Eggert.id;
+    wg.slice(4, 7).forEach(function (per, i) {
+      var lp = LP(per, past.id, { status: "beendet", seat: "1-" + (i + 1), cheat_ack: true, health: "ok", present: true, started_at: day(-6), finished_at: day(-6) });
+      add("items", { participant: lp.id, kind: "mail", folder: "sent", submission: "1.1", data: { task: "1", from: per.firstname + " " + per.lastname, from_mail: per.username + "@azubi.funsport-innovations.de", to: "Karim.Baeumler@funsport-innovations.de", subject: "AW: Quantitativer Angebotsvergleich für neue Lithium-Batterie-Packs", date: "13.10.2025 10:1" + i, attachments: [],
+        body: "Sehr geehrter Herr Bäumler,\n\nnach meinem Angebotsvergleich ist das Angebot der " + (i % 2 ? "InnovaTech GmbH" : "BatteryWorld GmbH") + " unter Berücksichtigung von Rabatt, Skonto und Bezugskosten günstiger.\n\nMit freundlichen Grüßen\n" + per.firstname + " " + per.lastname } });
+      add("items", { participant: lp.id, kind: "note", folder: "notes", submission: "2.1", data: { task: "2", title: "Anfrage", html: "<p>Sehr geehrte Damen und Herren,</p><p>bitte senden Sie uns ein Angebot über 500 Kugellager Typ 608-2RS.</p>" } });
+      var pts = {}, notes = {};
+      Object.keys(CRITERIA).forEach(function (st) { pts[st] = CRITERIA[st].map(function (m) { return Math.max(0, Math.round(m * (0.5 + rnd() * 0.5) * 2) / 2); }); });
+      notes["1.1"] = ["Vergleich vollständig, Skonto korrekt berücksichtigt.", "Ergebnis richtig, die Begründung der Entscheidung fehlt teilweise.", "Bezugskosten nicht vollständig einbezogen."][i];
+      notes["2.1"] = "Anfrage formal korrekt, Liefertermin fehlt.";
+      add("gradings", { participant: lp.id, corrector: 1, points: pts, not_done: {}, notes: notes, released: true, approvals: [T.Eggert.id],
+        marks: { "1.1": [{ id: "lp" + i + "a", type: "sign", sign: i === 2 ? "f" : "r", ax: 420, ay: 300 }, { id: "lp" + i + "b", type: "hline", style: "single", x1: 330, x2: 520, y: 330 }] } });
+    });
 
     // ---------- Einstellungen ----------
     add("settings", { key: "favorites", value: ["Uv", "Ug", "r", "(r)", "f"] });

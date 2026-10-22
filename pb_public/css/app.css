@@ -1047,3 +1047,39 @@ p.sig { color: var(--ink-2); }
 .kfile2 .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .badge.xs { font-size: 10.5px; padding: 1px 6px; }
 .tbl.erp { font-size: 13px; } .tbl.erp .btn.sm { padding: 4px 10px; min-height: 30px; white-space: nowrap; }
+tr.rowlink { cursor: pointer; }
+tr.rowlink:hover td { background: var(--bg-softer); }
+tr.rowlink:focus-visible { outline: 3px solid #4a90e2; outline-offset: -3px; }
+.hzbox { border: 1px solid var(--green-line); background: #f6fbec; border-radius: 6px; padding: 10px 12px; }
+.hzlist { margin: 8px 0; padding-left: 0; list-style: none; } .hzlist li { display: flex; gap: 12px; padding: 4px 0; border-bottom: 1px dashed #d6e6b8; font-size: 14px; }
+.pvhz { margin-top: 8px; }
+
+/* ---------- v8.5: Markierungen, Aufgabensteuerung, Distanz, Prüfungsräume ---------- */
+.mkwrap { position: relative; }
+.mkbody { margin: 0 0 4px; }
+.prewrap { white-space: pre-line; }
+.mktools { display: flex; align-items: center; gap: 6px; color: var(--muted); margin: 2px 0 10px; }
+.mktools .ico { width: 14px; height: 14px; }
+.rulecard { margin-top: 14px; border-left: 4px solid var(--brand, #0b6aa2); }
+.rulecard.off { opacity: .6; border-left-color: var(--line); }
+.rulename { font-weight: 600; max-width: 460px; }
+.rcols { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 22px; margin-top: 10px; }
+@media (max-width: 1100px) { .rcols { grid-template-columns: 1fr; } }
+.rcols h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.rgroup { border: 1px dashed var(--line); border-radius: 6px; padding: 8px 10px; background: var(--bg-softer); }
+.rcond { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; }
+.rcond .select.sm, .ract .select.sm { min-height: 30px; padding-top: 2px; padding-bottom: 2px; }
+.rjoin { text-align: center; font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--brand, #0b6aa2); margin: 6px 0; }
+.rjoin.s { text-align: left; margin: 0 0 0 8px; font-weight: 600; text-transform: lowercase; color: var(--muted); }
+.matchsel { width: auto; }
+.ract { border: 1px solid var(--line-2); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; background: #fff; }
+.rfields { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.rfield { display: flex; flex-direction: column; gap: 2px; min-width: 120px; flex: 1 1 140px; }
+.rfield.wide { flex: 1 1 100%; }
+.input.sm, .select.sm { font-size: 13px; }
+.modepick { border: 0; padding: 0; margin: 0 0 8px; grid-column: 1 / -1; }
+.modepick .radio { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.rcond .select { width: auto; flex: 1 1 170px; }
+.rcond .iconbtn { flex: 0 0 auto; }
+[data-rtpl] { width: auto; max-width: 420px; }
+.ract > .row > .select { width: auto; flex: 1 1 auto; margin-right: 6px; }

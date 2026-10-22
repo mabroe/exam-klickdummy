@@ -2,10 +2,10 @@
 //  - Unterricht: Lehrkraft (Tasks 31–36, 34 als Schüler:in)
 //  - Prüfung: Schuladministration (Tasks 52, 24, 21), Raumaufsicht (Task 22/23)
 // Der Fortschritt wird aus den Daten erkannt; der Leitfaden kann jederzeit ein- und ausgeklappt werden.
-import { D, byId, onChange } from "./data.js?v=8.4";
-import { icon, esc, store, toast } from "./ui.js?v=8.4";
-import { members, personName } from "./access.js?v=8.4";
-import { navigate, render } from "./app.js?v=8.4";
+import { D, byId, onChange } from "./data.js?v=8.5";
+import { icon, esc, store, toast } from "./ui.js?v=8.5";
+import { members, personName, inOrg } from "./access.js?v=8.5";
+import { navigate, render } from "./app.js?v=8.5";
 
 const KEY = "guide";
 const st = () => store.lget(KEY, null);
@@ -51,7 +51,7 @@ function lesson(s) {
 function exam(s) {
   const K = P("m.hinrichs");
   const c = byId("courses", s.base.course) || D.courses.find((x) => x.title === "FA230 - Musterprüfung");
-  const own = c ? members(c).filter((m) => byId("persons", m.person)?.org === K?.org) : [];
+  const own = c ? members(c).filter((m) => inOrg(byId("persons", m.person), K?.org)) : [];
   const cnt = (role) => new Set(own.filter((m) => m.role === role).map((m) => m.person)).size;
   const korr = JSON.stringify(c?.corrections || []);
   const room = D.rooms.filter((r) => r.course === c?.id && !s.base.rooms.includes(r.id)).sort((a, b) => (a.created > b.created ? -1 : 1))[0];
@@ -89,7 +89,7 @@ export function start(kind, fresh = false) {
   const base = { courses: D.courses.map((c) => c.id), rooms: D.rooms.map((r) => r.id) };
   if (kind === "pruefung") {
     const c = D.courses.find((x) => x.title === "FA230 - Musterprüfung"); const K = P("m.hinrichs");
-    const own = members(c).filter((m) => byId("persons", m.person)?.org === K?.org);
+    const own = members(c).filter((m) => inOrg(byId("persons", m.person), K?.org));
     Object.assign(base, { course: c?.id, tn: new Set(own.filter((m) => m.role === "teilnehmer").map((m) => m.person)).size, ra: new Set(own.filter((m) => m.role === "raumaufsicht").map((m) => m.person)).size, korr: JSON.stringify(c?.corrections || []) });
   }
   save({ kind, base, manual: {}, open: true });
