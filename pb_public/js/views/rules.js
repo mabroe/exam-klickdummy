@@ -1,8 +1,8 @@
 // Aufgabensteuerung im Kurs: schreibgeschützte Anzeige der Regeln aus dem Inhalt der Prüfung bzw. des Kurses (Katalog).
-// Die Regeln hängen fest an der Prüfung/am Kurs und werden im Prüfungseditor konfiguriert (Editor noch nicht Bestandteil des Klickdummys).
-import { byId } from "../data.js?v=8.6";
-import { icon, esc } from "../ui.js?v=8.6";
-import { ACTIONS, condText } from "../rules.js?v=8.6";
+// Die Regeln hängen fest an der Prüfung/am Kurs und werden im Prüfungseditor (Rolle Prüfungserstellung bzw. Lehrkraft für eigene Inhalte) konfiguriert.
+import { byId } from "../data.js?v=8.7";
+import { icon, esc } from "../ui.js?v=8.7";
+import { ACTIONS, condText } from "../rules.js?v=8.7";
 
 const actText = (a) => {
   const where = a.task ? `Aufgabe ${esc(a.task)}` : "aktuelle Aufgabe";
@@ -16,7 +16,7 @@ export const rulesOfCourse = (c) => byId("catalog", c?.catalog)?.rules || [];
 export function tabRules(c) {
   const k = byId("catalog", c.catalog); const rules = rulesOfCourse(c);
   const join = (m) => (m === "any" ? "ODER" : "UND");
-  return `<div class="notice info small mb">${icon("lock")}<span><b>Aufgabensteuerung (schreibgeschützt).</b> Die Regeln gehören fest zum Inhalt ${c.kind === "pruefung" ? "der Prüfung" : "des Kurses"}${k ? ` „${esc(k.title)}“` : ""} und werden im <b>Prüfungseditor</b> konfiguriert. Lehrkräfte und Schuladministration können sie nicht ändern. Während der Bearbeitung stellen sie automatisch neue Inhalte bereit; jede Regel löst je ${c.kind === "pruefung" ? "Prüfling" : "Teilnehmer:in"} einmal aus. In der Vorschau lassen sich die Regeln nachvollziehen.</span></div>
+  return `<div class="notice info small mb">${icon("lock")}<span><b>Aufgabensteuerung (schreibgeschützt).</b> Die Regeln gehören fest zum Inhalt ${c.kind === "pruefung" ? "der Prüfung" : "des Kurses"}${k ? ` „${esc(k.title)}“` : ""} und werden im <b>Prüfungseditor</b> konfiguriert. Im Kurs können sie nicht geändert werden. Während der Bearbeitung stellen sie automatisch neue Inhalte bereit; jede Regel löst je ${c.kind === "pruefung" ? "Prüfling" : "Teilnehmer:in"} einmal aus. In der Vorschau lassen sich die Regeln nachvollziehen.</span></div>
   ${rules.length ? rules.map((r) => `<section class="card pad rulecard ${r.active === false ? "off" : ""}">
     <div class="row between wrap"><h3 style="margin:0">${icon("workflow")} ${esc(r.name)}</h3>${r.active === false ? `<span class="badge gray">inaktiv</span>` : `<span class="badge green">aktiv</span>`}</div>
     <div class="rcols"><div><h4>${icon("filter")} Wenn</h4>${(r.groups || []).map((g, gi) => `${gi ? `<div class="rjoin">${join(r.match)}</div>` : ""}<div class="rgroup">${(g.conditions || []).map((x, ci) => `${ci ? `<div class="rjoin s">${join(g.match).toLowerCase()}</div>` : ""}<div class="rcond small">${esc(condText(x, rules))}</div>`).join("")}</div>`).join("")}</div>

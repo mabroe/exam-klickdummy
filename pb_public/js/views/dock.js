@@ -3,10 +3,10 @@
 // - mehrere Fenster je Kategorie (z. B. jede geöffnete E-Mail, jede Notiz)
 // - Klick außerhalb eines Fensters minimiert alle sichtbaren Fenster
 // - Wiederherstellen über die Taskleiste (Dock); bei mehreren Fenstern Auswahlliste
-import { onChange, fileUrl } from "../data.js?v=8.6";
-import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.6";
-import { EXAM, subtask } from "../scenario.js?v=8.6";
-import { isOffice, officeHtml, downloadUrl } from "../docs.js?v=8.6";
+import { onChange, fileUrl } from "../data.js?v=8.7";
+import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.7";
+import { EXAM, subtask } from "../scenario.js?v=8.7";
+import { isOffice, officeHtml, downloadUrl } from "../docs.js?v=8.7";
 
 let ctx = null;
 export const setCtx = (c) => { ctx = c; };
@@ -244,7 +244,7 @@ onChange((c) => { if (c === "items" || c === "_reset") refreshWindows(); });
 
 // ---------- Abgabe-Markierung ----------
 const stOptions = (sel) => EXAM.tasks.filter((t) => !curTask || t.no === curTask).map((t) => `<optgroup label="Aufgabe ${t.no} ${esc(t.title)}">${t.subtasks.map((s) => `<option value="${s.no}" ${s.no === sel ? "selected" : ""}>${s.no} ${esc(s.title)}</option>`).join("")}</optgroup>`).join("");
-const LABEL = { file: "Datei", mail: "E-Mail", event: "Termin", note: "Notiz", code: "Code-Datei", ticket: "Ticket", erp: "ERP-Beleg" };
+const LABEL = { file: "Datei", mail: "E-Mail", event: "Termin", note: "Notiz", code: "Code-Datei", ticket: "Ticket", erp: "ERP-Beleg", answer: "Antwort in der Aufgabe" };
 export async function markDialog(item, kindLabel, defSt) {
   const v = await modal({ title: `${kindLabel} als Abgabe markieren`, warn: true, size: "narrow",
     body: `<p>Wählen Sie die Teilaufgabe, für die <b>${esc(item.data.name || item.data.subject || item.data.title || kindLabel)}</b> als Abgabe markiert werden soll.</p>
@@ -261,11 +261,13 @@ const markChip = (it) => `<button class="markchip ${it.submission ? "on" : ""}" 
 function bindMarks(el, w) { el.querySelectorAll("[data-mark]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); const it = items().find((i) => i.id === b.dataset.mark); markDialog(it, LABEL[it.kind], w.defSt); })); }
 
 export function itemLine(it) {
-  const ic = { file: "file", mail: "mail", event: "calendar", note: "notepad-text", code: "file-code", ticket: "ticket" }[it.kind];
-  const t = it.kind === "mail" ? it.data.subject : it.kind === "event" ? it.data.title : it.kind === "note" ? it.data.title || "Notiz" : it.kind === "ticket" ? "#" + it.data.no + " " + it.data.subject : it.data.name;
+  const ic = { file: "file", mail: "mail", event: "calendar", note: "notepad-text", code: "file-code", ticket: "ticket", erp: "package", answer: "square-pen" }[it.kind];
+  const t = it.kind === "answer" ? answerSummary(it) : it.kind === "mail" ? it.data.subject : it.kind === "event" ? it.data.title : it.kind === "note" ? it.data.title || "Notiz" : it.kind === "ticket" ? "#" + it.data.no + " " + it.data.subject : it.data.name;
   return `<div class="row small" style="padding:4px 0">${icon(ic)} <span class="grow">${esc(t)}</span><span class="muted">${LABEL[it.kind]}</span></div>`;
 }
+export const answerSummary = (it) => { const d = it.data || {}; return d.type === "single" || d.type === "multiple" ? `Auswahl: ${(d.choice || []).map((i) => String.fromCharCode(65 + i)).join(", ") || "–"}` : (d.text || "").slice(0, 80) || "–"; };
 export function itemPreview(it) {
+  if (it.kind === "answer") return `<div class="row">${icon("square-pen")}<div><b>Antwort zu ${esc(it.data?.st || "")}</b><div class="small muted">${esc(answerSummary(it))}</div></div></div>`;
   if (it.kind === "erp") return `<div class="row">${icon("package")}<div><b>${esc(erpTitle(it))}</b><div class="small muted">${esc(erpSummary(it))}</div></div></div>`;
   if (it.kind === "mail") return `<div class="row between small"><span>Von: ${esc(it.data.from_mail || it.data.from)}</span><span>${esc(it.data.date)}</span></div><div class="small">An: ${esc(it.data.to)}</div><div class="bold small mt-s">Betreff: ${esc(it.data.subject)}</div><div class="small muted">${esc((it.data.body || "").slice(0, 160))} …</div>${(it.data.attachments || []).map((a) => `<span class="attach mt-s">${icon("paperclip")} ${esc(a)}</span> `).join("")}`;
   if (it.kind === "file") return `<div class="row">${icon("file")}<div><b>${esc(it.data.name)}</b><div class="small muted">Format: ${esc(it.data.format)} · Größe: ${esc(it.data.size)} · Geändert: ${esc(it.data.changed)}</div></div></div>`;

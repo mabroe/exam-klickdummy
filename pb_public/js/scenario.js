@@ -88,10 +88,81 @@ export const EXAM = {
   ],
 };
 
-export const ALL_SUBTASKS = EXAM.tasks.flatMap((t) => t.subtasks.map((s) => ({ ...s, task: t })));
+// ---------- Inhalt austauschbar (Prüfungseditor) ----------
+// EXAM, ALL_SUBTASKS und TOTAL_POINTS werden an Ort und Stelle ersetzt, wenn ein anderer Prüfungs-/Kursinhalt aktiv wird
+// (Inhalte aus dem Editor liegen in catalog.content; ohne eigenen Inhalt gilt die Musterprüfung FA230).
+EXAM.gradingKey = { type: "linear" };
+EXAM.categories = { system: "none", list: [] };
+EXAM.duration_min = 90;
+EXAM.tasks.forEach((t) => { t.tools = ["files", "mail", "calendar", "editor", "tickets", "erp", "calc", "ide"]; t.subtasks.forEach((s) => (s.type = s.tool === "upload" ? "upload" : "app")); });
+const DEFAULT_CONTENT = JSON.parse(JSON.stringify(EXAM));
+export const defaultContent = () => JSON.parse(JSON.stringify(DEFAULT_CONTENT));
+
+export const ALL_TOOLS = [["files", "folder", "Dateien"], ["mail", "mail", "Mail"], ["calendar", "calendar", "Kalender"], ["editor", "notepad-text", "Notizen"], ["tickets", "ticket", "Tickets"], ["erp", "package", "ERP-System"], ["calc", "calculator", "Taschenrechner"], ["ide", "code-xml", "Entwicklungsumgebung"]];
+// Fragetypen einer Teilaufgabe: Bearbeitung mit einer Anwendung (Abgabe wird markiert) oder direkt in der Aufgabe
+export const QTYPES = {
+  app: { label: "Bearbeitung mit Anwendung", group: "Anwendung" },
+  upload: { label: "Datei-Upload in der Aufgabe", group: "Direkt in der Aufgabe" },
+  freitext: { label: "Freitext", group: "Direkt in der Aufgabe" },
+  kurz: { label: "Kurzantwort", group: "Direkt in der Aufgabe" },
+  single: { label: "Single Choice (eine richtige Antwort)", group: "Direkt in der Aufgabe" },
+  multiple: { label: "Multiple Choice (mehrere richtige Antworten)", group: "Direkt in der Aufgabe" },
+};
+export const APP_TOOLS = { mail: "E-Mail senden", files: "Datei in „Eigene Dateien“ ablegen", editor: "Notiz verfassen", calendar: "Termin anlegen", tickets: "Ticket bearbeiten", ide: "Programmieren (Entwicklungsumgebung)", erp: "Beleg im ERP-System erfassen" };
+export const INLINE_TYPES = ["freitext", "kurz", "single", "multiple"];
+// Notenschlüssel (einmalig je Inhalt)
+export const GRADING_KEYS = {
+  linear: { label: "Linearer Notenschlüssel", hint: "Note = 6 − 5 · Punkte / Maximalpunkte, auf eine Nachkommastelle abgerundet (Notenschlüssel 100 P)" },
+  ihk: { label: "IHK-Notenschlüssel (100-Punkte-Schlüssel)", hint: "Notenstufen ab 92 / 81 / 67 / 50 / 30 % der Maximalpunkte", thresholds: [92, 81, 67, 50, 30] },
+  schule: { label: "Notenstufen Schule", hint: "Notenstufen ab 85 / 70 / 55 / 40 / 20 % der Maximalpunkte", thresholds: [85, 70, 55, 40, 20] },
+  eigen: { label: "Eigene Notenstufen", hint: "Prozentgrenzen für die Noten 1 bis 5 frei festlegen", thresholds: [90, 80, 65, 50, 30] },
+};
+// Kategoriensysteme für die Kriterien des Bewertungsrasters (einmalig je Inhalt)
+export const CATEGORY_SYSTEMS = {
+  none: { label: "Ohne Kategorien", list: [] },
+  kompetenz: { label: "Kompetenzbereiche", list: ["Fachkompetenz", "Methodenkompetenz", "Sprach- und Darstellungskompetenz"] },
+  afb: { label: "Anforderungsbereiche", list: ["AFB I – Reproduktion", "AFB II – Reorganisation und Transfer", "AFB III – Reflexion und Problemlösung"] },
+  handlung: { label: "Handlungsphasen", list: ["Informieren und Planen", "Durchführen", "Kontrollieren und Bewerten"] },
+  eigen: { label: "Eigenes Kategoriensystem", list: [] },
+};
+export const categoryList = (c = EXAM.categories) => (c?.system === "eigen" ? (c.list || []).filter(Boolean) : CATEGORY_SYSTEMS[c?.system]?.list || []);
+
+export const ALL_SUBTASKS = [];
+export let TOTAL_POINTS = 0;
 export const subtask = (no) => ALL_SUBTASKS.find((s) => s.no === no);
 export const taskOf = (no) => EXAM.tasks.find((t) => t.no === String(no));
-export const TOTAL_POINTS = EXAM.tasks.reduce((a, t) => a + t.points, 0);
+// Punkte, Nummerierung und Standardwerte aus dem Inhalt ableiten
+export function normalizeContent(c) {
+  c.tasks = (c.tasks || []).map((t, i) => {
+    t.no = String(i + 1); t.tools = t.tools || ALL_TOOLS.map((x) => x[0]); t.materials = t.materials || [];
+    t.subtasks = (t.subtasks || []).map((s, j) => {
+      s.no = `${t.no}.${j + 1}`; s.type = s.type || (s.tool === "upload" ? "upload" : "app");
+      if (s.type === "upload") s.tool = "upload"; else if (s.type !== "app") s.tool = s.type; else if (!APP_TOOLS[s.tool]) s.tool = "files";
+      s.criteria = (s.criteria || []).map((k) => [k[0] || "", Math.max(0, +k[1] || 0), k[2] || ""]);
+      s.points = s.criteria.reduce((a, k) => a + k[1], 0);
+      s.horizon = s.horizon || []; s.images = s.images || []; s.options = s.options || [];
+      return s;
+    });
+    t.points = t.subtasks.reduce((a, s) => a + s.points, 0);
+    return t;
+  });
+  c.gradingKey = c.gradingKey || { type: "linear" }; c.categories = c.categories || { system: "none", list: [] };
+  c.company = { name: "", allgemein: "", adresse: "", rechtliches: "", kontakt: "", vorlagen: "", ...(c.company || {}) };
+  c.info = c.info || { title: "Prüfungsinformationen", items: [] }; c.faq = c.faq || DEFAULT_CONTENT.faq; c.signatures = c.signatures || {};
+  return c;
+}
+let activeKey = null;
+// Inhalt aktivieren (key: Kennung + Änderungsstand, damit gespeicherte Änderungen sofort wirken)
+export function useContent(content, key = "default") {
+  if (key === activeKey) return false;
+  const c = normalizeContent(JSON.parse(JSON.stringify(content || DEFAULT_CONTENT)));
+  Object.keys(EXAM).forEach((k) => delete EXAM[k]); Object.assign(EXAM, c);
+  ALL_SUBTASKS.length = 0; EXAM.tasks.forEach((t) => t.subtasks.forEach((s) => ALL_SUBTASKS.push({ ...s, task: t })));
+  TOTAL_POINTS = EXAM.tasks.reduce((a, t) => a + t.points, 0);
+  activeKey = key; return true;
+}
+export const activeContentKey = () => activeKey;
+useContent(DEFAULT_CONTENT, "default");
 
 // Korrekturzeichen
 export const SIGNS = [

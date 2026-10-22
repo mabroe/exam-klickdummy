@@ -1,12 +1,17 @@
 // Bewertung: linearer Notenschlüssel, Freigabestatus der Korrektorengruppen, Gesamtnote
-import { D, byId } from "./data.js?v=8.6";
-import { ALL_SUBTASKS, TOTAL_POINTS } from "./scenario.js?v=8.6";
-import { courseOfParticipant, correctorsFor, thirdRequested, approvalStateFor } from "./access.js?v=8.6";
+import { D, byId } from "./data.js?v=8.7";
+import { ALL_SUBTASKS, TOTAL_POINTS, EXAM, GRADING_KEYS } from "./scenario.js?v=8.7";
+import { courseOfParticipant, correctorsFor, thirdRequested, approvalStateFor } from "./access.js?v=8.7";
 
 // Linearer Notenschlüssel (entspricht der Tabelle „Notenschlüssel 100 P“ und ihrer Anpassung an die Maximalpunktzahl):
 // Note = 6 − 5 · Punkte / Maximalpunkte, auf eine Nachkommastelle zugunsten des Prüflings abgerundet (100 P → 1,0; 50 P → 3,5; 0 P → 6,0)
+// Notenschlüssel des aktiven Inhalts (einmalig im Prüfungseditor gewählt): linear oder Notenstufen nach Prozentgrenzen
+export const keyThresholds = (k = EXAM.gradingKey) => (k?.type && k.type !== "linear" ? (k.thresholds && k.thresholds.length === 5 ? k.thresholds : GRADING_KEYS[k.type]?.thresholds) : null);
+export const gradingKeyLabel = (k = EXAM.gradingKey) => GRADING_KEYS[k?.type || "linear"]?.label || "Linearer Notenschlüssel";
 export const linearGrade = (pts, max = TOTAL_POINTS) => {
   if (pts === null || pts === undefined || !(max > 0)) return null;
+  const th = keyThresholds();
+  if (th) { const pct = (100 * Math.max(0, Math.min(max, pts))) / max; const i = th.findIndex((t) => pct + 1e-9 >= +t); return i < 0 ? 6 : i + 1; }
   const n = 6 - (5 * Math.max(0, Math.min(max, pts))) / max;
   return Math.max(1, Math.min(6, Math.floor(n * 10 + 1e-9) / 10));
 };

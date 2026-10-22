@@ -2,13 +2,13 @@
 //  - Erstkorrektur: rot, rechter Rand · Zweitkorrektur: grün, linker Rand · Drittkorrektur (Endbeurteilung): braun, linker Rand außen
 //  - Unterstreichen horizontal (einfach, doppelt, gekringelt) und vertikal (Randstrich)
 //  - Stift: Gesten für Linien, handschriftliche Korrekturzeichen werden erkannt und an den Rand gesetzt
-import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=8.6";
-import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=8.6";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS } from "../scenario.js?v=8.6";
-import { navigate, redraw, session } from "../app.js?v=8.6";
-import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer, lessonMode } from "./correction.js?v=8.6";
-import { pdfPages, cachedPages, isPdf, isImage, isOffice, officeToPdf, downloadUrl, extOf } from "../docs.js?v=8.6";
-import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=8.6";
+import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=8.7";
+import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=8.7";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS, QTYPES } from "../scenario.js?v=8.7";
+import { navigate, redraw, session } from "../app.js?v=8.7";
+import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer, lessonMode } from "./correction.js?v=8.7";
+import { pdfPages, cachedPages, isPdf, isImage, isOffice, officeToPdf, downloadUrl, extOf } from "../docs.js?v=8.7";
+import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=8.7";
 
 const PW = 900, ML = 110, MR = 790;               // Papierbreite, Textspalte links/rechts
 const VX = { 1: MR + 8, 2: ML - 8, 3: ML - 16 };    // Randstrich je Korrektor
@@ -116,11 +116,25 @@ export function attachmentItem(m, name) {
   const ref = m.data.attach_refs?.[name];
   return (ref && mine.find((i) => i.id === ref)) || mine.find((i) => i.data?.fromMail === m.id && i.data.name === name) || mine.find((i) => i.folder === "own" && i.data.name === name) || null;
 }
+// Automatische Auswertung bei Single/Multiple Choice (Hinweis für die Korrektur, Punkte vergibt die Korrektur)
+function autoCheck(pid, s) {
+  if (s.type !== "single" && s.type !== "multiple") return "";
+  const a = D.items.find((i) => i.participant === pid && i.kind === "answer" && i.data?.st === s.no);
+  const ch = new Set(a?.data?.choice || []); const opts = s.options || [];
+  const ok = opts.filter((o, i) => !!o.correct === ch.has(i)).length;
+  return `<div class="notice info small" style="margin:0 0 8px">${icon("circle-check")}<span>Automatische Auswertung: <b>${ok} von ${opts.length}</b> Optionen richtig ${s.type === "single" ? "beantwortet" : "angekreuzt bzw. nicht angekreuzt"}. Richtig: ${opts.map((o, i) => (o.correct ? String.fromCharCode(65 + i) : "")).filter(Boolean).join(", ") || "–"}.</span></div>`;
+}
 function paperFor(it, p) {
   const name = `${p.firstname} ${p.lastname}`;
+  if (it.kind === "answer") {
+    const d = it.data || {}; const s = subtask(d.st) || {};
+    const head = `<div class="letterhead"><b>${icon("square-pen")} Antwort zu Teilaufgabe ${esc(d.st || "")}</b><span style="font-size:12px">${esc(name)} · ${esc((QTYPES[d.type] || {}).label || "")}</span></div>`;
+    if (d.type === "single" || d.type === "multiple") return head + `<ol class="kopts" type="A">${(s.options || []).map((o, i) => `<li>${(d.choice || []).includes(i) ? "☒" : "☐"} ${esc(o.text || "")}</li>`).join("")}</ol>`;
+    return head + `<div class="ptext">${esc(d.text || "").replace(/\n/g, "<br>") || "<i>keine Antwort</i>"}</div>`;
+  }
   if (it.kind === "mail") {
     const body = it.data.html ? it.data.html.replace(/<blockquote[\s\S]*<\/blockquote>/, "") : esc(it.data.body).replace(/\n/g, "<br>");
-    return `<div class="letterhead"><div><div class="sender-line">${esc(EXAM.company.name)} · Sportparkallee 12 · 70173 Stuttgart</div><div class="mt-s">An: ${esc(it.data.to)}</div></div><div style="text-align:right">${companyMini()}<div style="font-size:12px;margin-top:10px">Von: ${esc(it.data.from)}<br>${esc(it.data.from_mail)}<br>Datum: ${esc(it.data.date)}</div></div></div>
+    return `<div class="letterhead"><div><div class="sender-line">${esc([EXAM.company.name, ...String(EXAM.company.adresse || "").split("\n").slice(1)].filter(Boolean).join(" · "))}</div><div class="mt-s">An: ${esc(it.data.to)}</div></div><div style="text-align:right">${companyMini()}<div style="font-size:12px;margin-top:10px">Von: ${esc(it.data.from)}<br>${esc(it.data.from_mail)}<br>Datum: ${esc(it.data.date)}</div></div></div>
     <p><b>${esc(it.data.subject)}</b></p><div class="ptext">${body}</div>
     ${(it.data.attachments || []).map((a) => { const f = attachmentItem(it, a); const u = f ? fileUrl(f) : "";
       return `<div class="kattach"><b>${icon("paperclip")} Anhang: ${esc(a)}</b>${f?.data?.att_changed || it.data.att_changed ? ` <span class="xs" style="color:#777">(Anhang ausgetauscht ${esc(it.data.att_changed || "")})</span>` : ""}${u ? fileBlock(f.id, { name: f.data.name, url: u, pid: p.id, st: it.submission }) : a.toLowerCase().includes("vergleich") ? sheetTable() : ""}</div>`; }).join("")}`;
@@ -254,6 +268,7 @@ export function fitRoPapers(root) {
 
 // ---------- Ansicht ----------
 export function mode(pid, st, q, compare) {
+  store.set("lastKorrP", pid); // Erwartungshorizont im eigenen Tab nutzt den Inhalt dieser Teilnahme
   const p = byId("participants", pid); const s = subtask(st);
   if (!p || !s) return { redirect: "#/app/korrektur" };
   const ps = candidates();
@@ -324,7 +339,8 @@ export function mode(pid, st, q, compare) {
             <div class="sec"><div class="row between"><h3>Punktezahl</h3>${compare ? `<span class="xs muted">${esc(corrName(own))}</span>` : ""}</div>
               <label class="checkbox card pad" style="padding:10px 14px;margin:12px 0"><input type="checkbox" data-nd ${nd ? "checked" : ""} ${locked ? "disabled" : ""}> Aufgabe nicht bearbeitet</label>
               <div class="crit small bold"><span></span><span>VP</span><span>Max.</span></div>
-              ${s.criteria.map(([name, max], i) => `<div class="crit"><span class="row" style="gap:4px">${locked || nd ? "" : `<button class="iconbtn" style="width:28px;height:28px" data-bst="${i}" title="Bewertungsbaustein für „${esc(name)}“" aria-label="Bewertungsbaustein für ${esc(name)}">${icon("list")}</button>`}${esc(name)}</span><select class="select" data-crit="${i}" ${locked || nd ? "disabled" : ""}><option value="">–</option>${Array.from({ length: max * 2 + 1 }, (_, k) => k / 2).map((x) => `<option value="${x}" ${v[i] !== undefined && v[i] !== null && +v[i] === x ? "selected" : ""}>${String(x).replace(".", ",")}</option>`).join("")}</select><span>${max}</span></div>`).join("")}
+              ${autoCheck(pid, s)}
+              ${s.criteria.map(([name, max, cat], i) => `<div class="crit"><span class="row" style="gap:4px">${locked || nd ? "" : `<button class="iconbtn" style="width:28px;height:28px" data-bst="${i}" title="Bewertungsbaustein für „${esc(name)}“" aria-label="Bewertungsbaustein für ${esc(name)}">${icon("list")}</button>`}${esc(name)}${cat ? `<span class="catchip" title="Kategorie">${esc(cat)}</span>` : ""}</span><select class="select" data-crit="${i}" ${locked || nd ? "disabled" : ""}><option value="">–</option>${Array.from({ length: max * 2 + 1 }, (_, k) => k / 2).map((x) => `<option value="${x}" ${v[i] !== undefined && v[i] !== null && +v[i] === x ? "selected" : ""}>${String(x).replace(".", ",")}</option>`).join("")}</select><span>${max}</span></div>`).join("")}
               <div class="ptotal">Punkte gesamt: ${sum === null ? "–" : fmtP(sum)} / ${s.points}</div>
               ${[1, 2, 3].filter((c) => c !== own && grading(pid, c) && stPoints(grading(pid, c), st) !== null).map((c) => `<div class="xs" style="color:${colorOf(c)}">${esc(CORRECTORS[c].label)}: ${fmtP(stPoints(grading(pid, c), st))} P</div>`).join("")}
               <span class="xs muted" data-saved></span>

@@ -10,7 +10,7 @@ export const SCHEMA = {
   gradings: F(`participant:${t} corrector:${n} points:${j} not_done:${j} marks:${j} released:${b} notes:${j} approvals:${j}`),
   comments: F(`participant:${t} subtask:${t} author:${t} body:${t}`),
   tasks: F(`procedure:${t} procedure_icon:${t} title:${t} icon:${t} due:${t} done:${b} is_new:${b} link:${t} role:${t} task_no:${n} closed:${b}`),
-  catalog: F(`title:${t} beruf:${t} fach:${t} jahr:${t} kind:${t} description:${t} duration:${t} creator:${t} tags:${j} contents:${j} mine:${b} copied_from:${t} image:${n} rules:${j}`),
+  catalog: F(`title:${t} beruf:${t} fach:${t} jahr:${t} kind:${t} description:${t} duration:${t} creator:${t} tags:${j} contents:${j} mine:${b} copied_from:${t} image:${n} rules:${j} content:${j} editor_by:${t}`),
   settings: F(`key:${t} value:${j}`),
   kfiles: F(`participant:${t} subtask:${t} corrector:${n} name:${t} file:${f} kind:${t} source:${t} orig:${t}`),
   orgs: F(`name:${t} short:${t} city:${t}`),

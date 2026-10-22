@@ -1,19 +1,21 @@
 // Exam Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.6";
-import { lock as lockGate } from "./gate.js?v=8.6";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.6";
-import * as TN from "./views/participant.js?v=8.6";
-import * as PR from "./views/proctor.js?v=8.6";
-import * as KO from "./views/correction.js?v=8.6";
-import * as LK from "./views/teacher.js?v=8.6";
-import * as RS from "./views/results.js?v=8.6";
-import * as KU from "./views/courses.js?v=8.6";
-import * as GD from "./guide.js?v=8.6";
-import { CORRECTORS } from "./scenario.js?v=8.6";
-import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.6";
-import { seatCount, seatCmp } from "./seats.js?v=8.6";
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.7";
+import { lock as lockGate } from "./gate.js?v=8.7";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.7";
+import * as TN from "./views/participant.js?v=8.7";
+import * as PR from "./views/proctor.js?v=8.7";
+import * as KO from "./views/correction.js?v=8.7";
+import * as LK from "./views/teacher.js?v=8.7";
+import * as RS from "./views/results.js?v=8.7";
+import * as KU from "./views/courses.js?v=8.7";
+import * as GD from "./guide.js?v=8.7";
+import * as ED from "./views/editor.js?v=8.7";
+import { CORRECTORS } from "./scenario.js?v=8.7";
+import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.7";
+import { seatCount, seatCmp } from "./seats.js?v=8.7";
+import { syncForRoute } from "./content.js?v=8.7";
 
-export const VERSION = "8.6";
+export const VERSION = "8.7";
 export const VERSION_LABEL = `Version ${VERSION} · 22.10.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },
@@ -22,6 +24,7 @@ export const ROLES = {
   lehrkraft: { label: "Lehrkraft", icon: "school", user: "Amir Eggert" },
   schuladmin: { label: "Schuladministration", icon: "building-2", user: "Marit Hinrichs" },
   einsicht: { label: "Prüfungseinsicht", icon: "eye" },
+  autor: { label: "Prüfungserstellung", icon: "pencil", user: "Koordinierungsstelle (IBBW)" },
 };
 export const session = {
   get role() { return store.get("role"); },
@@ -60,6 +63,7 @@ const routes = [
   [/^app\/admin$/, () => LK.admin()],
   [/^app\/raeume$/, () => PR.venues()],
   [/^app\/pruefungseinsicht$/, () => RS.einsichtList()],
+  [/^app\/editor\/([^/]+)(?:\/([^/]+))?$/, (m) => ED.editor(m[1], m[2] || "allgemein")],
   [/^app\/pruefungseinsicht\/([^/]+)$/, (m) => RS.einsichtSession(m[1])],
 ];
 
@@ -77,6 +81,7 @@ export function navigate(h) { if (location.hash === h) render(true); else locati
 
 function resolve() {
   const { path, q } = parseHash();
+  try { syncForRoute(path, session); } catch (e) { console.warn("[content]", e); }
   for (const [re, fn] of routes) { const m = path.match(re); if (m) return fn(m, q); }
   return notFound();
 }
@@ -136,7 +141,7 @@ function userMenu() {
 }
 function staffShell(v) {
   const adm = me()?.kind === "schuladmin";
-  const nav = session.role === "einsicht" ? [["einsicht", "#/app/pruefungseinsicht", "eye", "Prüfungseinsicht"]] : [
+  const nav = session.role === "einsicht" ? [["einsicht", "#/app/pruefungseinsicht", "eye", "Prüfungseinsicht"]] : session.role === "autor" ? [["katalog", "#/app/katalog", "pencil", "Katalog und Editor"]] : [
     ["aufgaben", "#/app/aufgaben", "circle-check", "Aufgaben"],
     ["katalog", "#/app/katalog", "pencil", "Katalog"],
     ["kurse", "#/app/kurse", adm ? "clipboard-list" : "book-open", adm ? "Prüfungen" : "Mein Unterricht"],
@@ -215,7 +220,7 @@ function startView() {
         <button class="btn primary" data-guideresume>${icon("arrow-right")} An der letzten Stelle fortsetzen</button><button class="btn" data-guide="${g.kind}" data-restart>${icon("rotate-ccw")} Neu beginnen</button><button class="btn ghost" data-guideoff>${icon("x")} Beenden</button>${g.kind === "unterricht" ? `<button class="btn ghost" data-guide="pruefung" data-switch>${icon("clipboard-list")} Stattdessen: Prüfung (Schuladmin)</button>` : `<button class="btn ghost" data-guide="unterricht" data-switch>${icon("book-open")} Stattdessen: Unterricht (Lehrkraft)</button>`}</div>`
         : `<div class="guidepick"><div><b>${icon("list-checks")} Testbare Klickstrecken</b><span class="small muted">Führen Schritt für Schritt durch die Workflows; der Fortschritt wird automatisch erkannt. Sie können jederzeit über diese Seite an der letzten Stelle weitermachen.</span></div>
         <button class="btn primary" data-guide="unterricht">${icon("book-open")} Unterricht (Lehrkraft)</button><button class="btn primary" data-guide="pruefung">${icon("clipboard-list")} Prüfung (Schuladmin)</button></div>`; })()}
-      <div class="rolegrid five six">
+      <div class="rolegrid five six seven">
         <div class="rolecard"><div class="rico">${icon("graduation-cap", "lg")}</div><h3>Prüfling</h3>
           <ul><li>Wartebereich, Belehrung, Gesundheitsabfrage</li><li>Prüfungsmodus mit Werkzeugen</li><li>Abgaben markieren</li></ul>
           <label class="lbl mt-s" for="pidsel">Teilnahme</label><select class="select" id="pidsel">${tnOpts}</select>
@@ -232,6 +237,9 @@ function startView() {
           <ul><li>Erst rot rechts, Zweit grün links, Dritt braun links</li><li>Stifteingabe mit Zeichenerkennung</li><li>Vergleich, Freigabe</li></ul>
           <label class="lbl mt-s" for="ksel">Person und Korrekturrolle</label><select class="select" id="ksel">${correctors.map((k) => `<option value="${k.pe.id}|${k.stage}">${esc(personName(k.pe))} – ${STAGE_LABEL[k.stage]}</option>`).join("")}</select>
           <button class="btn primary" data-role="korrektor">${icon("arrow-right")} Zur Korrektur</button></div>
+        <div class="rolecard"><div class="rico">${icon("pencil", "lg")}</div><h3>Prüfungserstellung</h3>
+          <ul><li>Koordinierungsstelle (IBBW)</li><li>Prüfungen und Unterrichtsinhalte im Editor erstellen</li><li>Aufgaben, Materialien, Bewertung, Aufgabensteuerung</li></ul>
+          <button class="btn primary" data-role="autor">${icon("arrow-right")} Zum Editor</button></div>
         <div class="rolecard"><div class="rico">${icon("eye", "lg")}</div><h3>Prüfungseinsicht</h3>
           <ul><li>Einsicht immer in Präsenz</li><li>Person begleitet die Einsicht</li><li>Endnote und Abgabe mit Korrekturzeichen</li></ul>
           <label class="lbl mt-s" for="eisel">Person</label><select class="select" id="eisel">${optP(einsichtPersons().sort((a, b) => a.org.localeCompare(b.org) || a.lastname.localeCompare(b.lastname)), "t.riedmueller")}</select>
@@ -255,6 +263,7 @@ function startView() {
         if (r === "aufsicht") { login(byId("persons", v("#ausel")), "aufsicht"); const vr = visibleRooms(); navigate(vr.length === 1 ? `#/app/raum/${vr[0].id}/meinraum` : "#/app/raumaufsicht"); } // genau eine Raumaufsicht: direkt öffnen
         if (r === "korrektor") { const [pid, st] = v("#ksel").split("|"); login(byId("persons", pid), "korrektor", { corrector: +st }); navigate("#/app/korrektur"); }
         if (r === "schuladmin") { login(byId("persons", v("#sasel")), "schuladmin"); navigate("#/app/kurse"); }
+        if (r === "autor") { login(null, "autor"); navigate("#/app/katalog"); }
         if (r === "einsicht") { login(byId("persons", v("#eisel")), "einsicht"); navigate("#/app/pruefungseinsicht"); }
       }));
       el.querySelectorAll("[data-guide]").forEach((b) => (b.onclick = async () => { if ((b.hasAttribute("data-restart") || b.hasAttribute("data-switch")) && !(await confirmBox(b.hasAttribute("data-switch") ? "Andere Klickstrecke starten" : "Klickstrecke neu beginnen", "<p>Der bisherige Fortschritt der laufenden Klickstrecke wird verworfen. Ihre angelegten Daten bleiben erhalten.</p>", b.hasAttribute("data-switch") ? "Starten" : "Neu beginnen"))) return; GD.start(b.dataset.guide, b.hasAttribute("data-restart")); }));
@@ -293,6 +302,7 @@ async function boot() {
     const tr = e.target.closest("tr[data-href]");
     if (tr && !e.target.closest("a, button, input, select, textarea, label")) navigate(tr.dataset.href);
   });
+  document.addEventListener("change", (e) => { const cs = e.target.closest?.("[data-contentsel]"); if (cs) { sessionStorage.setItem("cbw.contentSel", JSON.stringify(cs.value)); redraw(); } });
   document.addEventListener("keydown", (e) => { const tr = e.target.closest?.("tr[data-href]"); if (tr && e.target === tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); navigate(tr.dataset.href); } });
   render();
 }

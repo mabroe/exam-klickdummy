@@ -2,7 +2,7 @@
 // course.rules = [{ id, name, active, match: "all"|"any", groups: [{ match: "all"|"any", conditions: [{ type, task, subtask, min }] }], actions: [{ type, task, … }] }]
 //  - Bedingungen innerhalb einer Gruppe werden mit UND bzw. ODER verknüpft, die Gruppen untereinander ebenfalls mit UND bzw. ODER
 //  - jede Regel löst je Prüfling höchstens einmal aus (participants.fired); Aktionen stellen neue Inhalte bereit
-import { endTime, parseDate } from "./ui.js?v=8.6";
+import { endTime, parseDate } from "./ui.js?v=8.7";
 
 export const CONDITIONS = {
   task_opened: { label: "Aufgabe geöffnet", group: "Aktion ausgeführt", fields: ["task"] },

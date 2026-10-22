@@ -1,13 +1,14 @@
 // Prüfling: Wartebereich, Prüfungsmodus (Dashboard, Aufgaben, Abgaben), Endbildschirm, Kursvorschau
-import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.6";
-import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=8.6";
-import { EXAM, ALL_SUBTASKS, subtask, taskOf } from "../scenario.js?v=8.6";
-import { navigate, session, render, directHelp } from "../app.js?v=8.6";
-import * as W from "./dock.js?v=8.6";
-import { einsichtView } from "./results.js?v=8.6";
-import { einsichtFor } from "../access.js?v=8.6";
-import { markable, bindMarkables } from "../highlight.js?v=8.6";
-import { ruleMatches, evalState, runAction } from "../rules.js?v=8.6";
+import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.7";
+import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=8.7";
+import { EXAM, ALL_SUBTASKS, subtask, taskOf, ALL_TOOLS, INLINE_TYPES } from "../scenario.js?v=8.7";
+import { navigate, session, render, directHelp } from "../app.js?v=8.7";
+import * as W from "./dock.js?v=8.7";
+import { einsichtView } from "./results.js?v=8.7";
+import { einsichtFor } from "../access.js?v=8.7";
+import { materialsOf, catalogOfParticipant } from "../content.js?v=8.7";
+import { markable, bindMarkables } from "../highlight.js?v=8.7";
+import { ruleMatches, evalState, runAction } from "../rules.js?v=8.7";
 // Punktebadge: grün, sobald für die (Teil-)Aufgabe eine Abgabe markiert ist, sonst grau
 const ptsBadge = (done, label, title = "") => `<span class="badge ${done ? "lime" : "gray"}" title="${title || (done ? "Abgabe markiert" : "noch nicht bearbeitet")}">${label}</span>`;
 const taskDone = (items, t) => t.subtasks.filter((s) => items.some((i) => i.submission === s.no)).length;
@@ -37,8 +38,9 @@ const hasLog = (p, action) => D.protocol.some((x) => x.username === p.username &
 const previewMem = {};
 function makeCtx(preview, courseId) {
   if (preview) {
-    if (!previewMem[courseId]) previewMem[courseId] = D.items.filter((i) => i.participant === "").map((i) => ({ ...i, id: "pv" + Math.random().toString(36).slice(2, 9), participant: "preview", data: { ...i.data } }));
-    const mem = previewMem[courseId];
+    const pvKey = courseId + "@" + (byId("catalog", courseId)?.updated || "");
+    if (!previewMem[pvKey]) previewMem[pvKey] = materialsOf(byId("catalog", courseId)).map((i) => ({ ...i, id: "pv" + Math.random().toString(36).slice(2, 9), participant: "preview", submission: "", data: { ...i.data } }));
+    const mem = previewMem[pvKey];
     const course = byId("catalog", courseId);
     return {
       preview: true, base: `#/app/vorschau/${courseId}`, course,
@@ -49,6 +51,7 @@ function makeCtx(preview, courseId) {
       async upd(id, patch) { const r = mem.find((x) => x.id === id); Object.assign(r, patch); W.refreshWindows(); refreshPage(); return r; },
       async del(id) { const i = mem.findIndex((x) => x.id === id); if (i >= 0) mem.splice(i, 1); W.refreshWindows(); refreshPage(); },
       async setBookmarks(b) { store.set("pvbm", b); this.p.bookmarks = b; refreshPage(); },
+      async saveAnswer(id, data, sub) { let r = mem.find((x) => x.id === id); if (r) Object.assign(r, { data, submission: sub }); else { r = { id: "pv" + Math.random().toString(36).slice(2, 9), participant: "preview", kind: "answer", folder: "answers", data, submission: sub }; mem.push(r); } return r; },
     };
   }
   const p = byId("participants", session.pid);
@@ -61,6 +64,7 @@ function makeCtx(preview, courseId) {
     upd: (id, patch) => upd("items", id, patch),
     del: (id) => del("items", id),
     setBookmarks: (b) => upd("participants", p.id, { bookmarks: b }),
+    saveAnswer: (id, data, sub) => (id ? upd("items", id, { data, submission: sub }) : create("items", { participant: p.id, kind: "answer", folder: "answers", data, submission: sub })),
   };
 }
 let CTX = null;
@@ -197,8 +201,8 @@ async function doLogin(ctx) {
   }
   if (!D.items.some((i) => i.participant === p.id && i.kind !== "note" && i.folder !== "own" && i.folder !== "sent")) {
     // Arbeitsmaterialien beim ersten Login kopieren (Copy-on-Login)
-    const globals = D.items.filter((i) => i.participant === "");
-    for (const g of globals) await create("items", { participant: p.id, kind: g.kind, folder: g.folder, data: { ...g.data, read: false }, submission: "" });
+    // Materialien des Prüfungs-/Kursinhalts (Editor) bzw. der Musterprüfung
+    for (const g of materialsOf(catalogOfParticipant(p))) await create("items", { participant: p.id, kind: g.kind, folder: g.folder, data: { ...g.data, read: false }, submission: "" });
   }
   await ensureMailAttachments(p);
 }
@@ -223,8 +227,38 @@ function swapAttachment(ctx, anchor, mailId, idx) {
 export function horizonHtml(st) {
   return `<div class="hzbox mt-s"><div class="row between"><b>${icon("file-text")} Erwartungshorizont ${esc(st.no)} ${esc(st.title)}</b><span class="badge gray">${st.points} Punkte</span></div>
     <ul class="hzlist">${(st.horizon || []).map(([t, p]) => `<li><span class="grow">${esc(t)}</span><b>${esc(p)}</b></li>`).join("")}</ul>
+    ${(st.type === "single" || st.type === "multiple") && (st.options || []).length ? `<div class="small">Richtige Antwort${st.type === "multiple" ? "en" : ""}: ${st.options.map((o, i) => (o.correct ? `${String.fromCharCode(65 + i)}) ${esc(o.text)}` : "")).filter(Boolean).join(" · ")}</div>` : ""}
+    ${(st.images || []).length ? `<div class="hzimgs">${st.images.map((im) => `<figure><img src="${esc(im.src)}" alt="${esc(im.caption || "Abbildung zum Erwartungshorizont")}"><figcaption class="xs muted">${esc(im.caption || "")}</figcaption></figure>`).join("")}</div>` : ""}
     <div class="xs muted">Bewertungskriterien: ${(st.criteria || []).map(([c, p]) => `${esc(c)} (${p} P)`).join(" · ")}</div></div>`;
 }
+// ---------- Fragetypen direkt in der Aufgabe (Freitext, Kurzantwort, Single/Multiple Choice) ----------
+// Antworten sind Elemente kind "answer" (data: { task, st, type, text, choice }); eine nicht leere Antwort zählt automatisch als Abgabe
+const answerOf = (ctx, no) => ctx.items().find((i) => i.kind === "answer" && i.data?.st === no);
+function answerBox(ctx, st) {
+  const a = answerOf(ctx, st.no); const d = a?.data || {}; const ch = d.choice || [];
+  const field = st.type === "freitext" ? `<textarea class="input ansfield" rows="8" data-ans="${st.no}" aria-label="Antwort zu ${st.no}" placeholder="Ihre Antwort …">${esc(d.text || "")}</textarea>`
+    : st.type === "kurz" ? `<input class="input ansfield" data-ans="${st.no}" aria-label="Antwort zu ${st.no}" placeholder="Ihre Antwort" value="${esc(d.text || "")}">`
+    : `<fieldset class="ansopts"><legend class="xs muted">${st.type === "single" ? "Wählen Sie eine Antwort." : "Wählen Sie alle zutreffenden Antworten."}</legend>${(st.options || []).map((o, i) => `<label class="ansopt ${ch.includes(i) ? "on" : ""}"><input type="${st.type === "single" ? "radio" : "checkbox"}" name="ans-${st.no}" data-ansopt="${st.no}" value="${i}" ${ch.includes(i) ? "checked" : ""}> <span>${esc(o.text || "")}</span></label>`).join("")}</fieldset>`;
+  return `<div class="answerbox mt-s">${field}<div class="xs muted mt-s" data-anssaved="${st.no}">${a?.submission ? `${icon("check")} Antwort gespeichert – gilt als Abgabe ${st.no}` : "Ihre Antwort wird automatisch gespeichert und als Abgabe gewertet."}</div></div>`;
+}
+const ansTimers = {};
+function bindAnswers(el, ctx) {
+  const save = async (no) => {
+    const st = subtask(no); if (!st || !el.isConnected) return;
+    const a = answerOf(ctx, no);
+    const text = el.querySelector(`[data-ans="${no}"]`)?.value ?? "";
+    const choice = [...el.querySelectorAll(`[data-ansopt="${no}"]:checked`)].map((x) => +x.value);
+    const filled = INLINE_TEXT.includes(st.type) ? !!text.trim() : choice.length > 0;
+    const data = { task: no.split(".")[0], st: no, type: st.type, text, choice, saved: new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) };
+    try { await ctx.saveAnswer(a?.id, data, filled ? no : ""); } catch (e) { toast("Antwort nicht gespeichert", e?.message || "", "error"); return; }
+    const info = el.querySelector(`[data-anssaved="${no}"]`); if (info) info.innerHTML = filled ? `${icon("check")} Antwort gespeichert (${data.saved} Uhr) – gilt als Abgabe ${no}` : "Keine Antwort – keine Abgabe.";
+    if (!ctx.preview && !a && filled) log(ctx.p.room, ctx.p, "Antwort erfasst", `Teilaufgabe ${no}`, "aktion");
+    setTimeout(syncDock, 50);
+  };
+  el.querySelectorAll("[data-ans]").forEach((f) => { f.oninput = () => { clearTimeout(ansTimers[f.dataset.ans]); ansTimers[f.dataset.ans] = setTimeout(() => save(f.dataset.ans), 900); }; f.onblur = () => { clearTimeout(ansTimers[f.dataset.ans]); const no = f.dataset.ans; setTimeout(() => save(no), 0); }; });
+  el.querySelectorAll("[data-ansopt]").forEach((f) => (f.onchange = () => { el.querySelectorAll(`[data-ansopt="${f.dataset.ansopt}"]`).forEach((x) => x.closest(".ansopt")?.classList.toggle("on", x.checked)); save(f.dataset.ansopt); }));
+}
+const INLINE_TEXT = ["freitext", "kurz"];
 // Direkte Dateiabgabe in der Aufgabe (ohne Ablage unter „Eigene Dateien“)
 function uploadBox(st, subs) {
   const files = subs.filter((i) => i.kind === "file" && i.data?.direct);
@@ -306,7 +340,7 @@ function waitView(ctx) {
       el.querySelectorAll("[data-pgstep]").forEach((b) => (b.onclick = () => { ui.pdfPage = Math.max(1, Math.min(3, ui.pdfPage + +b.dataset.pgstep)); render(false); }));
       const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
       const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
-      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.6").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
+      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.7").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
       // Prüfung läuft bereits, Bestätigung fehlt
       if (room.state === "RUNNING" && !confirmedBoth && !document.querySelector(".backdrop") && !store.get("bo." + p.id)) {
         store.set("bo." + p.id, 1);
@@ -578,7 +612,7 @@ function pageBody(ctx, sub) {
   const parts = sub.split("/");
   const grid = (inner) => `<div class="tn-grid ${ui.navCollapsed ? "collapsed" : ""}">${navTree(ctx, sub)}<div>${inner}</div></div>`;
   const pvFrom = store.get("pvfrom", null);
-  const endBtn = ctx.preview ? (pvFrom?.course ? `<a class="btn" href="#/app/kurs/${pvFrom.course}/${pvFrom.tab || "info"}">${icon("arrow-left")} Vorschau beenden</a>` : `<a class="btn" href="#/app/katalog/${ctx.course?.id || ""}">${icon("arrow-left")} Vorschau beenden</a><button class="btn primary" data-copy>${icon("copy")} Kurs kopieren</button>`) : `<button class="btn soft" data-finish>Prüfung beenden</button>`;
+  const endBtn = ctx.preview ? (pvFrom?.editor ? `<a class="btn" href="#/app/editor/${pvFrom.editor}/aufgaben">${icon("arrow-left")} Zurück zum Editor</a>` : pvFrom?.course ? `<a class="btn" href="#/app/kurs/${pvFrom.course}/${pvFrom.tab || "info"}">${icon("arrow-left")} Vorschau beenden</a>` : `<a class="btn" href="#/app/katalog/${ctx.course?.id || ""}">${icon("arrow-left")} Vorschau beenden</a><button class="btn primary" data-copy>${icon("copy")} Kurs kopieren</button>`) : `<button class="btn soft" data-finish>Prüfung beenden</button>`;
   const over = timeOver(ctx) ? `<div class="notice warn mb" role="status">${icon("alarm-clock")}<span><b>Die Bearbeitungszeit ist abgelaufen.</b> ${allowedTask(ctx) ? `Sie können Aufgabe ${esc(allowedTask(ctx))} noch abschließen und Abgaben markieren;` : ""} neue Aufgaben können nicht mehr geöffnet werden. Die Prüfung wird durch die Aufsicht eingesammelt.</span></div>` : "";
   const head = (t) => over + `<div class="taskhead"><h1>${t}</h1><div class="row"><button class="helpbtn" data-help aria-label="Hilfe"><span class="q">?</span></button>${endBtn}</div></div>`;
 
@@ -631,29 +665,30 @@ function taskBody(ctx, t, st) {
   const subs = st ? submissionsFor(all, st.no) : [];
   const toolLabel = { mail: ["mail", "Mail öffnen"], files: ["folder", "Dateien öffnen"], editor: ["notepad-text", "Notizen öffnen"], calendar: ["calendar", "Kalender öffnen"], ide: ["code-xml", "Entwicklungsumgebung öffnen"], calc: ["calculator", "Taschenrechner öffnen"], tickets: ["ticket", "Ticketsystem öffnen"], erp: ["package", "ERP-System öffnen"], upload: ["file-up", "Datei hochladen"] };
   const cnt = (k) => items.filter((i) => i.kind === k).length;
+  const allowedTools = t.tools || ALL_TOOLS.map((x) => x[0]);
   const tools = [["files", "folder", "Dateien", `${cnt("file")} Dateien`], ["mail", "mail", "Mail", `${items.filter((i) => i.kind === "mail" && i.folder === "inbox").length} im Posteingang`], ["calendar", "calendar", "Kalender", `${cnt("event")} Termine`], ["editor", "notepad-text", "Notizen", `${cnt("note")} Notizen`], ["tickets", "ticket", "Tickets", `${cnt("ticket")} Tickets`], ["erp", "package", "ERP-System", `${items.filter((i) => i.kind === "erp" && i.data.type === "artikel").length} Artikel, Bestellungen`], ["ide", "code-xml", "Entwicklungsumgebung", `${cnt("code")} Code-Dateien`], ["calc", "calculator", "Taschenrechner", "Grundrechenarten, Prozent"]];
   return tabs + `<div class="taskgrid"><div class="col" style="gap:20px">
     <button class="ausgang" data-sit="${t.no}"><span class="round">${icon("info")}</span><span class="grow">Ausgangssituation</span>${icon("arrow-right")}</button>
     ${st ? `<div class="assignment"><h3>${icon("clipboard-list")} Arbeitsauftrag ${st.no}</h3>${markable("auftrag:" + st.no, esc(st.text), { label: "Arbeitsauftrag", tag: "p" })}
       ${ctx.preview ? `<div class="pvhz"><button class="btn sm ${ui.hz ? "primary" : ""}" data-hz aria-expanded="${!!ui.hz}">${icon("eye")} Erwartungshorizont ${ui.hz ? "ausblenden" : "einblenden"}</button>${ui.hz ? horizonHtml(st) : ""}</div>` : ""}
-      ${st.tool === "upload" ? uploadBox(st, subs) + `<div class="row wrap between mt-s"><span></span>` : `<div class="row wrap between"><button class="btn primary sm" data-open="${st.tool}">${icon(toolLabel[st.tool][0])} ${toolLabel[st.tool][1]}</button>`}
+      ${INLINE_TYPES.includes(st.type) ? answerBox(ctx, st) + `<div class="row wrap between mt-s"><span></span>` : st.tool === "upload" ? uploadBox(st, subs) + `<div class="row wrap between mt-s"><span></span>` : `<div class="row wrap between"><button class="btn primary sm" data-open="${st.tool}">${icon((toolLabel[st.tool] || toolLabel.files)[0])} ${(toolLabel[st.tool] || toolLabel.files)[1]}</button>`}
       <span class="small">${subs.length ? `<span class="badge green">${icon("check")} ${subs.length} Abgabe${subs.length > 1 ? "n" : ""} markiert</span>` : `<span class="badge gray">noch keine Abgabe</span>`}</span></div></div>`
     : `<div class="card pad"><h3>Teilaufgaben</h3>${t.subtasks.map((s) => `<a class="subtask mt-s" href="${ctx.base}/aufgabe/${t.no}/${s.no}"><span class="stico ${items.some((i) => i.submission === s.no) ? "done" : "todo"}">${icon(items.some((i) => i.submission === s.no) ? "check" : "square-pen")}</span><span class="grow">${s.no} ${esc(s.title)}</span><span class="badge ${items.some((i) => i.submission === s.no) ? "lime" : "gray"}">${s.points} P</span></a>`).join("")}</div>`}
-    <div class="widget"><div class="wh" style="cursor:default">${icon("app-window")} Werkzeuge für Aufgabe ${t.no}</div><div class="wb"><div class="toolwidgets">${tools.map(([k, ic, l, sub]) => `<button data-open="${k}">${icon(ic)}<span><b>${l}</b><small>${sub}</small></span></button>`).join("")}</div><p class="xs muted mt-s" style="margin-bottom:0">Alle Werkzeuge finden Sie auch in der Taskleiste am unteren Bildschirmrand (Tastatur: <kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>8</kbd>).</p></div></div>
+    <div class="widget"><div class="wh" style="cursor:default">${icon("app-window")} Werkzeuge für Aufgabe ${t.no}</div><div class="wb"><div class="toolwidgets">${tools.filter(([k]) => allowedTools.includes(k)).map(([k, ic, l, sub]) => `<button data-open="${k}">${icon(ic)}<span><b>${l}</b><small>${sub}</small></span></button>`).join("")}</div><p class="xs muted mt-s" style="margin-bottom:0">Alle Werkzeuge finden Sie auch in der Taskleiste am unteren Bildschirmrand (Tastatur: <kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>8</kbd>).</p></div></div>
     <div class="widget"><div class="wh" style="cursor:default">${icon("building-2")} ${esc(EXAM.company.name)}</div><div class="wb">
       <div class="tabs small" style="margin-bottom:12px">${["allgemein", "adresse", "rechtliches", "kontakt", "vorlagen"].map((k) => `<button data-ctab="${k}" class="${(ui.ctab || "allgemein") === k ? "active" : ""}">${k[0].toUpperCase() + k.slice(1)}</button>`).join("")}</div>
       <div class="row" style="align-items:flex-start;gap:16px">${companyLogo(74)}<div style="white-space:pre-line">${esc(EXAM.company[ui.ctab || "allgemein"])}</div></div></div></div>
-    <div class="widget"><div class="wh" data-open="files">${icon("folder")} Dateien</div><div class="wb">
+    ${allowedTools.includes("files") ? `<div class="widget"><div class="wh" data-open="files">${icon("folder")} Dateien</div><div class="wb">
       <div class="tabs small" style="margin-bottom:8px"><button class="active">Bereitgestellte Dateien</button><button data-open="files">Eigene Dateien</button></div>
-      ${items.filter((i) => i.kind === "file" && i.folder === "provided").slice(0, 4).map((f) => `<div class="row small" style="padding:4px 0">${icon("file")} ${esc(f.data.name)}</div>`).join("") || `<div class="small muted">Für diese Aufgabe sind keine Dateien bereitgestellt.</div>`}</div></div>
+      ${items.filter((i) => i.kind === "file" && i.folder === "provided").slice(0, 4).map((f) => `<div class="row small" style="padding:4px 0">${icon("file")} ${esc(f.data.name)}</div>`).join("") || `<div class="small muted">Für diese Aufgabe sind keine Dateien bereitgestellt.</div>`}</div></div>` : ""}
     ${cnt("ticket") ? `<div class="widget"><div class="wh" data-open="tickets">${icon("ticket")} Tickets</div><div class="wb">${items.filter((i) => i.kind === "ticket").map((k) => `<div class="row small" style="padding:4px 0">${icon("ticket")} <span class="grow">#${esc(k.data.no)} ${esc(k.data.subject)}</span><span class="muted">${esc(k.data.status)}</span></div>`).join("")}</div></div>` : ""}
   </div>
   <div class="col" style="gap:20px">
-    <div class="widget"><div class="wh" data-open="mail">${icon("mail")} Mail</div><div class="wb" style="padding:0">
+    ${allowedTools.includes("mail") ? `<div class="widget"><div class="wh" data-open="mail">${icon("mail")} Mail</div><div class="wb" style="padding:0">
       <div class="tabs small" style="margin:8px 14px 0"><button class="active">Posteingang</button><button data-open="mail">Gesendet</button></div>
-      ${inbox.length ? inbox.map((m) => `<div class="mailrow ${m.data.read ? "" : "unread"}" data-openmail="${m.id}"><div><div class="subj">${esc(m.data.subject)}</div><div>${esc(m.data.from)} (${esc(m.data.from_mail)})</div></div><div class="small">${esc(m.data.date)} ${m.data.attachments?.length ? icon("paperclip") : ""}</div></div>`).join("") : `<div class="empty small">${icon("mail")}<div>Der Posteingang ist leer</div></div>`}</div></div>
-    <div class="widget"><div class="wh" data-open="calendar">${icon("calendar")} Kalender</div><div class="wb">
-      ${events.length ? events.map((e, k) => `<div class="calrow"><b>${W.dayDate(e.data.day)}</b><div class="bar ${k % 2 ? "b2" : ""}"><div>${esc(e.data.start)} – ${esc(e.data.end)} Uhr</div><b>${esc(e.data.title)}</b></div></div>`).join("") : `<div class="empty small">${icon("calendar")}<div>Es sind noch keine Termine angelegt</div></div>`}</div></div>
+      ${inbox.length ? inbox.map((m) => `<div class="mailrow ${m.data.read ? "" : "unread"}" data-openmail="${m.id}"><div><div class="subj">${esc(m.data.subject)}</div><div>${esc(m.data.from)} (${esc(m.data.from_mail)})</div></div><div class="small">${esc(m.data.date)} ${m.data.attachments?.length ? icon("paperclip") : ""}</div></div>`).join("") : `<div class="empty small">${icon("mail")}<div>Der Posteingang ist leer</div></div>`}</div></div>` : ""}
+    ${allowedTools.includes("calendar") ? `<div class="widget"><div class="wh" data-open="calendar">${icon("calendar")} Kalender</div><div class="wb">
+      ${events.length ? events.map((e, k) => `<div class="calrow"><b>${W.dayDate(e.data.day)}</b><div class="bar ${k % 2 ? "b2" : ""}"><div>${esc(e.data.start)} – ${esc(e.data.end)} Uhr</div><b>${esc(e.data.title)}</b></div></div>`).join("") : `<div class="empty small">${icon("calendar")}<div>Es sind noch keine Termine angelegt</div></div>`}</div></div>` : ""}
     ${cnt("code") ? `<div class="widget"><div class="wh" data-open="ide">${icon("code-xml")} Entwicklungsumgebung</div><div class="wb">${items.filter((i) => i.kind === "code").map((k) => `<div class="row small" style="padding:4px 0">${icon("file-code")} ${esc(k.data.name)}</div>`).join("")}</div></div>` : ""}
     ${st && subs.length ? `<div class="widget"><div class="wh" style="cursor:default">${icon("list-checks")} Abgaben zu ${st.no}</div><div class="wb">${subs.map((s) => W.itemLine(s)).join("")}</div></div>` : ""}
   </div></div>`;
@@ -700,12 +735,12 @@ function bindPage(el, ctx, sub) {
   el.querySelectorAll("[data-sit]").forEach((b) => (b.onclick = () => situationModal(b.dataset.sit === "0" ? null : taskOf(b.dataset.sit))));
   el.querySelectorAll("[data-help]").forEach((b) => (b.onclick = () => directHelp(`<h3>Bedienung</h3><ul><li>Navigation links: Dashboard, Abgaben, Aufgaben</li><li>Taskleiste unten: Werkzeuge als Fenster öffnen, minimierte Fenster wiederherstellen; bei mehreren Fenstern erscheint eine Auswahlliste</li><li>Arbeitsmaterialien sind aufgabenspezifisch: Die Werkzeuge zeigen die Inhalte der geöffneten Aufgabe</li><li>Freitexte (E-Mail-Entwürfe, Notizen, Ticket-Lösungen) werden alle 15 Sekunden automatisch gespeichert</li><li>Häkchen-Symbol: Element als Abgabe markieren</li></ul><h3 class="mt">Tastatur</h3><table class="tbl"><tbody><tr><td><kbd>Alt</kbd> + <kbd>1</kbd> … <kbd>8</kbd></td><td>Dateien, Mail, Kalender, Notizen, Tickets, Rechner, IDE öffnen</td></tr><tr><td><kbd>F6</kbd> / <kbd>Umschalt</kbd>+<kbd>F6</kbd></td><td>zwischen offenen Fenstern und Aufgabe wechseln</td></tr><tr><td><kbd>Esc</kbd></td><td>aktives Fenster minimieren</td></tr><tr><td><kbd>Strg</kbd> + <kbd>Enter</kbd></td><td>Programm in der IDE ausführen</td></tr><tr><td><kbd>Pfeiltasten</kbd></td><td>in Menüs und Auswahllisten navigieren</td></tr></tbody></table>`)));
   el.querySelectorAll("[data-open]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); W.open(b.dataset.open, { subtask: sub.split("/")[2] }); }));
-  bindUploads(el, ctx);
+  bindUploads(el, ctx); bindAnswers(el, ctx);
   const hz = el.querySelector("[data-hz]"); if (hz) hz.onclick = () => { ui.hz = !ui.hz; refreshPage(); };
   el.querySelectorAll("[data-swapatt]").forEach((b) => (b.onclick = () => swapAttachment(ctx, b, ...b.dataset.swapatt.split("|"))));
   el.querySelectorAll("[data-openmail]").forEach((b) => (b.onclick = () => W.open("mail", { mailId: b.dataset.openmail, subtask: sub.split("/")[2] })));
   const fin = el.querySelector("[data-finish]"); if (fin) fin.onclick = () => finishExam(ctx);
-  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.6").then((m) => m.copyCourse(ctx.course));
+  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.7").then((m) => m.copyCourse(ctx.course));
   const bm = el.querySelector("[data-bookmark]");
   if (bm) bm.onclick = () => {
     const parts = sub.split("/"); const key = parts[2] || parts[1];
@@ -754,6 +789,8 @@ function blockedModal(ctx, no) {
 
 // ---------- Dock (Taskleiste) ----------
 const TOOLS = [["files", "folder", "Dateien"], ["mail", "mail", "Mail"], ["calendar", "calendar", "Kalender"], ["editor", "notepad-text", "Notizen"], ["tickets", "ticket", "Tickets"], ["erp", "package", "ERP"], ["calc", "calculator", "Rechner"], ["ide", "code-xml", "IDE"]];
+// Anwendungen je Aufgabe (im Prüfungseditor festgelegt); außerhalb einer Aufgabe alle (gesperrt) anzeigen
+const toolsNow = () => { const t = W.getTask() && taskOf(W.getTask()); return t?.tools ? TOOLS.filter(([k]) => t.tools.includes(k)) : TOOLS; };
 const unreadOf = (ctx) => (W.getTask() ? ctx.items().filter((i) => i.kind === "mail" && i.folder === "inbox" && !i.data.read && W.itemTask(i) === W.getTask()).length : 0);
 function dockBtn(k, ic, label, unread) {
   const st = W.dockState(k);
@@ -764,7 +801,7 @@ function dock(ctx, sub) {
   const unread = unreadOf(ctx);
   const page = sub.split("/")[0] || "dashboard";
   const pg = (k, ic, label) => `<button class="page ${page === k ? "active" : ""}" data-dock="${k}">${icon(ic)}${label}</button>`;
-  return `<nav class="dock" aria-label="Taskleiste">${pg("dashboard", "house", "Dashboard")}${pg("abgaben", "list-checks", "Abgaben")}<span class="sep"></span><span data-tools style="display:contents">${TOOLS.map(([k, ic, l]) => dockBtn(k, ic, l, unread)).join("")}</span></nav>`;
+  return `<nav class="dock" aria-label="Taskleiste">${pg("dashboard", "house", "Dashboard")}${pg("abgaben", "list-checks", "Abgaben")}<span class="sep"></span><span data-tools style="display:contents">${toolsNow().map(([k, ic, l]) => dockBtn(k, ic, l, unread)).join("")}</span></nav>`;
 }
 function bindDock(root, ctx) {
   root.querySelectorAll("[data-dock]").forEach((b) => (b.onclick = () => {
@@ -777,7 +814,7 @@ function bindDock(root, ctx) {
 export function syncDock() {
   const host = document.querySelector(".dock [data-tools]"); if (!host || !CTX) return;
   const unread = unreadOf(CTX);
-  host.innerHTML = TOOLS.map(([k, ic, l]) => dockBtn(k, ic, l, unread)).join("");
+  host.innerHTML = toolsNow().map(([k, ic, l]) => dockBtn(k, ic, l, unread)).join("");
   bindDock(host, CTX);
 }
 W.setDockListener(() => syncDock());

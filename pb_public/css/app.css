@@ -1087,3 +1087,59 @@ tr.rowlink:focus-visible { outline: 3px solid #4a90e2; outline-offset: -3px; }
 .start .wrap:has(.rolegrid.six) { max-width: 1440px; }
 .einsichtbar { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 24px; background: #1f2937; color: #fff; }
 .einsichtbar .badge { background: #fff; color: #1f2937; }
+/* ---------- v8.7: Fragetypen, Kategorien, Erwartungshorizont mit Bildern ---------- */
+.answerbox .ansfield { width: 100%; }
+.ansopts { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+.ansopt { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer; }
+.ansopt.on { border-color: var(--brand, #0b6aa2); background: #eef6fb; }
+.catchip { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 10px; background: #eef2ff; color: #3730a3; margin-left: 6px; white-space: nowrap; }
+.hzimgs { display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0; }
+.hzimgs figure { margin: 0; max-width: 360px; }
+.hzimgs img { max-width: 100%; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
+.kopts { margin: 8px 0 0 18px; line-height: 1.8; }
+/* ---------- v8.7: Prüfungseditor ---------- */
+.edgrid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; }
+.edrow { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+.edrow .grow { flex: 1; }
+.edlayout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 22px; align-items: start; }
+@media (max-width: 1000px) { .edlayout { grid-template-columns: 1fr; } }
+.edtree { position: sticky; top: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; background: #fff; max-height: calc(100vh - 40px); overflow: auto; }
+.edtree ol { list-style: none; margin: 8px 0 0; padding: 0; }
+.edtree ol ol { margin: 2px 0 8px 14px; }
+.edn { display: flex; width: 100%; gap: 6px; align-items: center; text-align: left; border: 0; background: none; padding: 6px 8px; border-radius: 6px; font: inherit; cursor: pointer; font-weight: 600; }
+.edn.sub { font-weight: 400; font-size: 13px; }
+.edn:hover { background: var(--bg-soft); }
+.edn.on { background: #e8f2fa; outline: 2px solid var(--brand, #0b6aa2); }
+.edpanel { border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; background: #fff; min-width: 0; }
+.edpanel h2 { margin: 0 0 10px; }
+.edsec { border-top: 1px solid var(--line-2); margin-top: 16px; padding-top: 10px; }
+.edsec h3 { margin: 0; }
+.edsec .tbl .input, .edsec .tbl .select { min-width: 0; width: 100%; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chipcheck { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 16px; cursor: pointer; font-size: 13px; background: #fff; }
+.chipcheck input { margin: 0; }
+.chipcheck.on { border-color: var(--brand, #0b6aa2); background: #e8f2fa; }
+.edmat { border: 1px solid var(--line-2); border-radius: 6px; margin: 6px 0; background: #fff; }
+.edmat summary { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: pointer; list-style: none; }
+.edmat summary::-webkit-details-marker { display: none; }
+.edmat[open] summary { border-bottom: 1px solid var(--line-2); background: var(--bg-softer); }
+.edmat-b { padding: 10px 12px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; }
+.input.mono { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.optletter { width: 24px; height: 24px; border-radius: 50%; background: var(--bg-soft); display: inline-grid; place-items: center; font-weight: 700; font-size: 12px; flex: 0 0 auto; }
+.edimgs { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
+.edimgs figure { margin: 0; width: 200px; display: grid; gap: 4px; position: relative; }
+.edimgs img { width: 200px; height: 140px; object-fit: contain; border: 1px solid var(--line); border-radius: 4px; background: #fafafa; }
+.edimgs figure .iconbtn { position: absolute; top: 4px; right: 4px; background: #fff; }
+.edimgadd { width: 200px; height: 140px; border: 2px dashed var(--line); border-radius: 6px; display: grid; place-items: center; text-align: center; cursor: pointer; color: var(--muted); }
+.edimgadd:hover { border-color: var(--brand, #0b6aa2); color: var(--brand, #0b6aa2); }
+.optcards { display: grid; gap: 8px; }
+.optcard { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.optcard > span { display: grid; gap: 2px; }
+.optcard.on { border-color: var(--brand, #0b6aa2); background: #eef6fb; }
+.edissues { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.edissues li { display: flex; gap: 6px; align-items: flex-start; font-size: 14px; }
+.edissues li.error { color: var(--red, #b42318); }
+.edissues li.warn { color: #8a5a00; }
+.edissues .link { text-align: left; color: inherit; }
+.start .rolegrid.seven { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }

@@ -1,13 +1,14 @@
 // Ergebnisse (Task 28/30/36) und Prüfungseinsicht (Task 37/38)
-import { D, byId, upd, log } from "../data.js?v=8.6";
-import { icon, esc, toast, confirmBox, brand, modal, statusChip, fmtTime, fmtDateTime, parseDate } from "../ui.js?v=8.6";
-import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.6";
-import { navigate, redraw, session } from "../app.js?v=8.6";
-import { store } from "../ui.js?v=8.6";
-import { grading, stPoints, candidates, fmtP } from "./correction.js?v=8.6";
-import { linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=8.6";
-import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, orgShort, personName, einsichtCandidates } from "../access.js?v=8.6";
-import { roPaper, fitRoPapers } from "./kmode.js?v=8.6";
+import { D, byId, upd, log } from "../data.js?v=8.7";
+import { icon, esc, toast, confirmBox, brand, modal, statusChip, fmtTime, fmtDateTime, parseDate } from "../ui.js?v=8.7";
+import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS, categoryList, CATEGORY_SYSTEMS } from "../scenario.js?v=8.7";
+import { navigate, redraw, session } from "../app.js?v=8.7";
+import { store } from "../ui.js?v=8.7";
+import { grading, stPoints, candidates, fmtP } from "./correction.js?v=8.7";
+import { keyThresholds, gradingKeyLabel, linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=8.7";
+import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, orgShort, personName, einsichtCandidates } from "../access.js?v=8.7";
+import { roPaper, fitRoPapers } from "./kmode.js?v=8.7";
+import { contentScope } from "../content.js?v=8.7";
 
 // Endpunkte je Teilaufgabe: Endbeurteilung (falls angefordert und erfasst), sonst Mittelwert Erst/Zweit, sonst Erstkorrektur
 export function finalPoints(pid, st) {
@@ -49,7 +50,7 @@ export function overview() {
     shell: "staff", rail: "ergebnisse", title: "Ergebnisse",
     render() {
       const pe = me(); const adm = pe?.kind === "schuladmin"; const lesson = session.role === "lehrkraft";
-      const ps = resultParticipants();
+      const CS = contentScope(resultParticipants()); const ps = CS.ps;
       const rows = ps.map((p) => ({ p, t: totals(p.id), a1: approvalState(p, 1), a2: approvalState(p, 2), a3: approvalState(p, 3) }));
       const done = rows.filter((r) => r.t.note !== null);
       const notes = done.map((r) => r.t.note);
@@ -77,7 +78,7 @@ export function overview() {
         return `<tr class="${o.recommend && !o.third ? "recrow" : ""}"><td>${esc(p.lastname)}</td><td>${esc(p.firstname)}</td><td>${esc(p.username)}</td>${stCell(o.ek, a1)}${stCell(o.zk, a2)}${o.third ? stCell(o.dk, a3) : `<td class="num muted" title="Nicht angefordert">–</td><td class="num muted" title="Nicht angefordert">–</td>`}<td class="num">${o.note === null ? "–" : `<b class="big-note">${fmtNote(o.note)}</b><div class="xs muted">${esc(o.src)}</div>`}</td><td>${hint}</td>${act}<td><a class="iconbtn" href="#/app/einsicht/${p.id}" title="Prüfungseinsicht" aria-label="Prüfungseinsicht ${esc(p.lastname)}">${icon("eye")}</a></td></tr>`;
       }).join("");
       return `<div class="pagehead"><div><h1>Ergebnisse</h1><div class="sub">${lesson ? "Unterricht · eine Korrektur je Teilnehmende/r" : `${esc(EXAM.name)}${adm ? ` · Prüflinge Ihrer Schule (${esc(orgShort(pe.org))})` : " · Prüflinge Ihrer Korrektorengruppen"}`}</div></div>
-        <div class="row wrap"><button class="btn" data-key>${icon("sigma")} Notenschlüssel</button><a class="btn" href="#/app/korrektur">${icon("file-pen-line")} Zur Korrektur</a><button class="btn" data-csv>${icon("download")} CSV exportieren</button>
+        <div class="row wrap">${CS.select}<button class="btn" data-key>${icon("sigma")} Notenschlüssel</button><a class="btn" href="#/app/korrektur">${icon("file-pen-line")} Zur Korrektur</a><button class="btn" data-csv>${icon("download")} CSV exportieren</button>
         </div></div>
       ${adm ? `<div class="notice info small mb">${icon("eye")}<span><b>Prüfungseinsicht in Präsenz:</b> Prüflinge erhalten keinen eigenständigen Zugriff. Die Einsicht findet vor Ort statt – eine Person mit der Rolle „Prüfungseinsicht“ (Prüfungen › Mitglieder) meldet sich an und bleibt während der Einsicht dabei. Gezeigt werden nur Endnote und Abgabe mit Korrekturzeichen.</span></div>` : ""}
       ${lesson && lessonRooms.length ? `<div class="card pad mb"><h3>Freigabe der Korrektur für die Schüler:innen</h3><p class="xs muted">Nach der Freigabe sehen die Schüler:innen einer Durchführung ihre eigene Korrektur und ihr Ergebnis (Punkte, Note, Begründung und Korrekturzeichen).</p>
@@ -92,7 +93,7 @@ export function overview() {
       </div>
       <h2 class="mt-l mb">Ergebnisübersicht</h2>
       <div class="tablewrap"><table class="tbl restbl"><thead>${head}</thead><tbody>${body || `<tr><td colspan="13"><div class="empty">Keine Ergebnisse für Ihr Konto</div></td></tr>`}</tbody></table></div>
-      <p class="xs muted mt-s">Noten nach <b>linearem Notenschlüssel</b> bezogen auf ${TOTAL_POINTS} Punkte: Note = 6 − 5 · Punkte / ${TOTAL_POINTS}, auf eine Nachkommastelle abgerundet. ${lesson ? "Im Unterricht gibt es genau eine Korrektur." : "Gesamtnote: Mittelwert der Noten aus Erst- und Zweitkorrektur; wurde eine Drittkorrektur angefordert, entscheidet die Endbeurteilung. Werte stammen aus den Korrekturen und aktualisieren sich automatisch."}</p>
+      <p class="xs muted mt-s">${keyThresholds() ? `Noten nach <b>${esc(gradingKeyLabel())}</b> bezogen auf ${TOTAL_POINTS} Punkte.` : `Noten nach <b>linearem Notenschlüssel</b> bezogen auf ${TOTAL_POINTS} Punkte: Note = 6 − 5 · Punkte / ${TOTAL_POINTS}, auf eine Nachkommastelle abgerundet.`} ${lesson ? "Im Unterricht gibt es genau eine Korrektur." : "Gesamtnote: Mittelwert der Noten aus Erst- und Zweitkorrektur; wurde eine Drittkorrektur angefordert, entscheidet die Endbeurteilung. Werte stammen aus den Korrekturen und aktualisieren sich automatisch."}</p>
       <div class="resgrid mt-l">
         <section class="card pad"><h3>Notenspiegel</h3><p class="xs muted">Prüflinge mit Gesamtnote (n = ${done.length}), gerundet auf ganze Noten</p>
           <div class="barchart" role="img" aria-label="Notenspiegel: ${dist.map((n, i) => `Note ${i + 1}: ${n}`).join(", ")}">
@@ -101,7 +102,7 @@ export function overview() {
         <section class="card pad"><h3>Aufgabenstatistik</h3><p class="xs muted">Durchschnittlich erreichte Punkte je Teilaufgabe (Endpunkte)</p>
           <table class="tbl small"><thead><tr><th>Teilaufgabe</th><th class="num">Ø Punkte</th><th style="width:40%">Erreichungsgrad</th><th class="num">min–max</th><th class="num">n</th></tr></thead><tbody>
           ${stStats.map((x) => `<tr><td>${x.s.no} ${esc(x.s.title)}</td><td class="num">${x.m === null ? "–" : fmtP(Math.round(x.m * 10) / 10)} / ${x.s.points}</td><td><div class="hbar" data-tip="${x.pct} % der Maximalpunkte"><i style="width:${x.pct}%"></i></div><span class="xs">${x.m === null ? "" : x.pct + " %"}</span></td><td class="num">${x.min === null ? "–" : fmtP(x.min) + "–" + fmtP(x.max)}</td><td class="num">${x.n}</td></tr>`).join("")}</tbody></table></section>
-      </div>`;
+      </div>${categoryCard(ps)}`;
     },
     mount(el) {
       el.querySelector("[data-key]").onclick = () => keyDialog();
@@ -124,6 +125,19 @@ export function overview() {
     },
   };
 }
+// Auswertung nach dem im Prüfungseditor gewählten Kategoriensystem (Grundlage: Kriterienpunkte der Erstkorrektur)
+function categoryCard(ps) {
+  const cats = categoryList(); if (!cats.length) return "";
+  const rows = cats.map((cat) => {
+    let got = 0, max = 0, n = 0;
+    ps.forEach((p) => { const g = grading(p.id, 1); if (!g) return; n++;
+      ALL_SUBTASKS.forEach((s) => s.criteria.forEach(([, m, c], i) => { if (c !== cat) return; max += m; got += +(g.points?.[s.no]?.[i] || 0); })); });
+    const pct = max ? Math.round((got / max) * 100) : null;
+    return `<tr><td>${esc(cat)}</td><td class="num">${ALL_SUBTASKS.reduce((a, s) => a + s.criteria.filter((k) => k[2] === cat).reduce((b, k) => b + k[1], 0), 0)}</td><td style="width:40%"><div class="hbar"><i style="width:${pct || 0}%"></i></div><span class="xs">${pct === null ? "–" : pct + " %"}</span></td></tr>`;
+  }).join("");
+  return `<section class="card pad mt-l"><h3>Auswertung nach Kategorien</h3><p class="xs muted">Kategoriensystem des Inhalts: ${esc(CATEGORY_SYSTEMS[EXAM.categories?.system]?.label || "")} · Erreichungsgrad auf Basis der Erstkorrektur</p>
+    <table class="tbl small"><thead><tr><th>Kategorie</th><th class="num">Max. Punkte je Arbeit</th><th>Erreichungsgrad</th></tr></thead><tbody>${rows}</tbody></table></section>`;
+}
 // Notenschlüssel (linear, angepasst an die Maximalpunktzahl)
 // Notenschlüssel-Tabelle: Maximalpunktzahl wählbar (Schlüssel wird linear angepasst), Schrittweite ganze oder halbe Punkte
 function keyHtml(max, step) {
@@ -132,8 +146,12 @@ function keyHtml(max, step) {
   return `<div class="keygrid">${cols.map((c) => `<table class="tbl compact"><thead><tr><th class="num">Punkte</th><th class="num">Note</th></tr></thead><tbody>${c.map(([p, n]) => `<tr><td class="num">${fmtP(p)}</td><td class="num">${fmtNote(n)}</td></tr>`).join("")}</tbody></table>`).join("")}</div>`;
 }
 function keyDialog() {
-  modal({ title: "Notenschlüssel (linear)", size: "wide",
-    body: `<p class="small">Note = 6 − 5 · Punkte / Maximalpunkte, auf eine Nachkommastelle zugunsten des Prüflings abgerundet. Bei 100 Punkten entspricht dies dem Schlüssel „Notenschlüssel 100 P“ (100 P → 1,0; 50 P → 3,5; 20 P → 5,0; 0 P → 6,0); bei anderer Maximalpunktzahl wird er linear angepasst. Diese Prüfung hat <b>${TOTAL_POINTS} Punkte</b>.</p>
+  const th = keyThresholds();
+  modal({ title: th ? `Notenschlüssel: ${gradingKeyLabel()}` : "Notenschlüssel (linear)", size: "wide",
+    body: th ? `<p class="small">Im Prüfungseditor festgelegt: <b>${esc(gradingKeyLabel())}</b>. Note 1 ab ${th[0]} %, 2 ab ${th[1]} %, 3 ab ${th[2]} %, 4 ab ${th[3]} %, 5 ab ${th[4]} % der Maximalpunkte, darunter 6. Dieser Inhalt hat <b>${TOTAL_POINTS} Punkte</b>.</p>
+    <div class="row wrap mb" style="gap:16px;align-items:flex-end"><div class="field" style="margin:0"><label class="lbl" for="kmax">Maximalpunktzahl</label><input id="kmax" class="input" type="number" min="1" max="500" step="1" value="${TOTAL_POINTS}" data-kmax style="width:120px"></div>
+      <div class="field" style="margin:0"><label class="lbl" for="kstep">Schrittweite</label><select id="kstep" class="select" data-kstep><option value="0.5">halbe Punkte</option><option value="1">ganze Punkte</option></select></div></div>
+    <div data-ktab>${keyHtml(TOTAL_POINTS, 0.5)}</div>` : `<p class="small">Note = 6 − 5 · Punkte / Maximalpunkte, auf eine Nachkommastelle zugunsten des Prüflings abgerundet. Bei 100 Punkten entspricht dies dem Schlüssel „Notenschlüssel 100 P“ (100 P → 1,0; 50 P → 3,5; 20 P → 5,0; 0 P → 6,0); bei anderer Maximalpunktzahl wird er linear angepasst. Diese Prüfung hat <b>${TOTAL_POINTS} Punkte</b>.</p>
     <div class="row wrap mb" style="gap:16px;align-items:flex-end"><div class="field" style="margin:0"><label class="lbl" for="kmax">Maximalpunktzahl</label><input id="kmax" class="input" type="number" min="1" max="500" step="1" value="${TOTAL_POINTS}" data-kmax style="width:120px"></div>
       <div class="field" style="margin:0"><label class="lbl" for="kstep">Schrittweite</label><select id="kstep" class="select" data-kstep><option value="0.5">halbe Punkte</option><option value="1">ganze Punkte</option></select></div></div>
     <div data-ktab>${keyHtml(TOTAL_POINTS, 0.5)}</div>`,

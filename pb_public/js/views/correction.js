@@ -1,11 +1,12 @@
 // Korrekturworkflow: Korrekturübersicht, Korrekturmodus, Vergleich, Erwartungshorizont
-import { D, byId, upd, create, setting, setSetting } from "../data.js?v=8.6";
-import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=8.6";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.6";
-import { navigate, redraw, session } from "../app.js?v=8.6";
-import { me, courseOf, correctorStages, canCorrect, correctionOver, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses, STAGE_LABEL } from "../access.js?v=8.6";
-import { linearGrade, fmtNote, approvalState, approvalText } from "../grades.js?v=8.6";
-export { mode } from "./kmode.js?v=8.6";
+import { D, byId, upd, create, setting, setSetting } from "../data.js?v=8.7";
+import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=8.7";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.7";
+import { contentScope } from "../content.js?v=8.7";
+import { navigate, redraw, session } from "../app.js?v=8.7";
+import { me, courseOf, correctorStages, canCorrect, correctionOver, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses, STAGE_LABEL } from "../access.js?v=8.7";
+import { linearGrade, fmtNote, approvalState, approvalText } from "../grades.js?v=8.7";
+export { mode } from "./kmode.js?v=8.7";
 
 const S = { view: "aufgaben", collapsed: {} };
 // Lehrkraft (Unterrichtsebene): genau eine Korrektur; Korrektor:in (Prüfungsebene): Erst-, Zweit-, Drittkorrektur
@@ -72,7 +73,7 @@ export function overview(q) {
   return {
     shell: "staff", rail: "ergebnisse", title: "Korrekturübersicht",
     render() {
-      const ps = candidates();
+      const CS = contentScope(candidates()); const ps = CS.ps;
       const c = corr();
       const pe0 = me();
       const mineOpen = ps.filter((p) => !approvalState(p, c).approved(pe0?.id));
@@ -110,7 +111,7 @@ export function overview(q) {
       const elsewhere = lesson ? visibleCourses(pe).filter((x) => x.kind === "unterricht" && lessonCorrector(x) && lessonCorrector(x) !== pe?.id) : [];
       const sub = lesson ? (mine.length ? mine.map((x) => esc(x.title)).join(" · ") : "Keine Unterrichtskurse in Ihrer Korrektur") : `${esc(EXAM.name)} · ${esc(CORRECTORS[c].label)} · Prüflinge, deren Korrektorengruppe Sie angehören`;
       return `<div class="pagehead"><div><h1>Korrekturübersicht</h1><div class="sub">${sub}</div></div>
-        <div class="row wrap">${lesson ? `<button class="btn" data-handoff ${mine.length ? "" : "disabled"} title="Korrektur an eine andere Lehrkraft des Kurses weitergeben">${icon("forward")} Korrektur weitergeben</button>` : `${myStages().length > 1 ? `<select class="select" style="width:auto" data-corr aria-label="Korrekturstufe">${myStages().map((k) => `<option value="${k}" ${c === k ? "selected" : ""}>${CORRECTORS[k].label}</option>`).join("")}</select>` : `<span class="badge" style="background:${CORRECTORS[c].color};color:#fff">${esc(CORRECTORS[c].label)}</span>`}`}
+        <div class="row wrap">${CS.select}${lesson ? `<button class="btn" data-handoff ${mine.length ? "" : "disabled"} title="Korrektur an eine andere Lehrkraft des Kurses weitergeben">${icon("forward")} Korrektur weitergeben</button>` : `${myStages().length > 1 ? `<select class="select" style="width:auto" data-corr aria-label="Korrekturstufe">${myStages().map((k) => `<option value="${k}" ${c === k ? "selected" : ""}>${CORRECTORS[k].label}</option>`).join("")}</select>` : `<span class="badge" style="background:${CORRECTORS[c].color};color:#fff">${esc(CORRECTORS[c].label)}</span>`}`}
         <button class="btn primary" data-start ${ps.length ? "" : "disabled"}>${icon("play")} Korrektur starten</button></div></div>
       <div class="row between wrap"><nav class="tabs" style="flex:1"><button data-view="aufgaben" class="${S.view === "aufgaben" ? "active" : ""}">Aufgabenweise</button><button data-view="personen" class="${S.view === "personen" ? "active" : ""}">Personenweise</button></nav>
         <div class="row" style="margin-bottom:24px"><span class="small muted">${openCnt} Bewertungen offen</span>${mineWithdraw.length ? `<button class="btn ghost" data-withdrawall>${icon("rotate-ccw")} Meine Freigaben zurückziehen (${mineWithdraw.length})</button>` : ""}<button class="btn" data-release ${mineOpen.length ? "" : "disabled"}>${icon("funnel")} ${mineOpen.length ? `Alle freigeben (${mineOpen.length})` : "Von Ihnen freigegeben"}</button></div></div>
@@ -207,8 +208,10 @@ export function horizon(st) {
   return {
     shell: "plain", title: "Erwartungshorizont",
     render: () => `<div class="breadcrumb"><button class="link" data-back>${icon("arrow-left")} Zurück</button><span class="muted">Erwartungshorizont (öffnet sich als eigener Tab)</span></div><div class="row between wrap mb"><h1>Erwartungshorizont</h1><select class="select" style="width:auto" data-st>${ALL_SUBTASKS.map((x) => `<option value="${x.no}" ${x.no === st ? "selected" : ""}>Teilaufgabe ${x.no} ${esc(x.title)}</option>`).join("")}</select></div>
-      ${s ? `<p class="lead">Teilaufgabe ${s.no} ${esc(s.title)} · ${s.points} Punkte</p><div class="card horizont mt">${s.horizon.map(([t, pt]) => `<div class="item"><div><b>${esc(t.split(" ").slice(0, 4).join(" "))} …</b><ul><li>${esc(t)}</li></ul></div><div>${esc(pt)}</div></div>`).join("")}</div>
-      <h3 class="mt-l">Bewertungskriterien</h3><div class="tablewrap mt-s"><table class="tbl"><thead><tr><th>Kriterium</th><th class="num">Max. Punkte</th></tr></thead><tbody>${s.criteria.map(([n, m]) => `<tr><td>${esc(n)}</td><td class="num">${m}</td></tr>`).join("")}</tbody></table></div>` : ""}`,
+      ${s ? `<p class="lead">Teilaufgabe ${s.no} ${esc(s.title)} · ${s.points} Punkte</p><p class="small">${esc(s.text || "")}</p>${(s.type === "single" || s.type === "multiple") && (s.options || []).length ? `<div class="card pad mt"><h3>Lösung (${s.type === "single" ? "Single Choice" : "Multiple Choice"})</h3><ol type="A">${s.options.map((o) => `<li>${o.correct ? `<b>${esc(o.text)}</b> ${icon("check")}` : esc(o.text)}</li>`).join("")}</ol></div>` : ""}
+      <div class="card horizont mt">${s.horizon.map(([t, pt]) => `<div class="item"><div><b>${esc(String(t).split(" ").slice(0, 4).join(" "))} …</b><ul><li>${esc(t)}</li></ul></div><div>${esc(pt)}</div></div>`).join("")}</div>
+      ${(s.images || []).length ? `<div class="hzimgs mt">${s.images.map((im) => `<figure><img src="${esc(im.src)}" alt="${esc(im.caption || "Abbildung zum Erwartungshorizont")}"><figcaption class="xs muted">${esc(im.caption || "")}</figcaption></figure>`).join("")}</div>` : ""}
+      <h3 class="mt-l">Bewertungsraster</h3><div class="tablewrap mt-s"><table class="tbl"><thead><tr><th>Kriterium</th>${s.criteria.some((k) => k[2]) ? "<th>Kategorie</th>" : ""}<th class="num">Max. Punkte</th></tr></thead><tbody>${s.criteria.map(([n, m, cat]) => `<tr><td>${esc(n)}</td>${s.criteria.some((k) => k[2]) ? `<td>${esc(cat || "–")}</td>` : ""}<td class="num">${m}</td></tr>`).join("")}</tbody></table></div>` : ""}`,
     mount(el) {
       el.querySelector("[data-st]").onchange = (e) => navigate(`#/erwartung/${e.target.value}`);
       el.querySelector("[data-back]").onclick = () => { if (window.opener && history.length <= 2) window.close(); else if (history.length > 1) history.back(); setTimeout(() => { if (location.hash.startsWith("#/erwartung")) navigate("#/app/korrektur"); }, 200); };
