@@ -3,8 +3,8 @@
 //    Besitzer/Mitbetreuung des Unterrichtskurses
 //  - Raumaufsicht (Prüfungsebene): sieht nur Raumaufsichten, in denen sie als Aufsichtsperson eingetragen ist
 //  - Schuladministration (Prüfungsebene): sieht die Prüfungs-Raumaufsichten ihrer Organisation
-import { D, byId } from "./data.js?v=8.5";
-import { store, isFinished } from "./ui.js?v=8.5";
+import { D, byId } from "./data.js?v=8.6";
+import { store, isFinished } from "./ui.js?v=8.6";
 
 export const me = () => byId("persons", store.get("person"));
 export const orgOf = (p) => byId("orgs", p?.org);
@@ -115,11 +115,19 @@ export function approvalStateFor(c, p, stage) {
 }
 
 // ---------- Einsicht der eigenen Ergebnisse ----------
-//  - Prüfung: nur nach Freigabe durch die Organisation (Schuladministration) des Prüfungsraums; Inhalt: Endnote und Abgabe mit Korrekturzeichen
+//  - Prüfung: keine Freigabe und kein eigenständiger Zugriff – die Einsicht findet immer in Präsenz statt; eine Person mit der Rolle
+//    „Prüfungseinsicht“ (Kursmitglied der Prüfung, Schule des Prüfungsraums) meldet sich an und bleibt während der Einsicht dabei.
+//    Inhalt: Endnote und Abgabe mit Korrekturzeichen
 //  - Unterricht: nach Freigabe der Durchführung durch die Lehrkraft; Inhalt: Korrektur und Ergebnisse (Punkte, Note, Begründung, Korrekturzeichen)
-export const einsichtReleased = (room) => { const c = courseOf(room); if (!room || !c) return false; return c.kind === "pruefung" ? !!c.einsicht?.[room.org] : !!room.released; };
 export function einsichtFor(p) {
   const room = byId("rooms", p?.room); const c = courseOf(room);
-  if (!p || !c || !isFinished(p.status) || p.status === "nicht_teilnahme" || !einsichtReleased(room)) return null;
-  return c.kind === "pruefung" ? "pruefung" : "unterricht";
+  if (!p || !c || c.kind !== "unterricht" || !isFinished(p.status) || p.status === "nicht_teilnahme" || !room.released) return null;
+  return "unterricht";
+}
+// Personen mit der Rolle „Prüfungseinsicht“ und die Prüflinge, deren Einsicht sie begleiten dürfen
+export const einsichtCourses = (pe = me()) => (pe ? D.courses.filter((c) => c.kind === "pruefung" && hasRole(c, pe.id, "pruefungseinsicht")) : []);
+export const einsichtPersons = () => D.persons.filter((pe) => einsichtCourses(pe).length);
+export function einsichtCandidates(pe = me()) {
+  const cs = new Set(einsichtCourses(pe).map((c) => c.id));
+  return D.participants.filter((x) => { const r = byId("rooms", x.room); return r && cs.has(r.course) && inOrg(pe, r.org) && isFinished(x.status) && x.status !== "nicht_teilnahme"; });
 }

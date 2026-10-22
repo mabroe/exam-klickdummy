@@ -2,11 +2,11 @@
 //  - Unterricht (Lehrkraft): Teilnehmende (Personen, vorhandene Gruppen, eigene Gruppen) und weitere Lehrkräfte (Mitbetreuung)
 //  - Prüfung (Schuladministration): Teilnehmende, Raumaufsichten, Korrektor:innen (Erst/Zweit/Dritt), Prüfungseinsicht –
 //    jeweils nur für Personen der eigenen Organisation
-import { D, byId, upd, create, del, log } from "../data.js?v=8.5";
-import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=8.5";
-import { navigate, redraw } from "../app.js?v=8.5";
-import * as RU from "./rules.js?v=8.5";
-import { assignments, approvalStateFor, orgIds, inOrg, sameOrg, orgsLabel, lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=8.5";
+import { D, byId, upd, create, del, log } from "../data.js?v=8.6";
+import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=8.6";
+import { navigate, redraw } from "../app.js?v=8.6";
+import * as RU from "./rules.js?v=8.6";
+import { assignments, approvalStateFor, orgIds, inOrg, sameOrg, orgsLabel, lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=8.6";
 
 const ROOM_STATE = { CREATED: ["In Vorbereitung", "gray"], RUNNING: ["Prüfung läuft", "cyan"], PAUSED: ["Prüfung pausiert", "yellowb"], TERMINATED: ["Prüfung beendet", "green"] };
 const UI = { q: "", addQ: "" };
@@ -42,7 +42,7 @@ export function detail(id, tab) {
       const c = byId("courses", id); const p = me();
       if (!c) return `<div class="empty">Kurs nicht gefunden. <a href="#/app/kurse">Zur Übersicht</a></div>`;
       if (!canManageCourse(c, p)) return `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Dieser Kurs gehört nicht zu Ihrem Konto bzw. Ihrer Organisation.</p><a class="btn" href="#/app/kurse">Zur Übersicht</a></div>`;
-      const tabs = [["mitglieder", "Mitglieder und Gruppen"], ...(c.kind === "pruefung" ? [["korrektoren", "Korrektoren"]] : []), ["steuerung", `Aufgabensteuerung${(c.rules || []).length ? ` <span class="badge gray">${c.rules.length}</span>` : ""}`], ["raumaufsichten", "Raumaufsichten"], ["info", "Kursinformationen"]];
+      const tabs = [["mitglieder", "Mitglieder und Gruppen"], ...(c.kind === "pruefung" ? [["korrektoren", "Korrektoren"]] : []), ["steuerung", `Aufgabensteuerung${RU.rulesOfCourse(c).length ? ` <span class="badge gray">${RU.rulesOfCourse(c).length}</span>` : ""}`], ["raumaufsichten", "Raumaufsichten"], ["info", "Kursinformationen"]];
       const body = tab === "steuerung" ? RU.tabRules(c) : tab === "raumaufsichten" ? tabRooms(c, p) : tab === "info" ? tabInfo(c) : tab === "korrektoren" && c.kind === "pruefung" ? tabCorrectors(c, p) : c.kind === "pruefung" ? tabMembersExam(c, p) : tabMembersLesson(c, p);
       return `<div class="breadcrumb"><a href="#/app/kurse">${p.kind === "schuladmin" ? "Prüfungen" : "Mein Unterricht"}</a>${icon("chevron-right")}<b>${esc(c.title)}</b></div>
       <div class="pagehead"><div><h1>${esc(c.title)}</h1><div class="row mt-s small"><span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span><span>${c.kind === "pruefung" ? "Beteiligte Schulen: " + (c.orgs || []).map((o) => esc(orgShort(o))).join(", ") : "Besitzer: " + esc(personName(byId("persons", c.owner)))}</span></div></div>
@@ -51,7 +51,7 @@ export function detail(id, tab) {
     },
     mount(el) {
       const c = byId("courses", id); if (!c || !canManageCourse(c)) return;
-      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=8.5").then((m) => m.newRoomDialog(c.id))));
+      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=8.6").then((m) => m.newRoomDialog(c.id))));
       el.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => addPersons(c, b.dataset.add, b.dataset.stage)));
       el.querySelectorAll("[data-addgroup]").forEach((b) => (b.onclick = () => addGroup(c, b.dataset.addgroup)));
       const ng = el.querySelector("[data-owngroup]"); if (ng) ng.onclick = () => ownGroup(c);

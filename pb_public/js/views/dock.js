@@ -3,10 +3,10 @@
 // - mehrere Fenster je Kategorie (z. B. jede geöffnete E-Mail, jede Notiz)
 // - Klick außerhalb eines Fensters minimiert alle sichtbaren Fenster
 // - Wiederherstellen über die Taskleiste (Dock); bei mehreren Fenstern Auswahlliste
-import { onChange, fileUrl } from "../data.js?v=8.5";
-import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.5";
-import { EXAM, subtask } from "../scenario.js?v=8.5";
-import { isOffice, officeHtml, downloadUrl } from "../docs.js?v=8.5";
+import { onChange, fileUrl } from "../data.js?v=8.6";
+import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.6";
+import { EXAM, subtask } from "../scenario.js?v=8.6";
+import { isOffice, officeHtml, downloadUrl } from "../docs.js?v=8.6";
 
 let ctx = null;
 export const setCtx = (c) => { ctx = c; };

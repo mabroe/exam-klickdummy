@@ -4,7 +4,7 @@
 // Alle Personennamen sind zufällig erzeugte Fantasienamen – Ähnlichkeiten mit realen Personen sind nicht beabsichtigt.
 (function (root) {
   // Stand der Demodaten. Erhöhen, wenn sich die Demodaten ändern – ältere Datenbestände werden beim Start automatisch neu aufgebaut.
-  var SEED_VERSION = 13;
+  var SEED_VERSION = 14;
   var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings"];
 
   // Bewertungskriterien je Teilaufgabe (Maximalpunkte) – muss zu js/scenario.js passen
@@ -325,7 +325,7 @@
     var btsGroups = Object.keys(groupMembers).filter(function (k) { return groupMembers[k].org === bts; }).map(function (k) { return GR(k, bts, "klasse", groupMembers[k].ids); });
     // Mitglieder der Prüfung (pflegt die Schuladministration der jeweiligen Schule) und des Unterrichts (pflegt die Lehrkraft)
     pr1.groups = [{ group: gFA.id, role: "teilnehmer" }].concat(btsGroups.map(function (g) { return { group: g.id, role: "teilnehmer" }; }));
-    pr1.members = [{ person: T["Riedmüller"].id, role: "raumaufsicht" }, { person: T.Voigt.id, role: "raumaufsicht" }, { person: T.Hinrichs.id, role: "pruefungseinsicht" }, { person: T.Gaspari.id, role: "raumaufsicht" }, { person: T["Dähne"].id, role: "raumaufsicht" }, { person: T.Morawetz.id, role: "raumaufsicht" }];
+    pr1.members = [{ person: T["Riedmüller"].id, role: "raumaufsicht" }, { person: T.Voigt.id, role: "raumaufsicht" }, { person: T.Hinrichs.id, role: "pruefungseinsicht" }, { person: T.Gaspari.id, role: "raumaufsicht" }, { person: T["Dähne"].id, role: "raumaufsicht" }, { person: T.Morawetz.id, role: "raumaufsicht" }, { person: T["Riedmüller"].id, role: "pruefungseinsicht" }, { person: T["Dähne"].id, role: "pruefungseinsicht" }];
     // Korrektorengruppen je Korrekturstufe (Zuweisung für die Klasse FA230a bzw. die Klassen der BTS); Endbeurteilung nur auf Anforderung
     var K = function (stage, group, correctors, org) { return { id: rid(), stage: stage, kind: "group", target: group.id, correctors: correctors.map(function (x) { return x.id; }), org: org.id }; };
     pr1.corrections = [K(1, gFA, [T.Ohm, T.Voigt], afs), K(2, gFA, [T.Steinhoff], afs), K(3, gFA, [T.Ebeling], afs)]
@@ -343,8 +343,8 @@
       { id: rid(), name: "Hinweis auf fehlende Abgabe 3.1", active: true, match: "all", groups: [{ id: rid(), match: "all", conditions: [{ id: rid(), type: "remaining_minutes", min: 15 }, { id: rid(), type: "no_submission", subtask: "3.1" }] }],
         actions: [{ id: rid(), type: "notice", text: "Zu Teilaufgabe 3.1 ist noch keine Abgabe markiert. Denken Sie daran, Ihre Ergebnisse als Abgabe zu markieren." }] },
     ]; };
-    pr1.rules = exampleRules(); u1.rules = exampleRules().slice(0, 2);
-    pr1.einsicht = {};
+    // Die Regeln gehören zum Inhalt der Prüfung bzw. des Kurses (Katalog) und werden im Prüfungseditor konfiguriert
+    catFA.rules = exampleRules(); catWeb.rules = exampleRules().slice(0, 2);
     u1.groups = [{ group: gWG.id, role: "teilnehmer" }];
 
     // ---------- Unterricht: Distanzeinheit (fester Zeitraum, Start durch die Schüler:innen, mehrfach durchlaufbar) ----------

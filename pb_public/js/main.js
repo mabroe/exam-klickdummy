@@ -1,4 +1,4 @@
 // Einstieg: zuerst Zugangsseite (Passwort), dann der Klickdummy
-import { gate } from "./gate.js?v=8.5";
+import { gate } from "./gate.js?v=8.6";
 await gate(document.getElementById("app"));
-await import("./app.js?v=8.5");
+await import("./app.js?v=8.6");

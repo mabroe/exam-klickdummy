@@ -1,13 +1,13 @@
 // Prüfling: Wartebereich, Prüfungsmodus (Dashboard, Aufgaben, Abgaben), Endbildschirm, Kursvorschau
-import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.5";
-import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=8.5";
-import { EXAM, ALL_SUBTASKS, subtask, taskOf } from "../scenario.js?v=8.5";
-import { navigate, session, render, directHelp } from "../app.js?v=8.5";
-import * as W from "./dock.js?v=8.5";
-import { einsichtView } from "./results.js?v=8.5";
-import { einsichtFor } from "../access.js?v=8.5";
-import { markable, bindMarkables } from "../highlight.js?v=8.5";
-import { ruleMatches, evalState, runAction } from "../rules.js?v=8.5";
+import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.6";
+import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=8.6";
+import { EXAM, ALL_SUBTASKS, subtask, taskOf } from "../scenario.js?v=8.6";
+import { navigate, session, render, directHelp } from "../app.js?v=8.6";
+import * as W from "./dock.js?v=8.6";
+import { einsichtView } from "./results.js?v=8.6";
+import { einsichtFor } from "../access.js?v=8.6";
+import { markable, bindMarkables } from "../highlight.js?v=8.6";
+import { ruleMatches, evalState, runAction } from "../rules.js?v=8.6";
 // Punktebadge: grün, sobald für die (Teil-)Aufgabe eine Abgabe markiert ist, sonst grau
 const ptsBadge = (done, label, title = "") => `<span class="badge ${done ? "lime" : "gray"}" title="${title || (done ? "Abgabe markiert" : "noch nicht bearbeitet")}">${label}</span>`;
 const taskDone = (items, t) => t.subtasks.filter((s) => items.some((i) => i.submission === s.no)).length;
@@ -131,10 +131,11 @@ function stopTimers() { clearInterval(hbTimer); clearInterval(tickTimer); clearI
 // ---------- Aufgabensteuerung (Regeln aus dem Kurs) ----------
 // Aktionen (geöffnete Aufgaben, Abgaben, E-Mails …) und Zeitfaktoren werden laufend ausgewertet; jede Regel löst je Prüfling einmal aus
 const RS = { key: null, progress: null, fired: null, lastActive: Date.now(), lastTick: 0, busy: false, timer: null, saved: 0 };
-const ruleCourse = (ctx) => byId("courses", ctx.preview ? store.get("pvfrom", null)?.course : ctx.room?.course);
-const activeRules = (ctx) => (ruleCourse(ctx)?.rules || []).filter((r) => r && r.active !== false);
+// Regeln aus dem Inhalt der Prüfung bzw. des Kurses (Katalog) – nicht durch Lehrkraft oder Schuladministration änderbar
+const ruleSource = (ctx) => (ctx.preview ? ctx.course : byId("catalog", byId("courses", ctx.room?.course)?.catalog));
+const activeRules = (ctx) => (ruleSource(ctx)?.rules || []).filter((r) => r && r.active !== false);
 function rsInit(ctx) {
-  const key = ctx.preview ? "pv:" + (ruleCourse(ctx)?.id || "") : ctx.p.id + ":" + (ctx.p.attempt || 1);
+  const key = ctx.preview ? "pv:" + (ruleSource(ctx)?.id || "") : ctx.p.id + ":" + (ctx.p.attempt || 1);
   if (RS.key === key) return;
   RS.key = key; RS.lastActive = Date.now(); RS.lastTick = 0;
   const pr = ctx.preview ? {} : JSON.parse(JSON.stringify(ctx.p.progress || {}));
@@ -305,7 +306,7 @@ function waitView(ctx) {
       el.querySelectorAll("[data-pgstep]").forEach((b) => (b.onclick = () => { ui.pdfPage = Math.max(1, Math.min(3, ui.pdfPage + +b.dataset.pgstep)); render(false); }));
       const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
       const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
-      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.5").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
+      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.6").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
       // Prüfung läuft bereits, Bestätigung fehlt
       if (room.state === "RUNNING" && !confirmedBoth && !document.querySelector(".backdrop") && !store.get("bo." + p.id)) {
         store.set("bo." + p.id, 1);
@@ -391,7 +392,7 @@ function endView(ctx) {
     <div class="endbox"><div class="ok">${icon(p.status === "nicht_teilnahme" ? "circle-x" : "circle-check", "xl")}</div><h1>${texts[0]}</h1><p class="lead mt">${texts[1]}</p>
     ${p.status !== "nicht_teilnahme" ? `<div class="card pad mt" style="text-align:left"><h3>Übermittelte Abgaben (${subs.length})</h3>${ALL_SUBTASKS.map((s) => { const n = subs.filter((i) => i.submission === s.no).length; return `<div class="row between small" style="padding:4px 0;border-bottom:1px solid var(--line-2)"><span>${s.no} ${esc(s.title)}</span>${n ? `<span class="badge green">${n} Abgabe${n > 1 ? "n" : ""}</span>` : `<span class="badge gray">keine Abgabe</span>`}</div>`; }).join("")}</div>` : ""}
     ${dist && (canRepeat || room.show_horizon) ? `<div class="row mt" style="justify-content:center;gap:8px">${room.show_horizon ? `<a class="btn" href="#/tn/erwartung">${icon("file-text")} Erwartungshorizont ansehen</a>` : ""}${canRepeat ? `<button class="btn primary" data-repeat>${icon("rotate-ccw")} Einheit erneut durchlaufen</button>` : ""}</div>${canRepeat ? `<p class="xs muted mt-s">Möglich bis ${fmtDateTime(parseDate(room.window_to))} Uhr. Beim erneuten Durchlauf wird Ihre bisherige Bearbeitung ersetzt.</p>` : ""}` : ""}
-    ${p.status !== "nicht_teilnahme" ? (ek ? `<div class="notice success mt" style="justify-content:center">${icon("circle-check")}<span>${ek === "pruefung" ? "Ihre Schule hat die Prüfungseinsicht freigegeben." : "Ihre Lehrkraft hat die Korrektur freigegeben."}</span></div><p class="mt"><a class="btn primary" href="#/tn/einsicht">${icon("eye")} ${ek === "pruefung" ? "Prüfungseinsicht öffnen" : "Korrektur und Ergebnis ansehen"}</a></p>` : `<p class="muted small mt">${courseOfRoom(room)?.kind === "unterricht" ? "Korrektur und Ergebnis sehen Sie, sobald Ihre Lehrkraft sie freigibt." : "Eine Prüfungseinsicht ist nur nach Freigabe durch Ihre Schule möglich."}</p>`) : ""}
+    ${p.status !== "nicht_teilnahme" ? (ek ? `<div class="notice success mt" style="justify-content:center">${icon("circle-check")}<span>Ihre Lehrkraft hat die Korrektur freigegeben.</span></div><p class="mt"><a class="btn primary" href="#/tn/einsicht">${icon("eye")} Korrektur und Ergebnis ansehen</a></p>` : `<p class="muted small mt">${courseOfRoom(room)?.kind === "unterricht" ? "Korrektur und Ergebnis sehen Sie, sobald Ihre Lehrkraft sie freigibt." : "Eine Prüfungseinsicht findet ausschließlich in Präsenz statt – gemeinsam mit einer Person Ihrer Schule mit der Rolle „Prüfungseinsicht“."}</p>`) : ""}
     <p class="mt-l"><a class="btn" href="#/">Zur Rollenwahl</a></p></div>`,
     mount(el) { stopTimers(); const rb = el.querySelector("[data-repeat]"); if (rb) rb.onclick = () => repeatUnit(ctx); },
   };
@@ -704,7 +705,7 @@ function bindPage(el, ctx, sub) {
   el.querySelectorAll("[data-swapatt]").forEach((b) => (b.onclick = () => swapAttachment(ctx, b, ...b.dataset.swapatt.split("|"))));
   el.querySelectorAll("[data-openmail]").forEach((b) => (b.onclick = () => W.open("mail", { mailId: b.dataset.openmail, subtask: sub.split("/")[2] })));
   const fin = el.querySelector("[data-finish]"); if (fin) fin.onclick = () => finishExam(ctx);
-  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.5").then((m) => m.copyCourse(ctx.course));
+  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.6").then((m) => m.copyCourse(ctx.course));
   const bm = el.querySelector("[data-bookmark]");
   if (bm) bm.onclick = () => {
     const parts = sub.split("/"); const key = parts[2] || parts[1];

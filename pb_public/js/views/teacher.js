@@ -1,9 +1,9 @@
 // Lehrkraft / Schuladministration: Meine Aufgaben, Katalog, Kursdetails, Meine Prüfungen, Demo-Verwaltung
-import { D, byId, upd, create, resetDemo, demoApi } from "../data.js?v=8.5";
-import { icon, esc, modal, toast, popMenu, parseDate, mmss, pager, bindPager, ddHtml, bindDd, statusChip, toPb, isActive } from "../ui.js?v=8.5";
-import { simulateOffline } from "./proctor.js?v=8.5";
-import { navigate, redraw, render } from "../app.js?v=8.5";
-import { me, visibleCourses, visibleRooms } from "../access.js?v=8.5";
+import { D, byId, upd, create, resetDemo, demoApi } from "../data.js?v=8.6";
+import { icon, esc, modal, toast, popMenu, parseDate, mmss, pager, bindPager, ddHtml, bindDd, statusChip, toPb, isActive } from "../ui.js?v=8.6";
+import { simulateOffline } from "./proctor.js?v=8.6";
+import { navigate, redraw, render } from "../app.js?v=8.6";
+import { me, visibleCourses, visibleRooms } from "../access.js?v=8.6";
 
 const S = { tab: "active", sort: "new", q: "", open: {}, cat: { q: "", applied: "", tab: "Alle", beruf: [], fach: [], jahr: [], page: 1, per: 6 } };
 let timer = null;
@@ -108,7 +108,7 @@ export function catalog() {
   };
 }
 // Kopieren aus dem Katalog: Unterrichtsebene (Lehrkraft) – legt einen eigenen Kurs mit Mitgliederverwaltung an
-export async function copyCourse(c) { if (!c) return; const m = await import("./courses.js?v=8.5"); return m.copyToLesson(c); }
+export async function copyCourse(c) { if (!c) return; const m = await import("./courses.js?v=8.6"); return m.copyToLesson(c); }
 export function course(id) {
   const c = byId("catalog", id);
   if (!c) return { redirect: "#/app/katalog" };
@@ -161,7 +161,7 @@ export function admin() {
           <div class="tcase"><b>${icon("clock")} Nachteilsausgleich im Timer</b><p class="small">Setzt 15 Min. Nachteilsausgleich für den gewählten Prüfling. Restzeit, Kopfzeile des Prüflings und Sitzplan zeigen ihn an. Nur vor dem Prüfungsstart möglich.</p>
             <div class="row wrap"><select class="select" style="width:auto" data-ntap aria-label="Prüfling für Nachteilsausgleich">${ps.map((p) => `<option value="${p.id}">${esc(p.lastname)}, ${esc(p.firstname)}${p.nta ? ` – NTA ${p.nta} Min.` : ""}</option>`).join("")}</select>${(() => { const r123 = D.rooms.find((r) => r.name === "Raum 123"); const lock = r123 && r123.state !== "CREATED"; return `<button class="btn sm" data-nta="15" ${lock ? "disabled" : ""}>+15 Min. NTA</button><button class="btn sm ghost" data-nta="0" ${lock ? "disabled" : ""}>entfernen</button>${lock ? `<span class="xs muted">${icon("lock")} Prüfung bereits gestartet</span>` : ""}`; })()}</div></div>
           <div class="tcase"><b>${icon("alarm-clock")} Bearbeitungszeit fast abgelaufen</b><p class="small">Raum 123 läuft, Restzeit 2 Minuten (ohne Zusatzzeiten). Nach Ablauf läuft die Prüfung weiter: Status „Bearbeitungszeit beendet“, neue Aufgaben gesperrt, Ende nur durch Einsammeln/Beenden.</p><button class="btn sm" data-ending>Restzeit auf 2 Min. setzen</button></div>
-          <div class="tcase"><b>${icon("eye")} Ergebnisse und Prüfungseinsicht</b><p class="small">Notenspiegel, Aufgabenstatistik, CSV-Export und Freigabe der Einsicht.</p><a class="btn sm" href="#/app/ergebnisse">${icon("arrow-right")} Zu den Ergebnissen</a></div>
+          <div class="tcase"><b>${icon("eye")} Ergebnisse und Prüfungseinsicht</b><p class="small">Notenspiegel, Aufgabenstatistik, CSV-Export; Einsicht in Präsenz mit der Rolle „Prüfungseinsicht“.</p><a class="btn sm" href="#/app/ergebnisse">${icon("arrow-right")} Zu den Ergebnissen</a></div>
         </div></div>
       <div class="card pad mt"><h3>Statusübersicht Raum 123</h3><div class="legend mt-s">${["nicht_eingeloggt", "wartend", "wartend_bestaetigt", "laeuft", "pausiert", "gesperrt", "zeit_beendet", "abgegeben", "eingesammelt", "beendet", "nicht_teilnahme"].map((s) => `<span>${statusChip(s)} ${count(s)}</span>`).join("")}</div></div>
       <div class="card pad mt"><h3>Rollen und Instanzen</h3><p class="small">Die Navigation orientiert sich an den Bereichsrollen der Instanzen <b>OPE</b> (Erstellung), <b>OPP</b> (Prüfen) und <b>OPU</b> (Unterricht). Abgebildet sind im Klickdummy: Exam-Teilnehmer (Task 19/34), Exam-Raumaufsicht (Task 22/33), Exam-Korrektor (Task 10/20/27), Exam-Lehrkraft/Schuladministration (Task 21/24/31/32, Katalog).</p></div>`;
@@ -171,7 +171,7 @@ export function admin() {
       el.querySelector("[data-sim]").onclick = async () => { const room = D.rooms.find((r) => r.name === "Raum 123"); const r = await demoApi.simulateLogin(room.id); toast("Simulation", `${r.count} Teilnehmende angemeldet.`, "info"); };
       const room = D.rooms.find((r) => r.name === "Raum 123");
       const off = el.querySelector("[data-off]"); if (off) off.onclick = () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-offp]").value); if (p) simulateOffline(room, p); };
-      el.querySelectorAll("[data-nta]").forEach((b) => (b.onclick = async () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-ntap]").value); await upd("participants", p.id, { nta: +b.dataset.nta }); const { log } = await import("../data.js?v=8.5"); log(p.room, p, "Nachteilsausgleich geändert", `${b.dataset.nta} Min.`, "aktion"); toast("Nachteilsausgleich gesetzt", `${p.lastname}: ${b.dataset.nta} Min.`); }));
+      el.querySelectorAll("[data-nta]").forEach((b) => (b.onclick = async () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-ntap]").value); await upd("participants", p.id, { nta: +b.dataset.nta }); const { log } = await import("../data.js?v=8.6"); log(p.room, p, "Nachteilsausgleich geändert", `${b.dataset.nta} Min.`, "aktion"); toast("Nachteilsausgleich gesetzt", `${p.lastname}: ${b.dataset.nta} Min.`); }));
       const end = el.querySelector("[data-ending]"); if (end) end.onclick = async () => {
         const start = new Date(Date.now() - ((room.duration_min || 90) + (room.global_extra || 0) - 2) * 60000);
         await upd("rooms", room.id, { state: "RUNNING", started_at: toPb(start), paused_total_s: 0, paused_at: "" });

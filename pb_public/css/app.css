@@ -1083,3 +1083,7 @@ tr.rowlink:focus-visible { outline: 3px solid #4a90e2; outline-offset: -3px; }
 .rcond .iconbtn { flex: 0 0 auto; }
 [data-rtpl] { width: auto; max-width: 420px; }
 .ract > .row > .select { width: auto; flex: 1 1 auto; margin-right: 6px; }
+.start .rolegrid.six { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.start .wrap:has(.rolegrid.six) { max-width: 1440px; }
+.einsichtbar { position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 24px; background: #1f2937; color: #fff; }
+.einsichtbar .badge { background: #fff; color: #1f2937; }
