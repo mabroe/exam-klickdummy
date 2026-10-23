@@ -1,7 +1,7 @@
 // Klickstrecke „Demo starten“ im Wartebereich: erklärt den Prüfungsmodus an einer verkleinerten Nachbildung.
 // In jedem Schritt ist ein Bereich hervorgehoben; ein Klick darauf (oder „Weiter“) führt zum nächsten Schritt.
-import { icon, esc, modal } from "../ui.js?v=8.9";
-import { EXAM } from "../scenario.js?v=8.9";
+import { icon, esc, modal } from "../ui.js?v=9.0";
+import { EXAM } from "../scenario.js?v=9.0";
 
 const STEPS = [
   { view: "dash", hot: "head", title: "Kopfzeile: Zeit und Fortschritt",

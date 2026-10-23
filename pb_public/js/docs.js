@@ -5,7 +5,7 @@ function script(src) { return (loaded[src] ||= new Promise((ok, fail) => { const
 let pdfjs = null;
 async function pdfLib() {
   if (pdfjs) return pdfjs;
-  pdfjs = await import("./vendor/pdf.min.mjs?v=8.9");
+  pdfjs = await import("./vendor/pdf.min.mjs?v=9.0");
   pdfjs.GlobalWorkerOptions.workerSrc = new URL("./vendor/pdf.worker.min.mjs", import.meta.url).href;
   return pdfjs;
 }

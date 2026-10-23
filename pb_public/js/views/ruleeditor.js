@@ -1,7 +1,7 @@
 // Aufgabensteuerung im Prüfungseditor: Regeln mit Bedingungen (UND/ODER) und Aktionen – bearbeitet den Entwurf des Editors
-import { icon, esc, confirmBox } from "../ui.js?v=8.9";
-import { EXAM, ALL_SUBTASKS } from "../scenario.js?v=8.9";
-import { CONDITIONS, ACTIONS, newRule, newCondition, newAction, ruleText } from "../rules.js?v=8.9";
+import { icon, esc, confirmBox } from "../ui.js?v=9.0";
+import { EXAM, ALL_SUBTASKS } from "../scenario.js?v=9.0";
+import { CONDITIONS, ACTIONS, newRule, newCondition, newAction, ruleText } from "../rules.js?v=9.0";
 
 
 const TEMPLATES = [

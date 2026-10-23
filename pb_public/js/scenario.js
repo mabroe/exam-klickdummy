@@ -108,7 +108,7 @@ export const QTYPES = {
   single: { label: "Single Choice (eine richtige Antwort)", group: "Direkt in der Aufgabe" },
   multiple: { label: "Multiple Choice (mehrere richtige Antworten)", group: "Direkt in der Aufgabe" },
 };
-export const APP_TOOLS = { mail: "E-Mail senden", files: "Datei in „Eigene Dateien“ ablegen", editor: "Notiz verfassen", calendar: "Termin anlegen", tickets: "Ticket bearbeiten", ide: "Programmieren (Entwicklungsumgebung)", erp: "Beleg im ERP-System erfassen" };
+export const APP_TOOLS = { mail: "E-Mail senden", files: "Datei in „Eigene Dateien“ ablegen", editor: "Notiz verfassen", calendar: "Termin anlegen", tickets: "Ticket bearbeiten", ide: "Programmieren (Entwicklungsumgebung)", erp: "Beleg im ERP-System erfassen (Bestellung, Lieferant, Buchungssatz)" };
 export const INLINE_TYPES = ["freitext", "kurz", "single", "multiple"];
 // Notenschlüssel (einmalig je Inhalt)
 export const GRADING_KEYS = {

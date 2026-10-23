@@ -5,7 +5,7 @@
 //  3. Wörterbuch-Abgleich: nur die vorgegebenen Korrekturzeichen sind erlaubt; Zuordnung Striche ↔ Buchstaben per dynamischer
 //     Programmierung (auch zusammenhängend geschriebene Buchstaben), Plausibilität der Buchstabenhöhen (z. B. Unterlänge bei „g“)
 //  4. Ganzwort-Vergleich als Rückfallebene sowie persönliche Schriftproben des Korrektors (Einlernen / Lernen aus Korrekturen)
-import { ALL_SIGN_KEYS } from "./scenario.js?v=8.9";
+import { ALL_SIGN_KEYS } from "./scenario.js?v=9.0";
 
 // ---------- Einstrich-Glyphen (Koordinaten: x nach rechts, y nach unten, Grundlinie y=10) ----------
 const G = {
@@ -127,10 +127,14 @@ const V = {
 const CHAR_N = 40, WORD_N = 64;
 const scaleGlyph = (g, k = 3, ox = 0) => g.s.map((st) => st.map(([x, y]) => ({ x: (ox + x) * k, y: y * k })));
 let CHARS = null; // { ch: [{cloud, top, bot}] }
+// Zeichen, für die Schreibvorlagen vorliegen (Korrekturzeichensätze: nur diese Kürzel sind per Stift erkennbar)
+export const INK_CHARS = Object.keys(G);
+export const resetInk = () => { CHARS = null; };
 function charTemplates() {
   if (CHARS) return CHARS; CHARS = {};
   const chars = new Set(ALL_SIGN_KEYS.join(""));
   for (const ch of chars) {
+    if (!G[ch]) continue;
     const vs = [G[ch], ...(ALT[ch] || []), ...(V[ch] || [])].filter(Boolean);
     CHARS[ch] = vs.map((g) => ({ cloud: cloud(scaleGlyph(g), CHAR_N) }));
   }
@@ -200,6 +204,7 @@ export function packSample(strokes) {
 // ---------- Erkennung ----------
 // Liefert sortierte Kandidaten [{ sign, score }] – score 0..1
 export function recognizeSign(strokes, allowed = ALL_SIGN_KEYS) {
+  allowed = allowed.filter((k) => k && [...k].every((ch) => G[ch]));
   strokes = strokes.filter((s) => s.length);
   const pts = strokes.reduce((a, s) => a + s.length, 0);
   if (pts < 2) return [];

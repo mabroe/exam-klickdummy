@@ -2,13 +2,13 @@
 //  - Erstkorrektur: rot, rechter Rand · Zweitkorrektur: grün, linker Rand · Drittkorrektur (Endbeurteilung): braun, linker Rand außen
 //  - Unterstreichen horizontal (einfach, doppelt, gekringelt) und vertikal (Randstrich)
 //  - Stift: Gesten für Linien, handschriftliche Korrekturzeichen werden erkannt und an den Rand gesetzt
-import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=8.9";
-import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=8.9";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS, QTYPES } from "../scenario.js?v=8.9";
-import { navigate, redraw, session } from "../app.js?v=8.9";
-import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer, lessonMode } from "./correction.js?v=8.9";
-import { pdfPages, cachedPages, isPdf, isImage, isOffice, officeToPdf, downloadUrl, extOf } from "../docs.js?v=8.9";
-import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=8.9";
+import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=9.0";
+import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=9.0";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS, QTYPES } from "../scenario.js?v=9.0";
+import { navigate, redraw, session } from "../app.js?v=9.0";
+import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer, lessonMode } from "./correction.js?v=9.0";
+import { pdfPages, cachedPages, isPdf, isImage, isOffice, officeToPdf, downloadUrl, extOf } from "../docs.js?v=9.0";
+import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=9.0";
 
 const PW = 900, ML = 110, MR = 790;               // Papierbreite, Textspalte links/rechts
 const VX = { 1: MR + 8, 2: ML - 8, 3: ML - 16 };    // Randstrich je Korrektor
@@ -142,6 +142,7 @@ function paperFor(it, p) {
   if (it.kind === "ticket") return `<div class="letterhead"><b>${icon("ticket")} Ticket #${esc(it.data.no)} – ${esc(it.data.subject)}</b><span style="font-size:12px">${esc(name)} · Status: ${esc(it.data.status)}</span></div><p style="color:#555;font-size:13px"><b>Anfrage:</b> ${esc(it.data.desc || "")}</p><h3>Lösung</h3><div class="ptext">${it.data.solution || "<p><i>keine Lösung eingetragen</i></p>"}</div>`;
   if (it.kind === "file" && fileUrl(it)) return `<div class="letterhead"><b>${icon("file")} ${esc(it.data.name)}</b><span style="font-size:12px">${esc(name)} · ${it.data?.direct ? "direkt in der Aufgabe hochgeladen (Ordner Dateiupload)" : "Eigene Dateien"} · ${esc(it.data.changed)}</span></div>${fileBlock(it.id, { name: it.data.name, url: fileUrl(it), pid: p.id, st: it.submission })}`;
   if (it.kind === "erp") { const d = it.data; const sum = (d.pos || []).reduce((a, x) => a + x.menge * x.preis, 0); const eur = (v) => (+v || 0).toLocaleString("de-DE", { minimumFractionDigits: 2 }) + " €";
+    if (d.type === "buchung") { const kn = (nr) => (d.konten || {})[nr] || ""; return `<div class="letterhead"><b>${icon("book-text")} ERP – Buchungssatz ${esc(d.nr)}</b><span style="font-size:12px">${esc(name)} · ${esc(d.datum || "")}${d.beleg ? " · Beleg " + esc(d.beleg) : ""}</span></div>${d.text ? `<p>Buchungstext: ${esc(d.text)}</p>` : ""}<table><tr><th>Soll</th><th>Betrag</th><th>Haben</th><th>Betrag</th></tr>${Array.from({ length: Math.max((d.soll || []).length, (d.haben || []).length) }, (_, i) => { const s1 = (d.soll || [])[i], h1 = (d.haben || [])[i]; return `<tr><td>${s1 ? esc(s1.konto + " " + kn(s1.konto)) : ""}</td><td>${s1 ? eur(s1.betrag) : ""}</td><td>${h1 ? "an " + esc(h1.konto + " " + kn(h1.konto)) : ""}</td><td>${h1 ? eur(h1.betrag) : ""}</td></tr>`; }).join("")}</table>`; }
     return d.type === "bestellung" ? `<div class="letterhead"><b>${icon("package")} ERP – Bestellung ${esc(d.nr)}</b><span style="font-size:12px">${esc(name)} · ${esc(d.datum)}</span></div><p>Lieferant: <b>${esc(d.lieferant_name || d.lieferant)}</b>${d.termin ? ` · Liefertermin ${esc(d.termin)}` : ""} · Status: ${esc(d.status)}</p><table><tr><th>Artikel</th><th>Menge</th><th>Einzelpreis</th><th>Gesamt</th></tr>${(d.pos || []).map((x) => `<tr><td>${esc(x.name || x.artikel)}</td><td>${x.menge}</td><td>${eur(x.preis)}</td><td>${eur(x.menge * x.preis)}</td></tr>`).join("")}<tr><td colspan="3"><b>Summe</b></td><td><b>${eur(sum)}</b></td></tr></table>`
       : `<div class="letterhead"><b>${icon("package")} ERP – Lieferant ${esc(d.nr)}</b><span style="font-size:12px">${esc(name)}</span></div><table><tr><th>Name</th><td>${esc(d.name)}</td></tr><tr><th>Ort</th><td>${esc(d.ort || "")}</td></tr><tr><th>E-Mail</th><td>${esc(d.mail || "")}</td></tr><tr><th>Zahlungsbedingungen</th><td>${esc(d.zahlung || "")}</td></tr></table>`; }
   if (it.kind === "file") return `<div class="letterhead"><b>${esc(it.data.name)}</b><span style="font-size:12px">${esc(name)} · ${esc(it.data.changed)}</span></div><h3>Bezugskalkulation 300 Lithium-Batterie-Packs</h3>${calcTable()}<p style="margin-top:20px">Ergebnis: Das Angebot der BatteryWorld GmbH ist unter Berücksichtigung aller Konditionen günstiger, da der Bezugspreis um 359,85 € niedriger liegt. Zusätzlich ist die Lieferzeit kürzer.</p>`;

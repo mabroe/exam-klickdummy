@@ -3,10 +3,10 @@
 // - mehrere Fenster je Kategorie (z. B. jede geöffnete E-Mail, jede Notiz)
 // - Klick außerhalb eines Fensters minimiert alle sichtbaren Fenster
 // - Wiederherstellen über die Taskleiste (Dock); bei mehreren Fenstern Auswahlliste
-import { onChange, fileUrl } from "../data.js?v=8.9";
-import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=8.9";
-import { EXAM, subtask } from "../scenario.js?v=8.9";
-import { isOffice, officeHtml, downloadUrl } from "../docs.js?v=8.9";
+import { onChange, fileUrl } from "../data.js?v=9.0";
+import { icon, esc, modal, confirmBox, toast, popMenu, uid } from "../ui.js?v=9.0";
+import { EXAM, subtask } from "../scenario.js?v=9.0";
+import { isOffice, officeHtml, downloadUrl } from "../docs.js?v=9.0";
 
 let ctx = null;
 export const setCtx = (c) => { ctx = c; };
@@ -826,16 +826,21 @@ const erpAll = (w) => allItems().filter((i) => i.kind === "erp" && itemTask(i) =
 const erpOf = (w, type) => erpAll(w).filter((i) => i.data.type === type);
 const supplierName = (w, nr) => erpOf(w, "lieferant").find((x) => x.data.nr === nr)?.data.name || nr || "–";
 const articleOf = (w, nr) => erpOf(w, "artikel").find((x) => x.data.nr === nr);
-export const erpTitle = (it) => it.data.type === "bestellung" ? `Bestellung ${it.data.nr}` : it.data.type === "lieferant" ? `Lieferant ${it.data.nr} ${it.data.name}` : `Artikel ${it.data.nr}`;
+export const erpTitle = (it) => it.data.type === "buchung" ? `Buchungssatz ${it.data.nr}` : it.data.type === "bestellung" ? `Bestellung ${it.data.nr}` : it.data.type === "lieferant" ? `Lieferant ${it.data.nr} ${it.data.name}` : it.data.type === "konto" ? `Konto ${it.data.nr} ${it.data.name}` : it.data.type === "beleg" ? `Beleg ${it.data.nr}` : `Artikel ${it.data.nr}`;
+// Buchungssatz als Text: „6000 Aufwendungen für Rohstoffe 1.880,00 € / 2600 Vorsteuer 357,20 € an 4400 Verbindlichkeiten 2.237,20 €“
+export const bookingText = (d, kname = (nr) => nr) => `${(d.soll || []).map((x) => `${x.konto} ${kname(x.konto)} ${eur(x.betrag)}`).join(" / ")} an ${(d.haben || []).map((x) => `${x.konto} ${kname(x.konto)} ${eur(x.betrag)}`).join(" / ")}`;
+const sumOf = (l) => Math.round((l || []).reduce((a, x) => a + (+x.betrag || 0), 0) * 100) / 100;
 export const erpSum = (it) => (it.data.pos || []).reduce((a, p) => a + (+p.menge || 0) * (+p.preis || 0), 0);
 export function erpSummary(it) {
   if (it.data.type === "bestellung") return `${it.data.datum} · ${it.data.lieferant_name || it.data.lieferant} · ${(it.data.pos || []).length} Position(en) · ${eur(erpSum(it))} · ${it.data.status}`;
   if (it.data.type === "lieferant") return `${it.data.ort || ""} · ${it.data.mail || ""}`;
+  if (it.data.type === "buchung") return `${it.data.datum} · ${it.data.beleg ? "Beleg " + it.data.beleg + " · " : ""}${bookingText(it.data)}`;
   return it.data.name;
 }
 function erpWin(w) {
-  w.tab = ["artikel", "lieferanten", "bestellungen"].includes(w.tab) ? w.tab : "artikel";
-  const tabs = `<div class="tabs small" style="margin-bottom:12px">${[["artikel", "package", "Artikel / Lager"], ["lieferanten", "building-2", "Lieferanten"], ["bestellungen", "clipboard-list", "Bestellungen"]].map(([k, ic, l]) => `<button data-etab="${k}" class="${w.tab === k ? "active" : ""}">${icon(ic)} ${l}</button>`).join("")}</div>`;
+  const fibu = erpOf(w, "konto").length > 0;
+  w.tab = ["artikel", "lieferanten", "bestellungen", ...(fibu ? ["buchungen", "konten"] : [])].includes(w.tab) ? w.tab : "artikel";
+  const tabs = `<div class="tabs small" style="margin-bottom:12px">${[["artikel", "package", "Artikel / Lager"], ["lieferanten", "building-2", "Lieferanten"], ["bestellungen", "clipboard-list", "Bestellungen"], ...(fibu ? [["buchungen", "book-text", "Buchungen"], ["konten", "list", "Kontenplan / Salden"]] : [])].map(([k, ic, l]) => `<button data-etab="${k}" class="${w.tab === k ? "active" : ""}">${icon(ic)} ${l}</button>`).join("")}</div>`;
   let body = "", foot = "";
   if (w.tab === "artikel") {
     const l = erpOf(w, "artikel");
@@ -845,6 +850,16 @@ function erpWin(w) {
     const l = erpOf(w, "lieferant");
     body = `<div class="tablewrap"><table class="tbl compact erp"><thead><tr><th>Lief.-Nr.</th><th>Name</th><th>Ort</th><th>E-Mail</th><th>Zahlungsbedingungen</th><th></th></tr></thead><tbody>${l.map((x) => `<tr><td>${esc(x.data.nr)}</td><td><b>${esc(x.data.name)}</b>${x.data.own ? ` <span class="badge cyan">neu angelegt</span>` : ""}</td><td>${esc(x.data.ort || "")}</td><td>${esc(x.data.mail || "")}</td><td>${esc(x.data.zahlung || "")}</td><td>${x.data.own ? markChip(x) : ""}</td></tr>`).join("")}</tbody></table></div>`;
     foot = `<button class="btn primary sm" data-newsup>${icon("plus")} Lieferant anlegen</button>`;
+  } else if (w.tab === "buchungen") {
+    const l = erpOf(w, "buchung").sort((a, b) => (a.data.nr > b.data.nr ? -1 : 1)); const bel = erpOf(w, "beleg");
+    const kn = (nr) => erpOf(w, "konto").find((k) => k.data.nr === nr)?.data.name || "";
+    body = `<h4 style="margin:0 0 6px">Zu buchende Belege</h4><div class="tablewrap"><table class="tbl compact erp"><thead><tr><th>Beleg</th><th>Art</th><th>Datum</th><th>Partner</th><th>Text</th><th class="num">Netto</th><th class="num">USt</th><th class="num">Brutto</th><th></th></tr></thead><tbody>${bel.map((b) => { const ust = Math.round(b.data.netto * b.data.ust) / 100; const booked = l.some((x) => x.data.beleg === b.data.nr); return `<tr><td><b>${esc(b.data.nr)}</b></td><td class="small">${esc(b.data.art)}</td><td>${esc(b.data.datum)}</td><td class="small">${esc(b.data.partner)}</td><td class="small">${esc(b.data.text)}</td><td class="num">${eur(b.data.netto)}</td><td class="num">${eur(ust)}</td><td class="num"><b>${eur(b.data.netto + ust)}</b></td><td>${booked ? `<span class="badge green">gebucht</span>` : `<button class="btn sm" data-book="${b.id}">${icon("plus")} Buchen</button>`}</td></tr>`; }).join("") || `<tr><td colspan="9" class="muted small">Keine Belege.</td></tr>`}</tbody></table></div>
+      <h4 style="margin:14px 0 6px">Buchungssätze (Grundbuch)</h4><div class="tablewrap"><table class="tbl compact erp"><thead><tr><th>Nr.</th><th>Datum</th><th>Beleg</th><th>Buchungssatz</th><th>Text</th><th>Abgabe</th></tr></thead><tbody>${l.map((b) => `<tr><td>${esc(b.data.nr)}</td><td>${esc(b.data.datum)}</td><td>${esc(b.data.beleg || "–")}</td><td class="small">${(b.data.soll || []).map((x) => `<div><b>S</b> ${esc(x.konto)} ${esc(kn(x.konto))} · ${eur(x.betrag)}</div>`).join("")}${(b.data.haben || []).map((x) => `<div style="padding-left:18px"><b>an H</b> ${esc(x.konto)} ${esc(kn(x.konto))} · ${eur(x.betrag)}</div>`).join("")}</td><td class="small">${esc(b.data.text || "")}</td><td>${markChip(b)}</td></tr>`).join("") || `<tr><td colspan="6" class="muted small">Noch keine Buchungen.</td></tr>`}</tbody></table></div>`;
+    foot = `<button class="btn primary sm" data-book>${icon("plus")} Buchungssatz erfassen</button>`;
+  } else if (w.tab === "konten") {
+    const l = erpOf(w, "konto").sort((a, b) => a.data.nr.localeCompare(b.data.nr)); const bk = erpOf(w, "buchung");
+    const sal = (nr) => { const s1 = bk.reduce((a, b) => a + sumOf((b.data.soll || []).filter((x) => x.konto === nr)), 0); const h1 = bk.reduce((a, b) => a + sumOf((b.data.haben || []).filter((x) => x.konto === nr)), 0); return [s1, h1]; };
+    body = `<div class="tablewrap"><table class="tbl compact erp"><thead><tr><th>Konto</th><th>Bezeichnung</th><th>Art</th><th class="num">Soll</th><th class="num">Haben</th><th class="num">Saldo</th></tr></thead><tbody>${l.map((k) => { const [so, ha] = sal(k.data.nr); return `<tr><td><b>${esc(k.data.nr)}</b></td><td>${esc(k.data.name)}</td><td class="small">${esc(k.data.art)}</td><td class="num">${so ? eur(so) : "–"}</td><td class="num">${ha ? eur(ha) : "–"}</td><td class="num">${so || ha ? `<b>${eur(Math.abs(so - ha))}</b> ${so >= ha ? "S" : "H"}` : "–"}</td></tr>`; }).join("")}</tbody></table></div><p class="xs muted mt-s">Vereinfachter Kontenplan (Industriekontenrahmen). Salden aus den erfassten Buchungssätzen.</p>`;
   } else {
     const l = erpOf(w, "bestellung").sort((a, b) => (a.data.nr > b.data.nr ? -1 : 1));
     body = `<div class="tablewrap"><table class="tbl compact erp"><thead><tr><th>Bestell-Nr.</th><th>Datum</th><th>Lieferant</th><th>Positionen</th><th class="num">Summe</th><th>Status</th><th>Abgabe</th></tr></thead><tbody>${l.map((b) => `<tr><td><button class="linkbtn" data-showord="${b.id}">${esc(b.data.nr)}</button></td><td>${esc(b.data.datum)}</td><td>${esc(supplierName(w, b.data.lieferant))}</td><td class="small">${(b.data.pos || []).map((p) => `${p.menge} × ${esc(articleOf(w, p.artikel)?.data.name || p.artikel)}`).join("<br>")}</td><td class="num">${eur(erpSum(b))}</td><td><span class="badge ${b.data.status === "geliefert" ? "green" : b.data.status === "angelegt" ? "cyan" : "gray"}">${esc(b.data.status)}</span></td><td>${b.data.own ? markChip(b) : ""}</td></tr>`).join("")}</tbody></table></div>`;
@@ -856,6 +871,7 @@ function erpWin(w) {
       bindMarks(el, w);
       el.querySelectorAll("[data-order]").forEach((b) => (b.onclick = () => erpOrder(w, b.dataset.order)));
       const ns = el.querySelector("[data-newsup]"); if (ns) ns.onclick = () => erpSupplier(w);
+      el.querySelectorAll("[data-book]").forEach((b) => (b.onclick = () => erpBooking(w, b.dataset.book || "")));
       el.querySelectorAll("[data-showord]").forEach((b) => (b.onclick = () => erpShow(w, erpAll(w).find((x) => x.id === b.dataset.showord))));
     } };
 }
@@ -891,6 +907,39 @@ async function erpOrder(w, artId = "") {
   const a = arts.find((x) => x.id === v.art); const n = erpOf(w, "bestellung").length + 1;
   const rec = await addItemW(w, "erp", "erp", { type: "bestellung", own: true, nr: "BE-2025-" + String(500 + n).padStart(4, "0"), datum: new Date().toLocaleDateString("de-DE"), lieferant: v.lief, lieferant_name: supplierName(w, v.lief), pos: [{ artikel: a.data.nr, name: a.data.name, menge: v.menge, preis: v.preis }], termin: v.termin ? v.termin.split("-").reverse().join(".") : "", status: "angelegt" });
   w.tab = "bestellungen"; toast("Bestellung angelegt", `${rec.data.nr} · ${eur(v.menge * v.preis)}`); redraw(w);
+  await markDialog(rec, "ERP-Beleg", w.defSt);
+}
+// Buchungssatz erfassen: ein- oder mehrteilig (zusammengesetzter Buchungssatz), Summe Soll = Summe Haben
+async function erpBooking(w, belegId = "") {
+  const ks = erpOf(w, "konto").sort((a, b) => a.data.nr.localeCompare(b.data.nr)); const bel = erpOf(w, "beleg"); const b0 = bel.find((x) => x.id === belegId);
+  const kopt = (sel) => `<option value="">Konto wählen</option>${ks.map((k) => `<option value="${esc(k.data.nr)}" ${k.data.nr === sel ? "selected" : ""}>${esc(k.data.nr)} ${esc(k.data.name)}</option>`).join("")}`;
+  const line = (side, i) => `<div class="row" style="gap:6px;margin:4px 0" data-line="${side}"><select class="select" data-k aria-label="${side === "S" ? "Sollkonto" : "Habenkonto"} ${i + 1}">${kopt("")}</select><input class="input" type="number" step="0.01" min="0" data-b placeholder="Betrag €" style="width:140px" aria-label="Betrag"><button type="button" class="iconbtn" data-rml aria-label="Zeile entfernen">${icon("x")}</button></div>`;
+  const v = await modal({ title: "Buchungssatz erfassen", size: "wide",
+    body: `<div class="grid3"><div class="field"><label class="lbl" for="bk-d">Buchungsdatum</label><input id="bk-d" class="input" data-d value="${esc(b0?.data.datum || new Date().toLocaleDateString("de-DE"))}"></div>
+      <div class="field"><label class="lbl" for="bk-b">Beleg</label><select id="bk-b" class="select" data-bel><option value="">ohne Beleg</option>${bel.map((x) => `<option value="${esc(x.data.nr)}" ${x === b0 ? "selected" : ""}>${esc(x.data.nr)} · ${esc(x.data.art)} ${esc(x.data.partner)}</option>`).join("")}</select></div>
+      <div class="field"><label class="lbl" for="bk-t">Buchungstext</label><input id="bk-t" class="input" data-t value="${esc(b0 ? b0.data.text : "")}"></div></div>
+      ${b0 ? `<p class="small">Beleg ${esc(b0.data.nr)}: netto ${eur(b0.data.netto)}, USt ${b0.data.ust} %, brutto ${eur(b0.data.netto * (1 + b0.data.ust / 100))}</p>` : ""}
+      <div class="nrgrid"><div><span class="lbl">Soll</span><div data-side="S">${line("S", 0)}</div><button type="button" class="btn xs" data-addl="S">${icon("plus")} Sollkonto</button></div>
+      <div><span class="lbl">an Haben</span><div data-side="H">${line("H", 0)}</div><button type="button" class="btn xs" data-addl="H">${icon("plus")} Habenkonto</button></div></div>
+      <p class="small" data-bal></p>`,
+    footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Buchen</button>`,
+    onMount: (m, close) => {
+      const lines = (side) => [...m.querySelectorAll(`[data-side="${side}"] [data-line]`)].map((r) => ({ konto: r.querySelector("[data-k]").value, betrag: Math.round((+r.querySelector("[data-b]").value || 0) * 100) / 100 })).filter((x) => x.konto || x.betrag);
+      const bal = () => { const s1 = sumOf(lines("S")), h1 = sumOf(lines("H")); const el = m.querySelector("[data-bal]"); el.innerHTML = `Summe Soll <b>${eur(s1)}</b> · Summe Haben <b>${eur(h1)}</b> ${s1 && Math.abs(s1 - h1) < 0.005 ? `<span class="badge green">ausgeglichen</span>` : `<span class="badge yellowb">Differenz ${eur(Math.abs(s1 - h1))}</span>`}`; };
+      const wire = () => { m.querySelectorAll("[data-b],[data-k]").forEach((x) => (x.oninput = x.onchange = bal)); m.querySelectorAll("[data-rml]").forEach((x) => (x.onclick = () => { const side = x.closest("[data-side]"); if (side.querySelectorAll("[data-line]").length > 1) x.closest("[data-line]").remove(); bal(); })); };
+      m.querySelectorAll("[data-addl]").forEach((b) => (b.onclick = () => { const side = m.querySelector(`[data-side="${b.dataset.addl}"]`); side.insertAdjacentHTML("beforeend", line(b.dataset.addl, side.children.length)); wire(); }));
+      wire(); bal();
+      m.querySelector("[data-ok]").onclick = () => {
+        const S = lines("S"), H = lines("H");
+        if (!S.length || !H.length || [...S, ...H].some((x) => !x.konto || !(x.betrag > 0))) return toast("Buchungssatz unvollständig", "Je Zeile Konto und Betrag angeben (mindestens ein Soll- und ein Habenkonto).", "error");
+        if (Math.abs(sumOf(S) - sumOf(H)) > 0.005) return toast("Soll und Haben nicht ausgeglichen", `Differenz ${eur(Math.abs(sumOf(S) - sumOf(H)))}`, "error");
+        close({ soll: S, haben: H, datum: m.querySelector("[data-d]").value.trim(), beleg: m.querySelector("[data-bel]").value, text: m.querySelector("[data-t]").value.trim() });
+      };
+    } });
+  if (!v) return;
+  const n = erpOf(w, "buchung").length + 1;
+  const rec = await addItemW(w, "erp", "erp", { type: "buchung", own: true, nr: "BS-" + String(n).padStart(4, "0"), ...v, konten: Object.fromEntries([...v.soll, ...v.haben].map((x) => [x.konto, ks.find((k) => k.data.nr === x.konto)?.data.name || ""])) });
+  w.tab = "buchungen"; toast("Buchungssatz erfasst", `${rec.data.nr} · ${eur(sumOf(v.soll))}`); redraw(w);
   await markDialog(rec, "ERP-Beleg", w.defSt);
 }
 function erpShow(w, b) {

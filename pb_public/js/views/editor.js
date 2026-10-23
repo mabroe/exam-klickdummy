@@ -5,15 +5,17 @@
 //    Teilaufgaben mit Fragetyp, Arbeitsauftrag, Bewertungsraster und Erwartungshorizont (auch mit Bildern)
 //  - Aufgabensteuerung: Regeln (Bedingungen mit UND/ODER, Aktionen)
 //  - Prüfen: Vollständigkeit und Übersicht, Speichern, Vorschau
-import { D, byId, upd, create } from "../data.js?v=8.9";
-import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=8.9";
-import { navigate, redraw, session } from "../app.js?v=8.9";
-import { me, personName } from "../access.js?v=8.9";
-import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=8.9";
-import { hasOwnContent, contentFromDefault, FOLDER } from "../content.js?v=8.9";
-import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=8.9";
-import { condText } from "../rules.js?v=8.9";
-import { inProcess, canEditContent, statusBadge } from "./creation.js?v=8.9";
+import { D, byId, upd, create } from "../data.js?v=9.0";
+import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=9.0";
+import { navigate, redraw, session } from "../app.js?v=9.0";
+import { me, personName, isTeacherOf, inOrg, orgShort } from "../access.js?v=9.0";
+import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=9.0";
+import { hasOwnContent, contentFromDefault, FOLDER } from "../content.js?v=9.0";
+import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=9.0";
+import { condText } from "../rules.js?v=9.0";
+import { inProcess, canEditContent, statusBadge, actionBar, runAction, STATUS_ACTS, rolesOf, seesNames } from "./creation.js?v=9.0";
+import { lockedBy, acquire, releaseAll } from "../locks.js?v=9.0";
+import { activeSignSet } from "../masterdata.js?v=9.0";
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const rid = () => Math.random().toString(36).slice(2, 12);
@@ -21,16 +23,43 @@ const DRAFTS = new Map(); // Katalog-ID -> Entwurf { cat, content, rules, dirty,
 let rev = 0;
 
 // ---------- Berechtigung ----------
-// Koordinierungsstelle (Rolle Prüfungserstellung): alle Inhalte außerhalb des Erstellungsprozesses
-export const isAuthor = () => session.role === "autor" && (!me() || me().kind === "koordination");
+// Bereichsadministration: pflegt die global freigegebenen Katalogeinträge (Unterricht)
+export const isAuthor = () => session.role === "bereichsadmin" && (!me() || me().kind === "bereichsadmin");
+// Lehrkraft: eigene Inhalte bzw. eigene Kopien aus dem Katalog – auch die Mitbetreuung eines Unterrichts mit diesem Inhalt
+export const lessonsOf = (cat) => D.courses.filter((c) => c.kind === "unterricht" && c.catalog === cat?.id);
 export function canEdit(cat) {
   if (!cat) return false;
   if (inProcess(cat)) return canEditContent(cat); // Erstellungsprozess: Rechte je Rolle und Status
-  if (isAuthor()) return true;
+  if (isAuthor()) return !cat.mine && cat.kind !== "Prüfung";
   const p = me();
-  return session.role === "lehrkraft" && !!p && cat.editor_by === p.id && cat.kind !== "Prüfung";
+  if (session.role !== "lehrkraft" || !p || cat.kind === "Prüfung" || !cat.mine) return false;
+  return cat.editor_by === p.id || lessonsOf(cat).some((c) => isTeacherOf(c, p.id));
 }
 export const canCreate = () => isAuthor() || session.role === "lehrkraft";
+// ---------- Katalogfreigabe ----------
+// global: durch die Bereichsadministration; Organisation: Lehrkraft für die eigene Schule. Der Einsteller kann die Freigabe beenden.
+export const releaseOf = (cat) => (cat?.release && cat.release.scope ? cat.release : null);
+export function canPublish(cat, p = me()) {
+  if (!cat || inProcess(cat) || cat.kind === "Prüfung") return false;
+  if (isAuthor()) return !cat.mine;
+  return session.role === "lehrkraft" && !!p && cat.mine && cat.editor_by === p.id;
+}
+export function releaseLabel(cat) {
+  const r = releaseOf(cat); if (!r) return "";
+  return r.scope === "global" ? "global im Katalog freigegeben" : `im Katalog freigegeben für ${orgShort(r.org)}`;
+}
+export async function publish(cat, on) {
+  const p = me();
+  if (on && !(await confirmBox(isAuthor() ? "Global im Katalog freigeben" : "Im Katalog für die eigene Schule freigeben", isAuthor() ? "<p>Der Inhalt erscheint im Katalog für alle Lehrkräfte aller Schulen und kann kopiert werden.</p>" : `<p>Der Inhalt erscheint im Katalog ausschließlich für die Lehrkräfte Ihrer Schule <b>${esc(orgShort(p?.org))}</b>. Sie können die Freigabe jederzeit beenden.</p>`, "Freigeben", "Abbrechen", false))) return;
+  if (!on && !(await confirmBox("Freigabe im Katalog beenden", "<p>Der Inhalt wird aus dem Katalog entfernt. Bereits angelegter Unterricht und angefertigte Kopien bleiben erhalten.</p>", "Freigabe beenden", "Abbrechen", false))) return;
+  await upd("catalog", cat.id, { release: on ? { scope: isAuthor() ? "global" : "org", org: isAuthor() ? "" : p?.org || "", by: p?.id || "", at: new Date().toISOString() } : null });
+  toast(on ? "Im Katalog freigegeben" : "Freigabe beendet", cat.title);
+}
+// Unterricht zu einem Inhalt anlegen (Lehrkraft = Besitzer)
+export async function lessonFor(cat, title) {
+  const p = me();
+  return create("courses", { title: title || cat.title, kind: "unterricht", catalog: cat.id, org: p.org, orgs: [], owner: p.id, members: [{ person: p.id, role: "besitzer" }], groups: [], status: "veröffentlicht", exam_code: "", description: cat.description || "" });
+}
 
 // ---------- Neuer Inhalt ----------
 export function blankContent(title, duration = 45) {
@@ -42,7 +71,7 @@ export function blankContent(title, duration = 45) {
     tasks: [newTask(1)],
   };
 }
-const newTask = (n) => ({ title: `Aufgabe ${n}`, situation: "", tools: ALL_TOOLS.map((x) => x[0]), materials: [], subtasks: [newSub()] });
+const newTask = (n) => ({ uid: rid(), title: `Aufgabe ${n}`, situation: "", tools: ALL_TOOLS.map((x) => x[0]), materials: [], subtasks: [newSub()] });
 const newSub = (type = "freitext") => ({ title: "Neue Teilaufgabe", type, tool: type === "app" ? "files" : type, text: "", options: type === "single" || type === "multiple" ? [{ text: "", correct: true }, { text: "", correct: false }] : [], criteria: [["Inhalt", 5, ""]], horizon: [["", "5 P"]], images: [] });
 export async function newContentDialog() {
   const author = isAuthor();
@@ -50,14 +79,16 @@ export async function newContentDialog() {
     body: `<div class="field"><label class="lbl" for="nc-t">Titel</label><input id="nc-t" class="input" data-f="title" placeholder="z. B. Lernerfolgskontrolle Tabellenkalkulation"></div>
       <div class="field"><label class="lbl" for="nc-k">Art</label><select id="nc-k" class="select" data-f="kind"><option selected>Lernerfolgskontrolle</option></select><p class="xs muted" style="margin:4px 0 0">Der Katalog enthält Inhalte für den Unterricht. Prüfungen entstehen im Erstellungsprozess der Koordinierungsstelle (Navigation „Erstellung“).</p></div>
       <div class="grid2"><div class="field"><label class="lbl" for="nc-b">Ausbildungsberuf</label><input id="nc-b" class="input" data-f="beruf" value="Kaufmann/-frau für Büromanagement"></div><div class="field"><label class="lbl" for="nc-f">Fach / Lernfeld</label><input id="nc-f" class="input" data-f="fach" value="Informationsverarbeitung"></div></div>
-      <div class="field"><label class="lbl" for="nc-d">Bearbeitungszeit (Minuten)</label><input id="nc-d" class="input" type="number" min="5" data-f="dur" value="45"></div>`,
+      <div class="field"><label class="lbl" for="nc-d">Bearbeitungszeit (Minuten)</label><input id="nc-d" class="input" type="number" min="5" data-f="dur" value="45"></div>
+      ${author ? `<p class="xs muted">Der Inhalt wird als Entwurf angelegt und erscheint erst nach der globalen Freigabe im Katalog.</p>` : `<label class="checkbox"><input type="checkbox" data-lesson checked> Unterricht mit diesem Inhalt anlegen (unter „Mein Unterricht“)</label><p class="xs muted">Eigene Inhalte sind zunächst nur für Sie (und die Mitbetreuung Ihres Unterrichts) sichtbar. Für Ihre Schule können Sie sie später im Katalog freigeben.</p>`}`,
     footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Erstellen und im Editor öffnen</button>`,
-    onMount: (m, close) => (m.querySelector("[data-ok]").onclick = () => { const o = {}; m.querySelectorAll("[data-f]").forEach((f) => (o[f.dataset.f] = f.value.trim())); if (!o.title) { m.querySelector("[data-f=title]").style.borderColor = "var(--red)"; return; } close(o); }) });
+    onMount: (m, close) => (m.querySelector("[data-ok]").onclick = () => { const o = {}; m.querySelectorAll("[data-f]").forEach((f) => (o[f.dataset.f] = f.value.trim())); o.lesson = !!m.querySelector("[data-lesson]")?.checked; if (!o.title) { m.querySelector("[data-f=title]").style.borderColor = "var(--red)"; return; } close(o); }) });
   if (!v) return;
   const p = me(); const dur = Math.max(5, +v.dur || 45);
-  const rec = await create("catalog", { title: v.title, kind: v.kind, beruf: v.beruf, fach: v.fach, jahr: String(new Date().getFullYear()), description: "", duration: `${dur} Minuten`, creator: author ? "Koordinierungsstelle (IBBW)" : personName(p), tags: [v.kind === "Prüfung" ? "Prüfungen" : "Lernerfolgskontrolle", "Editor"], contents: [], mine: !author, copied_from: "", image: Math.floor(Math.random() * 4), content: blankContent(v.title, dur), rules: [], editor_by: author ? "autor" : p?.id || "" });
+  const rec = await create("catalog", { title: v.title, kind: v.kind, beruf: v.beruf, fach: v.fach, jahr: String(new Date().getFullYear()), description: "", duration: `${dur} Minuten`, creator: author ? "Bereichsadministration (IBBW)" : personName(p), tags: [v.kind === "Prüfung" ? "Prüfungen" : "Lernerfolgskontrolle", "Editor"], contents: [], mine: !author, copied_from: "", image: Math.floor(Math.random() * 4), content: blankContent(v.title, dur), rules: [], editor_by: author ? "autor" : p?.id || "", release: null });
   for (let i = 0; i < 40 && !byId("catalog", rec.id); i++) await new Promise((r) => setTimeout(r, 50)); // Realtime-Spiegel abwarten
-  toast("Inhalt angelegt", v.title); navigate(`#/app/editor/${rec.id}/allgemein`);
+  if (!author && v.lesson) await lessonFor(rec, v.title);
+  toast("Inhalt angelegt", v.title + (!author && v.lesson ? " – Unterricht angelegt" : "")); navigate(`#/app/editor/${rec.id}/allgemein`);
 }
 
 // ---------- Entwurf ----------
@@ -67,10 +98,13 @@ function draftOf(cat) {
   if (!DRAFTS.has(cat.id)) {
     const content = hasOwnContent(cat) ? clone(cat.content) : contentFromDefault();
     content.name = content.name || cat.title; content.duration_min = content.duration_min || parseInt(cat.duration) || 90;
-    DRAFTS.set(cat.id, { id: cat.id, cat: { title: cat.title, kind: cat.kind, beruf: cat.beruf, fach: cat.fach, jahr: cat.jahr, description: cat.description || "" }, content: normalizeContent(content), rules: clone(cat.rules || []), dirty: false, updated: cat.updated, sel: "t0", mk: "file", fromDefault: !hasOwnContent(cat) });
+    withUids(content);
+    DRAFTS.set(cat.id, { id: cat.id, cat: { title: cat.title, kind: cat.kind, beruf: cat.beruf, fach: cat.fach, jahr: cat.jahr, description: cat.description || "" }, content: normalizeContent(content), rules: clone(cat.rules || []), dirty: false, updated: cat.updated, sel: old?.sel || "t0", mk: old?.mk || "file", fromDefault: !hasOwnContent(cat), touched: new Set(), reordered: false });
   }
   return DRAFTS.get(cat.id);
 }
+// stabile Kennung je Aufgabe (für die Zusammenführung paralleler Bearbeitung); fehlt sie, wird sie aus der Position abgeleitet
+const withUids = (content) => { (content.tasks || []).forEach((t, i) => { if (!t.uid) t.uid = "i" + i; }); return content; };
 const activate = (E) => { normalizeContent(E.content); useContent(E.content, `draft:${E.id}:${++rev}`); };
 const pts = (v) => (Math.round((+v || 0) * 10) / 10).toLocaleString("de-DE");
 const hzSum = (s) => (s.horizon || []).reduce((a, h) => a + (parseFloat(String(h[1]).replace(",", ".")) || 0), 0);
@@ -123,32 +157,64 @@ export function validate(E) {
 
 // ---------- Ansicht ----------
 const TABS = [["allgemein", "Allgemein"], ["bewertung", "Notenschlüssel und Kategorien"], ["aufgaben", "Aufgaben"], ["steuerung", "Aufgabensteuerung"], ["pruefen", "Prüfen und speichern"]];
-const MK = [["file", "folder", "Dateien"], ["mail", "mail", "E-Mails"], ["event", "calendar", "Termine"], ["ticket", "ticket", "Tickets"], ["code", "code-xml", "Code-Vorlagen"], ["erp", "package", "ERP-Stammdaten"]];
+const MK = [["file", "folder", "Dateien"], ["mail", "mail", "E-Mails"], ["event", "calendar", "Termine"], ["ticket", "ticket", "Tickets"], ["code", "code-xml", "Code-Vorlagen"], ["erp", "package", "ERP (Stammdaten, Konten, Belege)"]];
 const DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
 
+// Bearbeitungsbereich für Sperren bei gleichzeitiger Bearbeitung: Reiter bzw. die gewählte Aufgabe (mit ihren Teilaufgaben)
+function areaOf(E, tab) {
+  if (tab === "aufgaben") { const [ti] = selOf(E); const t = E.content.tasks[ti]; return t ? "task:" + t.uid : "aufbau"; }
+  if (tab === "pruefen") return "";
+  return tab;
+}
+const AREA_LABEL = (E, a) => (a.startsWith("task:") ? `Aufgabe ${E.content.tasks.find((t) => "task:" + t.uid === a)?.no || ""}` : { allgemein: "Allgemein", bewertung: "Notenschlüssel und Kategorien", steuerung: "Aufgabensteuerung", aufbau: "Aufbau" }[a] || a);
+// Name der sperrenden Person nur, wenn die Rolle sie kennen darf (Aufgabenerstellung untereinander, Kommission untereinander)
+function lockHolder(cat, lk) {
+  if (lk.self) return "Ihnen in einem anderen Fenster";
+  if (!inProcess(cat)) return lk.name;
+  const pe = byId("persons", lk.pid); if (!pe) return "einer anderen Person";
+  const roles = rolesOf(cat, pe).filter((r) => r !== "koordination");
+  if (rolesOf(cat, pe).includes("koordination") && !roles.length) return rolesOf(cat).includes("koordination") ? lk.name : "der Koordinierungsstelle";
+  return roles.some((r) => seesNames(cat, r)) ? lk.name : "einer anderen Person";
+}
 export function editor(id, tab = "allgemein") {
   const cat = byId("catalog", id);
   if (!cat) return { redirect: "#/app/katalog" };
-  if (!canEdit(cat)) return { shell: "staff", rail: "katalog", title: "Editor", render: () => inProcess(cat) ? `<div class="empty">${icon("lock")}<h2>Keine Bearbeitung möglich</h2><p>Im Status „${esc(statusBadge(cat).replace(/<[^>]+>/g, ""))}“ haben Sie keine Bearbeitungsrechte. Bearbeiten dürfen in der Vorbereitung die Aufgabenerstellung, im Review die Kommission und der Kommissionsvorsitz.</p><a class="btn" href="#/app/erstellung/${id}/uebersicht">Zur Prüfungserstellung</a></div>` : `<div class="empty">${icon("lock")}<h2>Keine Bearbeitung möglich</h2><p>Prüfungen bearbeitet die Koordinierungsstelle (Rolle „Prüfungserstellung“). Lehrkräfte bearbeiten eigene Unterrichtsinhalte.</p><a class="btn" href="#/app/katalog">Zum Katalog</a></div>` };
+  if (!canEdit(cat)) return { shell: "staff", rail: inProcess(cat) ? "erstellung" : "katalog", title: "Editor", render: () => inProcess(cat) ? `<div class="empty">${icon("lock")}<h2>Keine Bearbeitung möglich</h2><p>Im Status „${esc(statusBadge(cat).replace(/<[^>]+>/g, ""))}“ haben Sie keine Bearbeitungsrechte. Bearbeiten dürfen in der Vorbereitung die Aufgabenerstellung, im Review die Kommission und der Kommissionsvorsitz.</p><a class="btn" href="#/app/erstellung/${id}/uebersicht">Zur Prüfungserstellung</a></div>` : `<div class="empty">${icon("lock")}<h2>Keine Bearbeitung möglich</h2><p>Katalogeinträge pflegt die Bereichsadministration. Lehrkräfte bearbeiten eigene Inhalte und ihre Kopien aus dem Katalog (auch als Mitbetreuung des Unterrichts).</p><a class="btn" href="#/app/katalog">Zum Katalog</a></div>` };
   const E = draftOf(cat); activate(E);
   if (!TABS.some(([k]) => k === tab)) tab = "allgemein";
+  let area = "";
   return {
-    shell: "staff", rail: "katalog", title: "Editor – " + E.cat.title,
+    shell: "staff", rail: inProcess(cat) ? "erstellung" : "katalog", title: "Editor – " + E.cat.title,
     render() {
+      const c0 = byId("catalog", id) || cat;
       const total = E.content.tasks.reduce((a, t) => a + t.points, 0); const used = D.courses.filter((c) => c.catalog === id).length;
       const issues = validate(E); const nErr = issues.filter((x) => x.lvl === "error").length;
+      area = areaOf(E, tab); E.lastArea = area; const lk = area ? lockedBy(id, area) : null; E.locked = lk;
+      const others = D.settings.filter((x) => String(x.key).startsWith(`lock:${id}:`) && x.value?.area !== area && Date.now() - new Date(x.value?.at || 0).getTime() < 90000 && x.value?.tab !== undefined && lockedBy(id, x.value.area));
+      const rel = releaseOf(c0);
       return `<div class="edwrap"><div class="breadcrumb">${inProcess(cat) ? `<a href="#/app/erstellung">Prüfungserstellung</a>${icon("chevron-right")}<a href="#/app/erstellung/${id}/uebersicht">${esc(cat.title)}</a>` : `<a href="#/app/katalog">Katalog</a>${icon("chevron-right")}<a href="#/app/katalog/${id}">${esc(cat.title)}</a>`}${icon("chevron-right")}<b>Editor</b></div>
-      <div class="pagehead"><div><h1>${icon("pencil")} ${esc(E.cat.title || "Ohne Titel")}</h1><div class="row mt-s small wrap"><span class="badge ${E.cat.kind === "Prüfung" ? "purple" : "cyan"}">${esc(E.cat.kind)}</span>${inProcess(cat) ? statusBadge(cat) : ""}<span>${E.content.tasks.length} Aufgaben · ${E.content.tasks.reduce((a, t) => a + t.subtasks.length, 0)} Teilaufgaben · <b>${pts(total)} Punkte</b> · ${E.content.duration_min} Min.</span>
+      <div class="pagehead"><div><h1>${icon("pencil")} ${esc(E.cat.title || "Ohne Titel")}</h1><div class="row mt-s small wrap"><span class="badge ${E.cat.kind === "Prüfung" ? "purple" : "cyan"}">${esc(E.cat.kind)}</span>${inProcess(cat) ? statusBadge(c0) : rel ? `<span class="badge green">${icon("globe")} ${esc(releaseLabel(c0))}</span>` : `<span class="badge gray">nicht im Katalog freigegeben</span>`}<span>${E.content.tasks.length} Aufgaben · ${E.content.tasks.reduce((a, t) => a + t.subtasks.length, 0)} Teilaufgaben · <b>${pts(total)} Punkte</b> · ${E.content.duration_min} Min.</span>
         ${used ? `<span class="badge yellowb" title="Kurse, die diesen Inhalt nutzen">${icon("users")} in ${used} Kurs${used === 1 ? "" : "en"} verwendet</span>` : ""}${E.dirty ? `<span class="badge yellowb" data-dirty>ungespeicherte Änderungen</span>` : `<span class="badge green" data-dirty>gespeichert</span>`}${nErr ? `<a class="badge red" href="#/app/editor/${id}/pruefen">${nErr} Fehler</a>` : ""}</div></div>
-        <div class="actions-bar"><button class="btn" data-preview>${icon("eye")} Vorschau</button><button class="btn primary" data-save>${icon("save")} Speichern</button></div></div>
+        <div class="actions-bar">${canPublish(c0) ? `<button class="btn" data-publish="${rel ? 0 : 1}">${icon(rel ? "eye-off" : "globe")} ${rel ? "Freigabe beenden" : isAuthor() ? "Global freigeben" : "Für meine Schule freigeben"}</button>` : ""}<button class="btn" data-preview>${icon("eye")} Vorschau</button><button class="btn primary" data-save>${icon("save")} Speichern</button></div></div>
+      ${inProcess(cat) ? actionBar(c0, { inEditor: true }) : ""}
       ${E.fromDefault ? `<div class="notice info small mb">${icon("info")}<span>Dieser Inhalt nutzt bisher die Musterprüfung. Beim Speichern wird er als eigener Inhalt dieses Katalogeintrags abgelegt (inkl. der bereitgestellten Materialien).</span></div>` : ""}
-      ${used ? `<div class="notice warn small mb">${icon("triangle-alert")}<span>Änderungen wirken auf alle Kurse mit diesem Inhalt. Bereits angemeldete Teilnehmende behalten ihre kopierten Materialien.</span></div>` : ""}
-      <nav class="tabs">${TABS.map(([k, l]) => `<a href="#/app/editor/${id}/${k}" class="${k === tab ? "active" : ""}">${l}${k === "aufgaben" ? ` <span class="badge gray">${E.content.tasks.length}</span>` : k === "steuerung" ? ` <span class="badge gray">${E.rules.length}</span>` : ""}</a>`).join("")}</nav>
-      ${{ allgemein: tabGeneral, bewertung: tabGrading, aufgaben: tabTasks, steuerung: () => rulesEditor(E.rules), pruefen: tabCheck }[tab](E, issues)}</div>`;
+      ${used && !inProcess(cat) && !c0.mine ? `<div class="notice warn small mb">${icon("triangle-alert")}<span>Änderungen wirken auf alle Kurse mit diesem Inhalt. Bereits angemeldete Teilnehmende behalten ihre kopierten Materialien.</span></div>` : ""}
+      ${E.dirty && c0.updated !== E.updated ? `<div class="notice info small mb">${icon("users")}<span>Andere Personen haben zwischenzeitlich gespeichert. Beim Speichern werden nur die von Ihnen bearbeiteten Bereiche übernommen; die übrigen Änderungen bleiben erhalten.</span></div>` : ""}
+      ${others.length ? `<div class="notice small mb" style="background:var(--bg-softer)">${icon("users")}<span>Gleichzeitige Bearbeitung: ${others.map((x) => `<b>${esc(AREA_LABEL(E, x.value.area))}</b> (${esc(lockHolder(cat, lockedBy(id, x.value.area)))})`).join(", ")} – diese Bereiche sind für Sie gesperrt.</span></div>` : ""}
+      <nav class="tabs">${TABS.map(([k, l]) => `<a href="#/app/editor/${id}/${k}" class="${k === tab ? "active" : ""}">${l}${k === "aufgaben" ? ` <span class="badge gray">${E.content.tasks.length}</span>` : k === "steuerung" ? ` <span class="badge gray">${E.rules.length}</span>` : ""}${others.some((x) => x.value.area === k) ? ` ${icon("lock")}` : ""}</a>`).join("")}</nav>
+      ${lk && tab !== "aufgaben" ? lockNote(cat, lk, AREA_LABEL(E, area)) : ""}
+      ${lk && tab !== "aufgaben" ? `<fieldset class="edlocked" disabled>` : ""}${{ allgemein: tabGeneral, bewertung: tabGrading, aufgaben: tabTasks, steuerung: () => rulesEditor(E.rules), pruefen: tabCheck }[tab](E, issues)}${lk && tab !== "aufgaben" ? `</fieldset>` : ""}</div>`;
     },
-    mount(el) { bindEditor(el, E, cat, tab); },
+    mount(el) {
+      bindEditor(el, E, cat, tab);
+      // eigene Sperre für den sichtbaren Bereich anfordern, nicht mehr benötigte Sperren freigeben
+      if (area && !E.locked) acquire(id, area, inProcess(cat) ? rolesOf(cat).join(",") : "").then((ok) => { if (!ok) redraw(); });
+      releaseAll(id, [area, ...E.touched]);
+    },
+    unmount() { releaseAll(id, E.dirty ? [...E.touched] : []); },
   };
 }
+const lockNote = (cat, lk, label) => `<div class="notice warn small mb">${icon("lock")}<span><b>Gesperrt:</b> „${esc(label)}“ wird gerade von ${esc(lockHolder(cat, lk))} bearbeitet. Sie sehen den zuletzt gespeicherten Stand; bearbeiten können Sie, sobald die Sperre aufgehoben ist (spätestens 90 Sekunden nach Verlassen).</span></div>`;
 
 // ---------- Reiter ----------
 const fld = (path, label, v, { area = 0, type = "text", ph = "", cls = "", num = false } = {}) => `<div class="field ${cls}"><label class="lbl">${label}</label>${area ? `<textarea class="input" rows="${area}" data-ep="${path}" placeholder="${esc(ph)}">${esc(v ?? "")}</textarea>` : `<input class="input" type="${type}" data-ep="${path}" ${num ? "data-enum" : ""} value="${esc(v ?? "")}" placeholder="${esc(ph)}">`}</div>`;
@@ -179,7 +245,8 @@ function tabGrading(E) {
     ${gk === "eigen" ? `<div class="row wrap mt-s" style="gap:8px">${[1, 2, 3, 4, 5].map((n, i) => `<label class="small">Note ${n} ab <input class="input" style="width:70px" type="number" min="1" max="100" data-ep="content.gradingKey.thresholds.${i}" data-enum value="${esc((c.gradingKey.thresholds || [])[i] ?? "")}"> %</label>`).join("")}</div>` : ""}
     <div class="tablewrap mt"><table class="tbl compact"><thead><tr>${sample.map(() => "<th>Anteil</th><th>Note</th>").slice(0, 4).join("")}</tr></thead><tbody><tr>${sample.slice(0, 4).join("")}</tr><tr>${sample.slice(4).join("")}</tr></tbody></table></div></section>
   <section class="card pad"><h3>Kategoriensystem</h3><p class="xs muted">Die Kriterien der Bewertungsraster werden einer Kategorie zugeordnet; die Ergebnisse zeigen den Erreichungsgrad je Kategorie.</p><div class="optcards">${Object.entries(CATEGORY_SYSTEMS).map(([k, o]) => `<label class="optcard ${cs === k ? "on" : ""}"><input type="radio" name="cs" data-ea="cs" value="${k}" ${cs === k ? "checked" : ""}><span><b>${o.label}</b><span class="xs muted">${o.list.length ? o.list.join(" · ") : k === "eigen" ? "Kategorien selbst festlegen" : "Kriterien ohne Kategorie"}</span></span></label>`).join("")}</div>
-    ${cs === "eigen" ? `<div class="field mt-s"><label class="lbl">Kategorien (eine je Zeile)</label><textarea class="input" rows="4" data-ea="catlist">${esc((c.categories.list || []).join("\n"))}</textarea></div>` : ""}</section></div>`;
+    ${cs === "eigen" ? `<div class="field mt-s"><label class="lbl">Kategorien (eine je Zeile)</label><textarea class="input" rows="4" data-ea="catlist">${esc((c.categories.list || []).join("\n"))}</textarea></div>` : ""}</section></div>
+  <section class="card pad mt"><h3>${icon("pen-line")} Korrekturzeichen</h3><p class="small" style="margin:0">Verbindlicher Korrekturzeichensatz: <b>${esc(activeSignSet()?.name || "Standard")}</b> (${(activeSignSet()?.groups || []).reduce((a, g) => a + (g.items || []).length, 0)} Zeichen). Er wird zentral von der Koordinierungsstelle verwaltet und gilt einheitlich für Erstellung, Prüfung und Unterricht.</p></section>`;
 }
 function tree(E) {
   const [ti, si] = selOf(E);
@@ -193,7 +260,8 @@ function selOf(E) { const m = /^t(\d+)(?:\.s(\d+))?$/.exec(E.sel || "t0") || [0,
 function tabTasks(E) {
   const [ti, si] = selOf(E); const t = E.content.tasks[ti];
   if (!t) return `<div class="empty">${icon("list")}<h3>Noch keine Aufgaben</h3><button class="btn primary" data-ea="addTask">${icon("plus")} Aufgabe anlegen</button></div>`;
-  return `<div class="edlayout">${tree(E)}<div class="edpanel">${si < 0 ? taskPanel(E, t, ti) : subPanel(E, t, ti, t.subtasks[si], si)}</div></div>`;
+  const lk = E.locked; const cat = byId("catalog", E.id);
+  return `<div class="edlayout">${tree(E)}<div class="edpanel">${lk ? lockNote(cat, lk, `Aufgabe ${t.no}`) + `<fieldset class="edlocked" disabled>` : ""}${si < 0 ? taskPanel(E, t, ti) : subPanel(E, t, ti, t.subtasks[si], si)}${lk ? "</fieldset>" : ""}</div></div>`;
 }
 const moveBtns = (kind, arg, first, last) => `<button class="iconbtn" data-ea="${kind}Up" data-arg="${arg}" ${first ? "disabled" : ""} title="Nach oben" aria-label="Nach oben">${icon("chevron-up")}</button><button class="iconbtn" data-ea="${kind}Down" data-arg="${arg}" ${last ? "disabled" : ""} title="Nach unten" aria-label="Nach unten">${icon("chevron-down")}</button><button class="iconbtn" data-ea="${kind}Dup" data-arg="${arg}" title="Duplizieren" aria-label="Duplizieren">${icon("copy")}</button><button class="iconbtn" data-ea="${kind}Del" data-arg="${arg}" title="Löschen" aria-label="Löschen">${icon("trash-2")}</button>`;
 function taskPanel(E, t, ti) {
@@ -213,7 +281,7 @@ function materialList(E, t, ti) {
   const f = (i, key, label, v, o = {}) => fld(mp(i, key), label, v, o);
   const row = ({ m, i }) => {
     const d = m.data || {};
-    const head = { file: `${icon("file")} ${esc(d.name || "Datei")}`, mail: `${icon("mail")} ${esc(d.subject || "(ohne Betreff)")} <span class="xs muted">von ${esc(d.from || "")}</span>`, event: `${icon("calendar")} ${esc(d.title || "Termin")} <span class="xs muted">${DAYS[+d.day || 0]}, ${esc(d.start || "")}–${esc(d.end || "")}</span>`, ticket: `${icon("ticket")} #${esc(d.no || "")} ${esc(d.subject || "")}`, code: `${icon("file-code")} ${esc(d.name || "")}`, erp: `${icon("package")} ${esc(d.type === "lieferant" ? "Lieferant" : d.type === "bestellung" ? "Bestellung" : "Artikel")} ${esc(d.nr || "")} ${esc(d.name || "")}` }[m.kind];
+    const head = { file: `${icon("file")} ${esc(d.name || "Datei")}`, mail: `${icon("mail")} ${esc(d.subject || "(ohne Betreff)")} <span class="xs muted">von ${esc(d.from || "")}</span>`, event: `${icon("calendar")} ${esc(d.title || "Termin")} <span class="xs muted">${DAYS[+d.day || 0]}, ${esc(d.start || "")}–${esc(d.end || "")}</span>`, ticket: `${icon("ticket")} #${esc(d.no || "")} ${esc(d.subject || "")}`, code: `${icon("file-code")} ${esc(d.name || "")}`, erp: `${icon(d.type === "konto" || d.type === "beleg" ? "book-text" : "package")} ${esc({ lieferant: "Lieferant", bestellung: "Bestellung", konto: "Konto", beleg: "Beleg" }[d.type] || "Artikel")} ${esc(d.nr || "")} ${esc(d.name || d.partner || "")}` }[m.kind];
     let body = "";
     if (m.kind === "file") body = `<div class="grid2">${f(i, "name", "Dateiname", d.name)}${f(i, "path", "Ordner", d.path || "Bereitgestellte Dateien")}</div><div class="row wrap" style="gap:10px"><label class="btn sm">${icon("upload")} Datei ${d.url ? "ersetzen" : "hochladen"}<input type="file" hidden data-ea="fileUp" data-arg="${ti}.${i}"></label><span class="xs muted">${d.url ? `${esc(d.format || "")} · ${esc(d.size || "")}${String(d.url).startsWith("data:") ? " · im Inhalt gespeichert" : ` · ${esc(d.url)}`}` : "Noch keine Datei – nur Platzhalter (Dateiname)."}</span></div>`;
     if (m.kind === "mail") body = `<div class="grid2">${f(i, "from", "Absender (Name)", d.from)}${f(i, "from_mail", "Absender (E-Mail)", d.from_mail)}</div><div class="grid2">${f(i, "to", "An", d.to)}${f(i, "date", "Datum", d.date, { ph: "13.10.2025 09:22" })}</div>${f(i, "subject", "Betreff", d.subject)}${f(i, "body", "Text", d.body, { area: 6 })}
@@ -221,14 +289,16 @@ function materialList(E, t, ti) {
     if (m.kind === "event") body = `${f(i, "title", "Titel", d.title)}<div class="grid3"><div class="field"><label class="lbl">Tag</label><select class="select" data-ep="${mp(i, "day")}" data-enum>${DAYS.map((x, k2) => `<option value="${k2}" ${+d.day === k2 ? "selected" : ""}>${x}</option>`).join("")}</select></div>${f(i, "start", "Beginn", d.start, { type: "time" })}${f(i, "end", "Ende", d.end, { type: "time" })}</div><div class="grid2">${f(i, "location", "Ort", d.location)}${f(i, "desc", "Beschreibung", d.desc)}</div>`;
     if (m.kind === "ticket") body = `<div class="grid3">${f(i, "no", "Nummer", d.no)}${f(i, "requester", "Anfordernde Stelle", d.requester)}<div class="field"><label class="lbl">Priorität</label><select class="select" data-ep="${mp(i, "prio")}">${["niedrig", "mittel", "hoch"].map((x) => `<option ${d.prio === x ? "selected" : ""}>${x}</option>`).join("")}</select></div></div><div class="grid2">${f(i, "subject", "Betreff", d.subject)}<div class="field"><label class="lbl">Status</label><select class="select" data-ep="${mp(i, "status")}">${["offen", "in Bearbeitung", "geschlossen"].map((x) => `<option ${d.status === x ? "selected" : ""}>${x}</option>`).join("")}</select></div></div>${f(i, "desc", "Beschreibung", d.desc, { area: 4 })}`;
     if (m.kind === "code") body = `<div class="grid2">${f(i, "name", "Dateiname", d.name)}<div class="field"><label class="lbl">Sprache</label><select class="select" data-ep="${mp(i, "lang")}">${[["python", "Python"], ["javascript", "JavaScript"], ["text", "Text"]].map(([v, l]) => `<option value="${v}" ${d.lang === v ? "selected" : ""}>${l}</option>`).join("")}</select></div></div><div class="field"><label class="lbl">Code-Vorlage</label><textarea class="input mono" rows="8" data-ep="${mp(i, "code")}">${esc(d.code || "")}</textarea></div>`;
-    if (m.kind === "erp") body = d.type === "lieferant" ? `<div class="grid3">${f(i, "nr", "Lieferanten-Nr.", d.nr)}${f(i, "name", "Name", d.name)}${f(i, "ort", "Ort", d.ort)}</div><div class="grid2">${f(i, "mail", "E-Mail", d.mail)}${f(i, "zahlung", "Zahlungsbedingungen", d.zahlung)}</div>`
+    if (m.kind === "erp") body = d.type === "konto" ? `<div class="grid3">${f(i, "nr", "Kontonummer", d.nr)}${f(i, "name", "Bezeichnung", d.name)}<div class="field"><label class="lbl">Kontenart</label><select class="select" data-ep="${mp(i, "art")}">${["Aktiv", "Passiv", "Aufwand", "Ertrag"].map((x) => `<option ${d.art === x ? "selected" : ""}>${x}</option>`).join("")}</select></div></div>`
+      : d.type === "beleg" ? `<div class="grid3">${f(i, "nr", "Belegnummer", d.nr)}<div class="field"><label class="lbl">Belegart</label><select class="select" data-ep="${mp(i, "art")}">${["Eingangsrechnung", "Ausgangsrechnung", "Kassenbeleg", "Kontoauszug"].map((x) => `<option ${d.art === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>${f(i, "datum", "Datum", d.datum)}</div><div class="grid2">${f(i, "partner", "Geschäftspartner", d.partner)}${f(i, "text", "Text", d.text)}</div><div class="grid2">${f(i, "netto", "Nettobetrag (€)", d.netto, { type: "number", num: true })}${f(i, "ust", "Umsatzsteuer (%)", d.ust, { type: "number", num: true })}</div>`
+      : d.type === "lieferant" ? `<div class="grid3">${f(i, "nr", "Lieferanten-Nr.", d.nr)}${f(i, "name", "Name", d.name)}${f(i, "ort", "Ort", d.ort)}</div><div class="grid2">${f(i, "mail", "E-Mail", d.mail)}${f(i, "zahlung", "Zahlungsbedingungen", d.zahlung)}</div>`
       : d.type === "bestellung" ? `<p class="small muted">Bestellung ${esc(d.nr)} vom ${esc(d.datum || "")} (${(d.pos || []).length} Positionen) – wird unverändert bereitgestellt.</p>`
       : `<div class="grid3">${f(i, "nr", "Artikel-Nr.", d.nr)}${f(i, "name", "Bezeichnung", d.name)}${f(i, "gruppe", "Gruppe", d.gruppe)}</div><div class="grid3">${f(i, "bestand", "Bestand", d.bestand, { type: "number", num: true })}${f(i, "melde", "Meldebestand", d.melde, { type: "number", num: true })}${f(i, "hoechst", "Höchstbestand", d.hoechst, { type: "number", num: true })}</div><div class="grid3">${f(i, "einheit", "Einheit", d.einheit)}${f(i, "ek", "Einkaufspreis (€)", d.ek, { type: "number", num: true })}${f(i, "lieferant", "Lieferanten-Nr.", d.lieferant)}</div>`;
     return `<details class="edmat" ${E.openMat === `${ti}.${i}` ? "open" : ""} data-mat="${ti}.${i}"><summary><span class="grow">${head}</span><button class="iconbtn" data-ea="matDel" data-arg="${ti}.${i}" title="Entfernen" aria-label="Material entfernen">${icon("trash-2")}</button></summary><div class="edmat-b">${body}</div></details>`;
   };
   const addLabel = { file: "Datei", mail: "E-Mail", event: "Termin", ticket: "Ticket", code: "Code-Vorlage", erp: "Artikel" }[k];
   return `<div class="mt-s">${list.map(row).join("") || `<p class="small muted">Keine ${MK.find((x) => x[0] === k)[2]} in dieser Aufgabe.</p>`}
-    <div class="row mt-s" style="gap:8px"><button class="btn sm" data-ea="matAdd" data-arg="${ti}">${icon("plus")} ${addLabel} hinzufügen</button>${k === "erp" ? `<button class="btn sm" data-ea="matAdd" data-arg="${ti}" data-sub="lieferant">${icon("plus")} Lieferant hinzufügen</button>` : ""}${k === "file" ? `<label class="btn sm ghost">${icon("upload")} Dateien hochladen<input type="file" hidden multiple data-ea="filesNew" data-arg="${ti}"></label>` : ""}</div></div>`;
+    <div class="row mt-s" style="gap:8px"><button class="btn sm" data-ea="matAdd" data-arg="${ti}">${icon("plus")} ${addLabel} hinzufügen</button>${k === "erp" ? `<button class="btn sm" data-ea="matAdd" data-arg="${ti}" data-sub="lieferant">${icon("plus")} Lieferant hinzufügen</button><button class="btn sm" data-ea="matAdd" data-arg="${ti}" data-sub="konto">${icon("plus")} Konto hinzufügen</button><button class="btn sm" data-ea="matAdd" data-arg="${ti}" data-sub="beleg">${icon("plus")} Beleg hinzufügen</button>` : ""}${k === "file" ? `<label class="btn sm ghost">${icon("upload")} Dateien hochladen<input type="file" hidden multiple data-ea="filesNew" data-arg="${ti}"></label>` : ""}</div></div>`;
 }
 function subPanel(E, t, ti, s, si) {
   const base = `content.tasks.${ti}.subtasks.${si}`; const cats = categoryList(E.content.categories);
@@ -278,11 +348,13 @@ function newMaterial(kind, sub) {
   if (kind === "event") return { id, kind, folder: FOLDER.event, data: { title: "Neuer Termin", day: 0, start: "09:00", end: "10:00", location: "", desc: "", editable: false } };
   if (kind === "ticket") return { id, kind, folder: FOLDER.ticket, data: { no: String(4800 + Math.floor(Math.random() * 100)), subject: "Neues Ticket", requester: "", prio: "mittel", status: "offen", created: new Date().toLocaleString("de-DE").slice(0, 17), desc: "", answers: [] } };
   if (kind === "code") return { id, kind, folder: FOLDER.code, data: { name: "vorlage.py", lang: "python", code: "# Vorlage\n" } };
+  if (sub === "konto") return { id, kind: "erp", folder: FOLDER.erp, data: { type: "konto", nr: "2800", name: "Bank", art: "Aktiv" } };
+  if (sub === "beleg") return { id, kind: "erp", folder: FOLDER.erp, data: { type: "beleg", nr: "ER-" + Math.floor(1000 + Math.random() * 9000), art: "Eingangsrechnung", datum: new Date().toLocaleDateString("de-DE"), partner: "", text: "", netto: 0, ust: 19 } };
   return { id, kind: "erp", folder: FOLDER.erp, data: sub === "lieferant" ? { type: "lieferant", nr: "70100", name: "", ort: "", mail: "", zahlung: "30 Tage netto" } : { type: "artikel", nr: "100900", name: "", gruppe: "Zukaufteile", einheit: "Stk.", bestand: 0, melde: 0, hoechst: 0, ek: 0, lieferant: "" } };
 }
 function bindEditor(el, E, cat, tab) {
-  const id = cat.id;
-  const markDirty = () => { if (!E.dirty) { E.dirty = true; const b = el.querySelector("[data-dirty]"); if (b) { b.className = "badge yellowb"; b.textContent = "ungespeicherte Änderungen"; } } };
+  const id = cat.id; const area = areaOf(E, tab);
+  const markDirty = () => { if (area) E.touched.add(area); if (!E.dirty) { E.dirty = true; const b = el.querySelector("[data-dirty]"); if (b) { b.className = "badge yellowb"; b.textContent = "ungespeicherte Änderungen"; } } };
   // Neuzeichnen verzögert: ein „change“ beim Verlassen eines Felds (blur durch Navigation) darf das laufende Rendern nicht stören
   const rr = () => setTimeout(() => { if (!el.isConnected) return; activate(E); const y = window.scrollY; redraw(); window.scrollTo(0, y); }, 0);
   // Felder
@@ -297,6 +369,9 @@ function bindEditor(el, E, cat, tab) {
   const T = (i) => E.content.tasks[+i];
   const act = async (b, ev) => {
     const a = b.dataset.ea; const arg = b.dataset.arg || ""; const [x, y, z] = arg.split(".").map((v) => (v === "" ? v : +v));
+    // gesperrte Bereiche (andere Person bearbeitet) – nur lesen
+    const lockedTask = (i) => { const t = E.content.tasks[+i]; return t && lockedBy(id, "task:" + t.uid); };
+    if (a !== "mk" && ((E.locked && !["addTask", "addSub"].includes(a)) || (a === "addSub" && lockedTask(x)))) { toast("Bereich gesperrt", "Dieser Bereich wird gerade von einer anderen Person bearbeitet.", "error"); return; }
     const tasks = E.content.tasks; const swap = (arr, i, j) => { [arr[i], arr[j]] = [arr[j], arr[i]]; };
     switch (a) {
       case "addInfo": E.content.info.items.push(["", ""]); break;
@@ -304,12 +379,12 @@ function bindEditor(el, E, cat, tab) {
       case "gk": E.content.gradingKey = { type: b.value, ...(b.value === "eigen" ? { thresholds: [...(E.content.gradingKey?.thresholds || GRADING_KEYS.eigen.thresholds)] } : {}) }; break;
       case "cs": E.content.categories = { system: b.value, list: b.value === "eigen" ? E.content.categories?.list || [] : [] }; break;
       case "catlist": E.content.categories.list = b.value.split("\n").map((s) => s.trim()).filter(Boolean); markDirty(); return; // ohne Neuzeichnen (Eingabe)
-      case "addTask": tasks.push(newTask(tasks.length + 1)); E.sel = `t${tasks.length - 1}`; if (tab !== "aufgaben") { activate(E); markDirty(); navigate(`#/app/editor/${id}/aufgaben`); return; } break;
-      case "addSub": T(x).subtasks.push(newSub()); E.sel = `t${x}.s${T(x).subtasks.length - 1}`; break;
-      case "taskUp": swap(tasks, x, x - 1); E.sel = `t${x - 1}`; break;
-      case "taskDown": swap(tasks, x, x + 1); E.sel = `t${x + 1}`; break;
-      case "taskDup": tasks.splice(x + 1, 0, clone(tasks[x])); E.sel = `t${x + 1}`; break;
-      case "taskDel": if (tasks.length < 2) { toast("Mindestens eine Aufgabe", "", "info"); return; } if (!(await confirmBox("Aufgabe löschen", `Aufgabe ${tasks[x].no} „${esc(tasks[x].title)}“ mit allen Teilaufgaben und Materialien wird entfernt.`, "Löschen"))) return; tasks.splice(x, 1); E.sel = "t0"; break;
+      case "addTask": tasks.push(newTask(tasks.length + 1)); E.touched.add("task:" + tasks[tasks.length - 1].uid); E.sel = `t${tasks.length - 1}`; if (tab !== "aufgaben") { activate(E); markDirty(); navigate(`#/app/editor/${id}/aufgaben`); return; } break;
+      case "addSub": E.touched.add("task:" + T(x).uid); T(x).subtasks.push(newSub()); E.sel = `t${x}.s${T(x).subtasks.length - 1}`; break;
+      case "taskUp": swap(tasks, x, x - 1); E.reordered = true; E.sel = `t${x - 1}`; break;
+      case "taskDown": swap(tasks, x, x + 1); E.reordered = true; E.sel = `t${x + 1}`; break;
+      case "taskDup": tasks.splice(x + 1, 0, { ...clone(tasks[x]), uid: rid() }); E.touched.add("task:" + tasks[x + 1].uid); E.sel = `t${x + 1}`; break;
+      case "taskDel": if (tasks.length < 2) { toast("Mindestens eine Aufgabe", "", "info"); return; } if (!(await confirmBox("Aufgabe löschen", `Aufgabe ${tasks[x].no} „${esc(tasks[x].title)}“ mit allen Teilaufgaben und Materialien wird entfernt.`, "Löschen"))) return; E.touched.add("task:" + tasks[x].uid); tasks.splice(x, 1); E.sel = "t0"; break;
       case "subUp": swap(T(x).subtasks, y, y - 1); E.sel = `t${x}.s${y - 1}`; break;
       case "subDown": swap(T(x).subtasks, y, y + 1); E.sel = `t${x}.s${y + 1}`; break;
       case "subDup": T(x).subtasks.splice(y + 1, 0, clone(T(x).subtasks[y])); E.sel = `t${x}.s${y + 1}`; break;
@@ -351,10 +426,37 @@ function bindEditor(el, E, cat, tab) {
   });
   if (tab === "steuerung") bindRulesEditor(el, E.rules, rr, markDirty);
   el.querySelectorAll("[data-save]").forEach((b) => (b.onclick = () => save(E, cat)));
+  // Statuswechsel direkt im Editor (z. B. „An die Kommission übergeben“, „Final freigeben“) – vorher speichern
+  el.querySelectorAll("[data-pact]").forEach((b) => (b.onclick = async () => {
+    const a = b.dataset.pact; const before = byId("catalog", id)?.status;
+    if (E.dirty && STATUS_ACTS.includes(a)) { if (!(await confirmBox("Zuerst speichern", "<p>Ungespeicherte Änderungen werden vor dem Statuswechsel gespeichert.</p>", "Speichern und fortfahren", "Abbrechen", false))) return; if (!(await save(E, cat))) return; }
+    if (a === "preview") { if (E.dirty && !(await save(E, cat))) return; store.set("pvfrom", { editor: id }); return navigate(`#/app/vorschau/${id}/dashboard`); }
+    await runAction(id, a, b.dataset.arg || "");
+    if (byId("catalog", id)?.status !== before) { releaseAll(id); DRAFTS.delete(id); navigate(`#/app/erstellung/${id}/uebersicht`); }
+  }));
+  el.querySelectorAll("[data-publish]").forEach((b) => (b.onclick = async () => { if (E.dirty && !(await save(E, cat))) return; await publish(byId("catalog", id), b.dataset.publish === "1"); }));
   el.querySelectorAll("[data-preview]").forEach((b) => (b.onclick = async () => { if (E.dirty && !(await save(E, cat))) return; store.set("pvfrom", { editor: id }); navigate(`#/app/vorschau/${id}/dashboard`); }));
 }
+// Zusammenführung bei gleichzeitiger Bearbeitung: nur die selbst bearbeiteten Bereiche werden in den aktuellen Stand übernommen
+function mergeDraft(E, cur) {
+  if (!cur || cur.updated === E.updated || !hasOwnContent(cur) || E.fromDefault) return { content: E.content, rules: E.rules, cat: E.cat, merged: false };
+  const srv = withUids(normalizeContent(clone(cur.content))); const T = E.touched; const mine = E.content;
+  const out = clone(srv);
+  if (T.has("allgemein")) ["name", "duration_min", "ausgangssituation", "company", "info"].forEach((k) => (out[k] = clone(mine[k])));
+  if (T.has("bewertung")) ["gradingKey", "categories"].forEach((k) => (out[k] = clone(mine[k])));
+  const mineBy = new Map(mine.tasks.map((t) => [t.uid, t]));
+  let tasks = srv.tasks.map((t) => (T.has("task:" + t.uid) ? mineBy.get(t.uid) || null : t)).filter(Boolean);
+  mine.tasks.forEach((t) => { if (T.has("task:" + t.uid) && !srv.tasks.some((x) => x.uid === t.uid)) tasks.push(t); });
+  if (E.reordered) { const pos = new Map(mine.tasks.map((t, i) => [t.uid, i])); tasks = tasks.sort((a, b) => (pos.get(a.uid) ?? 999) - (pos.get(b.uid) ?? 999)); }
+  out.tasks = clone(tasks);
+  const cat = T.has("allgemein") ? E.cat : { title: cur.title, kind: cur.kind, beruf: cur.beruf, fach: cur.fach, jahr: cur.jahr, description: cur.description || "" };
+  return { content: out, rules: T.has("steuerung") ? E.rules : clone(cur.rules || []), cat, merged: true };
+}
 export async function save(E, cat) {
-  normalizeContent(E.content);
+  normalizeContent(E.content); withUids(E.content);
+  const cur = byId("catalog", cat.id) || cat;
+  const mg = mergeDraft(E, cur);
+  if (mg.merged) { E.content = normalizeContent(mg.content); E.rules = mg.rules; E.cat = { ...mg.cat }; }
   const c = E.content; c.name = E.cat.title;
   const subCount = c.tasks.reduce((a, t) => a + t.subtasks.length, 0);
   const types = [...new Set(c.tasks.flatMap((t) => t.subtasks.map((s) => qShort(s))))];
@@ -362,12 +464,14 @@ export async function save(E, cat) {
   if (inProcess(cat)) {
     delete patch.kind;
     // Begutachtung: Fehlerbehebung wird direkt freigegeben (kein erneuter Freigabeprozess)
+    cat = cur;
     if (cat.status === "begutachtung") { if (!(await confirmBox("Korrektur direkt freigeben", `<p>Die Änderung wird <b>sofort freigegeben</b> und ist für die Schulen sichtbar (Version ${(+cat.meta?.version || 1) + 1}). Ein erneuter Freigabeprozess ist nicht erforderlich.</p>`, "Speichern und freigeben", "Abbrechen", false))) return false; patch.meta = { ...(cat.meta || {}), version: (+cat.meta?.version || 1) + 1 }; }
     patch.history = [...(cat.history || []), cat.status === "begutachtung" ? { at: new Date().toISOString(), by: me() ? personName(me()) : "Koordinierungsstelle", ev: "korrektur-freigegeben", text: `Korrektur vor Prüfungsbeginn direkt freigegeben (Version ${patch.meta.version})` } : { at: new Date().toISOString(), by: me() ? personName(me()) : "Koordinierungsstelle", ev: "inhalt", text: "Inhalt im Editor gespeichert" }];
   }
   if (!cat.editor_by) patch.editor_by = isAuthor() ? "autor" : me()?.id || "";
   try { await upd("catalog", cat.id, patch); } catch (e) { toast("Nicht gespeichert", e?.response?.message || e?.message || "", "error"); return false; }
-  E.dirty = false; E.fromDefault = false; E.updated = byId("catalog", cat.id)?.updated;
-  toast("Inhalt gespeichert", `${c.tasks.length} Aufgaben · ${subCount} Teilaufgaben`);
+  E.dirty = false; E.fromDefault = false; E.updated = byId("catalog", cat.id)?.updated; E.touched = new Set(); E.reordered = false;
+  releaseAll(cat.id, [E.lastArea || ""]);
+  toast("Inhalt gespeichert", mg.merged ? `${c.tasks.length} Aufgaben · Änderungen anderer Personen wurden übernommen` : `${c.tasks.length} Aufgaben · ${subCount} Teilaufgaben`);
   redraw(); return true;
 }

@@ -1,22 +1,24 @@
 // Exam Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.9";
-import { lock as lockGate } from "./gate.js?v=8.9";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.9";
-import * as TN from "./views/participant.js?v=8.9";
-import * as PR from "./views/proctor.js?v=8.9";
-import * as KO from "./views/correction.js?v=8.9";
-import * as LK from "./views/teacher.js?v=8.9";
-import * as RS from "./views/results.js?v=8.9";
-import * as KU from "./views/courses.js?v=8.9";
-import * as GD from "./guide.js?v=8.9";
-import * as ED from "./views/editor.js?v=8.9";
-import * as CR from "./views/creation.js?v=8.9";
-import { CORRECTORS } from "./scenario.js?v=8.9";
-import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.9";
-import { seatCount, seatCmp } from "./seats.js?v=8.9";
-import { syncForRoute } from "./content.js?v=8.9";
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=9.0";
+import { lock as lockGate } from "./gate.js?v=9.0";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=9.0";
+import * as TN from "./views/participant.js?v=9.0";
+import * as PR from "./views/proctor.js?v=9.0";
+import * as KO from "./views/correction.js?v=9.0";
+import * as LK from "./views/teacher.js?v=9.0";
+import * as RS from "./views/results.js?v=9.0";
+import * as KU from "./views/courses.js?v=9.0";
+import * as GD from "./guide.js?v=9.0";
+import * as ED from "./views/editor.js?v=9.0";
+import * as CR from "./views/creation.js?v=9.0";
+import { CORRECTORS } from "./scenario.js?v=9.0";
+import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=9.0";
+import { seatCount, seatCmp } from "./seats.js?v=9.0";
+import { syncForRoute } from "./content.js?v=9.0";
+import * as SD from "./views/stammdaten.js?v=9.0";
+import { applySigns } from "./masterdata.js?v=9.0";
 
-export const VERSION = "8.9";
+export const VERSION = "9.0";
 export const VERSION_LABEL = `Version ${VERSION} · 22.10.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },
@@ -26,6 +28,7 @@ export const ROLES = {
   schuladmin: { label: "Schuladministration", icon: "building-2", user: "Marit Hinrichs" },
   einsicht: { label: "Prüfungseinsicht", icon: "eye" },
   autor: { label: "Prüfungserstellung", icon: "pencil", user: "Koordinierungsstelle (IBBW)" },
+  bereichsadmin: { label: "Bereichsadministration", icon: "library", user: "Bereichsadministration (IBBW)" },
 };
 export const session = {
   get role() { return store.get("role"); },
@@ -68,6 +71,7 @@ const routes = [
   [/^app\/erstellung$/, () => CR.list()],
   [/^app\/erstellung\/([^/]+)(?:\/([^/]+))?$/, (m) => CR.detail(m[1], m[2] || "uebersicht")],
   [/^app\/pruefungseinsicht\/([^/]+)$/, (m) => RS.einsichtSession(m[1])],
+  [/^app\/stammdaten(?:\/([^/]+))?$/, (m) => SD.view(m[1] || "berufe")],
 ];
 
 let current = null;
@@ -144,7 +148,7 @@ function userMenu() {
 }
 function staffShell(v) {
   const adm = me()?.kind === "schuladmin";
-  const nav = session.role === "einsicht" ? [["einsicht", "#/app/pruefungseinsicht", "eye", "Prüfungseinsicht"]] : session.role === "autor" ? [["erstellung", "#/app/erstellung", "clipboard-list", "Erstellung"], ["katalog", "#/app/katalog", "pencil", "Katalog und Editor"]] : [
+  const nav = session.role === "einsicht" ? [["einsicht", "#/app/pruefungseinsicht", "eye", "Prüfungseinsicht"]] : session.role === "autor" ? [["erstellung", "#/app/erstellung", "clipboard-list", "Erstellung"], ...(me()?.kind === "koordination" ? [["stammdaten", "#/app/stammdaten", "database", "Stammdaten"]] : [])] : session.role === "bereichsadmin" ? [["katalog", "#/app/katalog", "library", "Katalog und Editor"]] : [
     ["aufgaben", "#/app/aufgaben", "circle-check", "Aufgaben"],
     ["katalog", "#/app/katalog", "pencil", "Katalog"],
     ["kurse", "#/app/kurse", adm ? "clipboard-list" : "book-open", adm ? "Prüfungen" : "Mein Unterricht"],
@@ -212,7 +216,7 @@ function startView() {
   const room = D.rooms.find((r) => r.name === "Raum 123") || D.rooms[0];
   // Prüflinge: Teilnahmen je Raumaufsicht (ohne Großraum-Testfall)
   const rooms = D.rooms.filter((r) => seatCount(r) <= 60 && D.participants.some((p) => p.room === r.id)).sort((a, b) => (a.name === "Raum 123" ? -1 : b.name === "Raum 123" ? 1 : a.name.localeCompare(b.name)));
-  const tnOpts = rooms.map((r) => `<optgroup label="${esc(r.name)} – ${esc(r.exam_name)}">${D.participants.filter((p) => p.room === r.id).sort((a, b) => seatCmp(a.seat, b.seat)).map((p) => `<option value="${p.id}" ${p.username === "n.froehlke" ? "selected" : ""}>${esc(p.lastname)}, ${esc(p.firstname)}${p.seat ? ` (Platz ${esc(p.seat)})` : ""}</option>`).join("")}</optgroup>`).join("");
+  const tnOpts = rooms.map((r) => `<optgroup label="${esc(r.name)} – ${esc(r.exam_name)}">${D.participants.filter((p) => p.room === r.id).sort((a, b) => seatCmp(a.seat, b.seat)).map((p) => `<option value="${p.id}" ${p.username === "n.froehlke" && r.name === "Raum 123" ? "selected" : ""}>${esc(p.lastname)}, ${esc(p.firstname)}${p.seat ? ` (Platz ${esc(p.seat)})` : ""}</option>`).join("")}</optgroup>`).join("");
   const supIds = new Set(D.supervisors.map((s) => s.person).filter(Boolean));
   const correctors = [];
   // Korrektor:innen aus den Korrektorengruppen der Prüfungen (je Person und Stufe einmal)
@@ -254,6 +258,10 @@ function startView() {
           <ul><li>Einsicht immer in Präsenz</li><li>Person begleitet die Einsicht</li><li>Endnote und Abgabe mit Korrekturzeichen</li></ul>
           <label class="lbl mt-s" for="eisel">Person</label><select class="select" id="eisel">${optP(einsichtPersons().sort((a, b) => a.org.localeCompare(b.org) || a.lastname.localeCompare(b.lastname)), "t.riedmueller")}</select>
           <button class="btn primary" data-role="einsicht">${icon("arrow-right")} Zur Prüfungseinsicht</button></div>
+        <div class="rolecard"><div class="rico">${icon("library", "lg")}</div><h3>Bereichsadministration</h3>
+          <ul><li>Katalog für den Unterricht pflegen</li><li>Inhalte global freigeben und Freigabe beenden</li><li>Editor für Katalogeinträge</li></ul>
+          <label class="lbl mt-s" for="basel">Person</label><select class="select" id="basel">${optP(P("bereichsadmin"), "w.hollerbach")}</select>
+          <button class="btn primary" data-role="bereichsadmin">${icon("arrow-right")} Zum Katalog</button></div>
         <div class="rolecard"><div class="rico">${icon("building-2", "lg")}</div><h3>Schuladministration</h3>
           <ul><li>Prüfungsebene: Teilnehmende, Raumaufsichten, Korrektoren zuordnen</li><li>Prüfungsräume und Raumaufsichten der eigenen Schule</li><li>Ergebnisse, Drittkorrektur</li></ul>
           <label class="lbl mt-s" for="sasel">Person</label><select class="select" id="sasel">${optP(P("schuladmin"), "m.hinrichs")}</select>
@@ -275,6 +283,7 @@ function startView() {
         if (r === "schuladmin") { login(byId("persons", v("#sasel")), "schuladmin"); navigate("#/app/kurse"); }
         if (r === "autor") { login(byId("persons", v("#ersel")), "autor"); navigate("#/app/erstellung"); }
         if (r === "einsicht") { login(byId("persons", v("#eisel")), "einsicht"); navigate("#/app/pruefungseinsicht"); }
+        if (r === "bereichsadmin") { login(byId("persons", v("#basel")), "bereichsadmin"); navigate("#/app/katalog"); }
       }));
       el.querySelectorAll("[data-guide]").forEach((b) => (b.onclick = async () => { if ((b.hasAttribute("data-restart") || b.hasAttribute("data-switch")) && !(await confirmBox(b.hasAttribute("data-switch") ? "Andere Klickstrecke starten" : "Klickstrecke neu beginnen", "<p>Der bisherige Fortschritt der laufenden Klickstrecke wird verworfen. Ihre angelegten Daten bleiben erhalten.</p>", b.hasAttribute("data-switch") ? "Starten" : "Neu beginnen"))) return; GD.start(b.dataset.guide, b.hasAttribute("data-restart")); }));
       const gr = el.querySelector("[data-guideresume]"); if (gr) gr.onclick = () => GD.resume();
@@ -298,8 +307,15 @@ async function boot() {
   root.innerHTML = `<div class="empty" style="padding-top:20vh">${icon("refresh-cw", "xl")}<p>Lade Prüfungsplattform …</p></div>`;
   try { await loadAll(); await subscribeAll(); checkVersion(); if (window.__reseeded) toast("Demodaten aktualisiert", "Die Datenbank stammte aus einer älteren Version und wurde automatisch auf den aktuellen Stand gebracht (u. a. aufgabenspezifische Materialien und Tickets).", "info", { ms: 9000 }); }
   catch (e) { root.innerHTML = backend.mode === "local" ? `<div class="empty" style="padding-top:20vh"><h2>Die Datenbank im Browser konnte nicht geöffnet werden</h2><p>Bitte ein privates Fenster vermeiden oder die Websitedaten für diese Seite zulassen.</p><pre>${esc(e.message)}</pre></div>` : `<div class="empty" style="padding-top:20vh"><h2>Keine Verbindung zum Server</h2><p>Bitte PocketBase starten (siehe README).</p><pre>${esc(e.message)}</pre></div>`; return; }
+  applySigns();
   onChange((c, ev) => {
-    if (c === "_reset") { toast("Demo wurde zurückgesetzt", "", "info"); render(); return; }
+    if (c === "_reset") { applySigns(); toast("Demo wurde zurückgesetzt", "", "info"); render(); return; }
+    if (c === "settings") {
+      applySigns();
+      // Erneuerung von Bearbeitungssperren löst kein Neuzeichnen aus (Anlegen und Aufheben dagegen schon)
+      const k = ev?.record?.key || byId("settings", ev?.id)?.key || "";
+      if (k.startsWith("lock:") && (ev?.action === "update" || ev?.action === "local")) return;
+    }
     if (c === "_hb") { current?.onHeartbeat?.(ev); return; }
     refresh();
   });

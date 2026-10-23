@@ -1165,3 +1165,15 @@ tr.rowlink:focus-visible { outline: 3px solid #4a90e2; outline-offset: -3px; }
 .timeline li { display: grid; grid-template-columns: 140px 1fr; gap: 12px; padding: 8px 0 8px 14px; position: relative; }
 .timeline li::before { content: ""; position: absolute; left: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: var(--brand, #0b6aa2); }
 .badge.orange { background: #ffedd5; color: #9a3412; }
+
+/* ---------- v9.0: Statusaktionen, Sperren, Stammdaten ---------- */
+.nextbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 14px; margin: 0 0 16px; border: 1px solid #b9d6ea; border-left: 4px solid var(--brand, #0b6aa2); border-radius: 6px; background: #f2f8fc; position: sticky; top: 0; z-index: 5; }
+.nextbar .nb-l { display: inline-flex; align-items: center; gap: 6px; }
+.nextbar .nb-l .ico { vertical-align: -3px; }
+fieldset.edlocked { border: 0; padding: 0; margin: 0; min-width: 0; opacity: .72; }
+fieldset.edlocked .btn, fieldset.edlocked input, fieldset.edlocked select, fieldset.edlocked textarea { cursor: not-allowed; }
+.segmented.sm button { padding: 4px 10px; font-size: 13px; }
+.bpick select[data-bsel] { width: 100%; }
+.bpick option[hidden] { display: none; }
+td.ctr, th.ctr { text-align: center; }
+.card.pad.muted { opacity: .7; }

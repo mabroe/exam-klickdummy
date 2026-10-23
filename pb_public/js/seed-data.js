@@ -4,7 +4,7 @@
 // Alle Personennamen sind zufällig erzeugte Fantasienamen – Ähnlichkeiten mit realen Personen sind nicht beabsichtigt.
 (function (root) {
   // Stand der Demodaten. Erhöhen, wenn sich die Demodaten ändern – ältere Datenbestände werden beim Start automatisch neu aufgebaut.
-  var SEED_VERSION = 16;
+  var SEED_VERSION = 17;
   var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings"];
 
   // Bewertungskriterien je Teilaufgabe (Maximalpunkte) – muss zu js/scenario.js passen
@@ -28,8 +28,18 @@
     var at = function (min) { return hm(new Date(planned.getTime() + min * 60000)); };
 
     // ---------- Schulen und reale Räume (nur für Prüfungen; verhindern Doppelbelegungen) ----------
-    var afs = add("orgs", { name: "Ahornfeld-Schule Musterstadt", short: "AFS", city: "Musterstadt" });
-    var bts = add("orgs", { name: "Birkental-Schule Musterstadt", short: "BTS", city: "Musterstadt" });
+    // Ausbildungsberufe je Schule (für die Auswahl der Organisationen einer Prüfung)
+    var afs = add("orgs", { name: "Ahornfeld-Schule Musterstadt", short: "AFS", city: "Musterstadt", berufe: ["bm", "ik", "fisi", "fiae"] });
+    var bts = add("orgs", { name: "Birkental-Schule Musterstadt", short: "BTS", city: "Musterstadt", berufe: ["bm", "eh", "fisi", "fiae"] });
+    var MORE = [["Christophorus-Schule Neudorf am Hang", "CSN", "Neudorf am Hang", ["ik", "eh", "mech"], ["Kirchhoff", "Bente"]],
+      ["Dornbach-Schule Talwiesen", "DST", "Talwiesen", ["bm", "eh"], ["Seidenfaden", "Jörn"]],
+      ["Eschenhain-Schule Bergstetten", "EHS", "Bergstetten", ["fisi", "fiae", "mech"], ["Ollendorf", "Pia"]],
+      ["Ginsterweg-Schule Beispielhausen", "GWS", "Beispielhausen", ["bm", "ik"], ["Weidenbach", "Torge"]],
+      ["Holunderhof-Schule Talwiesen", "HHS", "Talwiesen", ["fisi", "mech"], ["Quast", "Henrike"]],
+      ["Ilexgrund-Schule Bergstetten", "IGS", "Bergstetten", ["bm", "ik", "eh", "fisi", "fiae"], ["Rautenberg", "Silas"]],
+      ["Kastanienallee-Schule Musterstadt", "KAS", "Musterstadt", ["bm", "fiae"], ["Mertensen", "Jule"]],
+      ["Lärchenweg-Schule Neudorf am Hang", "LWS", "Neudorf am Hang", ["eh", "ik", "bm"], ["Vosskuhl", "Arne"]]]
+      .map(function (x) { return { org: add("orgs", { name: x[0], short: x[1], city: x[2], berufe: x[3] }), admin: x[4] }; });
     var V = {};
     [[afs, "Raum 123", "Haus A", 3, 5], [afs, "Raum 124", "Haus A", 4, 6], [afs, "Raum 105", "Haus A", 4, 6], [afs, "Raum 202", "Haus B", 4, 6], [afs, "Raum 204", "Haus B", 4, 5], [afs, "Raum 305", "Haus C", 4, 6], [afs, "PC-Pool 2", "Haus B", 4, 6], [afs, "PC-Pool 3", "Haus B", 3, 6],
      [bts, "Raum 201", "Hauptgebäude", 4, 6], [bts, "Aula (Großraum)", "Hauptgebäude", 10, 12], [bts, "Raum 017", "Werkstattgebäude", 4, 5], [bts, "Raum 110", "Hauptgebäude", 5, 6]]
@@ -49,6 +59,10 @@
     T.Hinrichs = P("Hinrichs", "Marit", afs, "schuladmin", "MH");
     T.Ammermann = P("Ammermann", "Ilka", bts, "schuladmin", "IA");
     T.Gaspari = P("Gaspari", "Emil", bts, "lehrkraft", "EG");
+    // weitere Koordinierungsstelle (gleichzeitige Bearbeitung testen) und Bereichsadministration (Katalog)
+    T.Tessendorf = X("Tessendorf", "Malin", "koordination", "MT");
+    T.Hollerbach = X("Hollerbach", "Wenke", "bereichsadmin", "WH");
+    MORE.forEach(function (m) { P(m.admin[0], m.admin[1], m.org, "schuladmin", m.admin[0][0] + m.admin[1][0]).email = uname(m.admin[0], m.admin[1]) + "@" + m.org.short.toLowerCase() + ".schule.bw"; });
     T["Dähne"] = P("Dähne", "Niklas", bts, "lehrkraft", "ND");
 
     // ---------- Katalog ----------
@@ -59,14 +73,14 @@
         title: title, beruf: beruf, fach: fach, jahr: jahr, kind: kind, image: image, description: description, duration: kind === "Prüfung" ? "90 Minuten" : "45 Minuten", creator: "IBBW",
         tags: [kind === "Prüfung" ? "Prüfungen" : "Lernerfolgskontrolle", "Teil " + (1 + (image % 2))],
         contents: ["Ausgangssituation mit Unternehmensprofil", "Arbeitsaufträge mit E-Mail-Client und Kalender", "Bereitgestellte Dateien und Vorlagen", "Erwartungshorizont und Bewertungsraster"],
-        mine: false, copied_from: "",
+        mine: false, copied_from: "", release: { scope: "global", by: T.Hollerbach.id, at: iso(new Date(now.getTime() - 86400000 * 30)) },
       });
     };
     C("Prüfung XY", "Fachinformatiker Systemintegration", "IT-Systeme", "2023", "Prüfung", 0, "Dieser Kurs vermittelt fortgeschrittene Excel-Funktionen wie Pivot-Tabellen, SVERWEIS, komplexe Formeln und Datenanalyse.");
     // Prüfung FA230: Inhalt der Prüfung (kein Katalogeintrag – im Erstellungsprozess veröffentlicht)
     var catFA = C("FA230 - Musterprüfung", "Kaufmann/-frau für Büromanagement", "Geschäftsprozesse", "2024", "Prüfung", 1, "Musterprüfung mit Angebotsvergleich, Kalkulation und Netzwerkkonfiguration am Bildschirmarbeitsplatz.");
-    catFA.kind = "Prüfung"; catFA.tags = ["Prüfungen"]; catFA.status = "veroeffentlicht"; catFA.editor_by = "prozess";
-    catFA.meta = { titel: "FA230 - Musterprüfung", art: "Musterprüfung", beruf: "Kaufmann/-frau für Büromanagement", bereich: "Geschäftsprozesse", code: "FA230", termin: iso(planned).slice(0, 16).replace(" ", "T"), dauer: 90, einsicht_h: 24, orgs: [afs.id, bts.id] };
+    catFA.kind = "Prüfung"; catFA.tags = ["Prüfungen"]; catFA.status = "veroeffentlicht"; catFA.editor_by = "prozess"; catFA.release = null;
+    catFA.meta = { titel: "FA230 - Musterprüfung", art: "Musterprüfung", beruf: "Kaufmann/-frau für Büromanagement", bereich: "Geschäftsprozesse", code: "FA230", termin: iso(planned).slice(0, 16).replace(" ", "T"), dauer: 90, einsicht_h: 24, orgs: [afs.id, bts.id], beruf_id: "bm", berufsnr: "10101", fachbereich: "kfm", ptitel: "Musterprüfung Geschäftsprozesse", jahr: String(now.getFullYear()), pool: "funsport", version: 1 };
     catFA.team = {}; catFA.history = [{ at: iso(new Date(now.getTime() - 86400000 * 40)), by: "Koordinierungsstelle", ev: "angelegt", text: "Prüfung angelegt", to: "vorbereitung" }, { at: iso(new Date(now.getTime() - 86400000)), by: "Koordinierungsstelle", ev: "begutachtung", text: "Begutachtung durch die Schulen freigeschaltet (24 h vor Prüfungsstart)", from: "gesperrt", to: "begutachtung" }, { at: iso(new Date(now.getTime() - 3600000)), by: "System", ev: "veroeffentlicht", text: "Prüfungsstart erreicht – Inhalt für die Durchführung freigegeben", from: "begutachtung", to: "veroeffentlicht" }];
     C("FA230 - Musterprüfung (Übung für den Unterricht)", "Kaufmann/-frau für Büromanagement", "Geschäftsprozesse", "2024", "Lernerfolgskontrolle", 1, "Übungsfassung der Musterprüfung FA230 für den Unterricht: Angebotsvergleich, Kalkulation und Netzwerkkonfiguration am Bildschirmarbeitsplatz.");
     C("Grundlagen Tabellenkalkulation", "Kaufmann/-frau für Büromanagement", "Informationsverarbeitung", "2022", "Lernerfolgskontrolle", 2, "Zellbezüge, kopierfähige Formeln und die WENN-Funktion sicher anwenden.");
@@ -78,7 +92,8 @@
     C("Abschlussprüfung Teil 1 – Probelauf", "Fachinformatiker Systemintegration", "IT-Systeme", "2025", "Prüfung", 0, "Probelauf für AP Teil 1 mit allen Werkzeugen der Prüfungsumgebung.");
     C("Kosten- und Leistungsrechnung", "Industriekaufmann/-frau", "Rechnungswesen", "2024", "Lernerfolgskontrolle", 1, "Kostenarten, Kostenstellen und Deckungsbeitragsrechnung.");
     var catWeb = C("Webentwicklung HTML/CSS", "Fachinformatiker Anwendungsentwicklung", "Programmierung", "2025", "Lernerfolgskontrolle", 2, "Semantisches HTML und responsives Layout mit CSS Grid.");
-    C("IT-Sicherheit im Unternehmen", "Fachinformatiker Systemintegration", "Vernetzte Systeme", "2022", "Prüfung", 3, "Schutzbedarfsfeststellung, Backup-Konzepte und Rechtevergabe.");
+    // noch nicht freigegeben (Entwurf der Bereichsadministration)
+    C("IT-Sicherheit im Unternehmen", "Fachinformatiker Systemintegration", "Vernetzte Systeme", "2022", "Prüfung", 3, "Schutzbedarfsfeststellung, Backup-Konzepte und Rechtevergabe.").release = null;
     C("Unterrichtseinheit Marketing", "Kaufmann/-frau im Einzelhandel", "Marketing", "2023", "Lernerfolgskontrolle", 0, "Marketing-Mix und Kundenbefragung auswerten.");
     C("Präsentation und Moderation", "Kaufmann/-frau für Büromanagement", "Kommunikation", "2024", "Lernerfolgskontrolle", 1, "Präsentationen strukturieren und Ergebnisse moderieren.");
 
@@ -87,9 +102,13 @@
     var pr1 = CO({ title: "FA230 - Musterprüfung", kind: "pruefung", catalog: catFA.id, orgs: [afs.id, bts.id],
       description: "Prüfung der Koordinierungsstelle (Instanz OPP). Schuladministration ordnet Teilnehmende, Raumaufsichten und Korrektoren zu." });
     var pr2 = CO({ title: "Interne Evaluation", kind: "pruefung", orgs: [afs.id], exam_code: "" });
-    var u1 = CO({ title: "Zentrale Klassenarbeit HTML", kind: "unterricht", catalog: catWeb.id, org: afs.id, owner: T.Eggert.id, members: [{ person: T.Eggert.id, role: "besitzer" }] });
-    var u2 = CO({ title: "Klassenarbeit HTML WG12b", kind: "unterricht", catalog: catWeb.id, org: afs.id, owner: T.Morawetz.id, members: [{ person: T.Morawetz.id, role: "besitzer" }] });
-    var u3 = CO({ title: "Zentrale Klassenarbeit CSS", kind: "unterricht", catalog: catWeb.id, org: bts.id, owner: T.Gaspari.id, members: [{ person: T.Gaspari.id, role: "besitzer" }, { person: T.Morawetz.id, role: "mitbetreuung" }] });
+    // Unterricht: Die Lehrkraft arbeitet mit einer eigenen Kopie des Katalogeintrags (im Editor bearbeitbar, auch durch die Mitbetreuung)
+    var copyOf = function (src, owner, title) { var k = add("catalog", Object.assign({}, src, { id: rid(), title: title || src.title, mine: true, copied_from: src.id, editor_by: owner.id, creator: owner.lastname + ", " + owner.firstname, release: null })); return k; };
+    var u1 = CO({ title: "Zentrale Klassenarbeit HTML", kind: "unterricht", catalog: "", org: afs.id, owner: T.Eggert.id, members: [{ person: T.Eggert.id, role: "besitzer" }] });
+    var u2 = CO({ title: "Klassenarbeit HTML WG12b", kind: "unterricht", catalog: "", org: afs.id, owner: T.Morawetz.id, members: [{ person: T.Morawetz.id, role: "besitzer" }] });
+    var u3 = CO({ title: "Zentrale Klassenarbeit CSS", kind: "unterricht", catalog: "", org: bts.id, owner: T.Gaspari.id, members: [{ person: T.Gaspari.id, role: "besitzer" }, { person: T.Morawetz.id, role: "mitbetreuung" }] });
+    // eigenes Unterrichtsmaterial der Lehrkraft, für die eigene Schule im Katalog freigegeben
+    var ownLek = add("catalog", { title: "Übung Bezugskalkulation (AFS)", beruf: "Kaufmann/-frau für Büromanagement", fach: "Geschäftsprozesse", jahr: String(now.getFullYear()), kind: "Lernerfolgskontrolle", image: 2, description: "Eigene Übung von Amir Eggert: Bezugskalkulation und Angebotsvergleich – für die Lehrkräfte der Ahornfeld-Schule freigegeben.", duration: "45 Minuten", creator: "Eggert, Amir", tags: ["Lernerfolgskontrolle", "eigene Schule"], contents: ["Ausgangssituation mit Unternehmensprofil", "Arbeitsaufträge mit E-Mail-Client", "Bewertungsraster"], mine: true, copied_from: "", editor_by: T.Eggert.id, release: { scope: "org", org: afs.id, by: T.Eggert.id, at: iso(new Date(now.getTime() - 86400000 * 3)) } });
 
     // ---------- Raumaufsichten ----------
     // Prüfung: realer Raum (venue) der Schule. Unterricht: kein realer Raum – Sitzplätze und Anordnung legt die Lehrkraft fest.
@@ -232,6 +251,14 @@
       E("lieferant", { nr: "70030", name: "Holz & Rolle KG", ort: "Pforzheim", mail: "vertrieb@holzundrolle.de", zahlung: "30 Tage netto" }, t);
       E("bestellung", { nr: "BE-2025-0412", datum: "02.10.2025", lieferant: "70030", pos: [{ artikel: "100400", menge: 800, preis: 2.35 }], status: "geliefert" }, t);
       E("bestellung", { nr: "BE-2025-0431", datum: "08.10.2025", lieferant: "70030", pos: [{ artikel: "100300", menge: 150, preis: 18.9 }], status: "offen" }, t);
+      // Finanzbuchhaltung: Kontenplan (vereinfacht, Industriekontenrahmen) und zu buchende Belege
+      [["2000", "Rohstoffe", "Aktiv"], ["2020", "Hilfsstoffe", "Aktiv"], ["2400", "Forderungen aus Lieferungen und Leistungen", "Aktiv"], ["2600", "Vorsteuer", "Aktiv"], ["2800", "Bank", "Aktiv"], ["2880", "Kasse", "Aktiv"],
+       ["4400", "Verbindlichkeiten aus Lieferungen und Leistungen", "Passiv"], ["4800", "Umsatzsteuer", "Passiv"], ["5000", "Umsatzerlöse für eigene Erzeugnisse", "Ertrag"], ["5710", "Zinserträge", "Ertrag"],
+       ["6000", "Aufwendungen für Rohstoffe", "Aufwand"], ["6020", "Aufwendungen für Hilfsstoffe", "Aufwand"], ["6140", "Ausgangsfrachten", "Aufwand"], ["6800", "Büromaterial", "Aufwand"]]
+        .forEach(function (k) { E("konto", { nr: k[0], name: k[1], art: k[2] }, t); });
+      E("beleg", { nr: "ER-4711", art: "Eingangsrechnung", datum: "14.10.2025", partner: "Holz & Rolle KG", text: "800 Rollen PU 90 mm (Lieferung zu BE-2025-0412)", netto: 1880.0, ust: 19 }, t);
+      E("beleg", { nr: "AR-2025-118", art: "Ausgangsrechnung", datum: "15.10.2025", partner: "Sportwelt Müllerstadt GmbH", text: "10 E-Skateboards Speedster", netto: 4490.0, ust: 19 }, t);
+      E("beleg", { nr: "KA-0031", art: "Kassenbeleg", datum: "16.10.2025", partner: "Papierhaus Kleinert", text: "Druckerpapier und Ordner", netto: 42.0, ust: 19 }, t);
     });
     E("artikel", { nr: "IT-2001", name: "Managed Switch 24 Port", gruppe: "IT-Inventar", einheit: "Stk.", bestand: 2, melde: 1, hoechst: 4, ek: 389.0, lieferant: "70040" }, "3");
     E("artikel", { nr: "IT-2002", name: "Firewall-Appliance", gruppe: "IT-Inventar", einheit: "Stk.", bestand: 0, melde: 1, hoechst: 2, ek: 1290.0, lieferant: "70040" }, "3");
@@ -334,8 +361,8 @@
     GR("Informatik J1", afs, "kurs", wg.slice(0, 5).map(pid).concat(j1extra.map(pid)));
     GR("WG12b", afs, "klasse", j1extra.map(pid));
     // Prüfungskommissionen (Gruppen der Koordinierungsstelle) mit festem Vorsitz
-    add("groups", { name: "Prüfungskommission Büromanagement", org: "", kind: "kommission", source: "koordinierungsstelle", course: "", members: [T.Ohm.id, T.Ebeling.id, T.Steinhoff.id], chair: T.Steinhoff.id });
-    add("groups", { name: "Prüfungskommission IT-Berufe", org: "", kind: "kommission", source: "koordinierungsstelle", course: "", members: [T.Gaspari.id, T.Morawetz.id, T["Dähne"].id], chair: T.Gaspari.id });
+    add("groups", { name: "Prüfungskommission Büromanagement", org: "", kind: "kommission", source: "koordinierungsstelle", course: "", members: [T.Ohm.id, T.Ebeling.id, T.Steinhoff.id], chair: T.Steinhoff.id, fachbereich: "kfm" });
+    add("groups", { name: "Prüfungskommission IT-Berufe", org: "", kind: "kommission", source: "koordinierungsstelle", course: "", members: [T.Gaspari.id, T.Morawetz.id, T["Dähne"].id], chair: T.Gaspari.id, fachbereich: "it" });
     var btsGroups = Object.keys(groupMembers).filter(function (k) { return groupMembers[k].org === bts; }).map(function (k) { return GR(k, bts, "klasse", groupMembers[k].ids); });
     // Mitglieder der Prüfung (pflegt die Schuladministration der jeweiligen Schule) und des Unterrichts (pflegt die Lehrkraft)
     pr1.groups = [{ group: gFA.id, role: "teilnehmer" }].concat(btsGroups.map(function (g) { return { group: g.id, role: "teilnehmer" }; }));
@@ -359,6 +386,9 @@
     ]; };
     // Die Regeln gehören zum Inhalt der Prüfung bzw. des Kurses (Katalog) und werden im Prüfungseditor konfiguriert
     catFA.rules = exampleRules(); catWeb.rules = exampleRules().slice(0, 2);
+    u1.catalog = copyOf(catWeb, T.Eggert, "Webentwicklung HTML/CSS (Kopie Eggert)").id;
+    u2.catalog = copyOf(catWeb, T.Morawetz, "Webentwicklung HTML/CSS (Kopie Morawetz)").id;
+    u3.catalog = copyOf(catWeb, T.Gaspari, "Webentwicklung HTML/CSS (Kopie Gaspari)").id;
     u1.groups = [{ group: gWG.id, role: "teilnehmer" }];
 
     // ---------- Unterricht: Distanzeinheit (fester Zeitraum, Start durch die Schüler:innen, mehrfach durchlaufbar) ----------
@@ -388,9 +418,86 @@
         marks: { "1.1": [{ id: "lp" + i + "a", type: "sign", sign: i === 2 ? "f" : "r", ax: 420, ay: 300 }, { id: "lp" + i + "b", type: "hline", style: "single", x1: 330, x2: 520, y: 330 }] } });
     });
 
+    // ---------- Prüfungserstellung: Prüfungen in verschiedenen Status (Testdaten für alle Rollen) ----------
+    var dIso = function (days) { var d = new Date(now.getTime() + days * 86400000); return iso(d).slice(0, 10); };
+    var dtIso = function (days, h) { var d = new Date(now.getTime() + days * 86400000); d.setHours(h || 8, 30, 0, 0); return iso(d).slice(0, 16).replace(" ", "T"); };
+    var H = function (days, by, ev, text, from, to) { var o = { at: iso(new Date(now.getTime() + days * 86400000)), by: by, ev: ev, text: text }; if (to) { o.from = from || ""; o.to = to; } return o; };
+    var sub = function (title, type, text, crit, hz) { return { title: title, type: type, tool: type === "app" ? "mail" : type, text: text, options: [], criteria: crit, horizon: hz, images: [] }; };
+    var KS = "Brandauer, Lisette";
+    var exV = add("catalog", { title: "Abschlussprüfung Teil 2 – Kundenbeziehungsprozesse Winter 2026", beruf: "Kaufmann/-frau für Büromanagement", fach: "Kundenbeziehungsprozesse", jahr: String(now.getFullYear()), kind: "Prüfung", image: 2, description: "", duration: "120 Minuten", creator: "Koordinierungsstelle (IBBW)", tags: ["Prüfungen", "Erstellungsprozess"], contents: [], mine: false, copied_from: "", editor_by: "prozess", status: "vorbereitung", release: null, rules: [],
+      content: { name: "Abschlussprüfung Teil 2 – Kundenbeziehungsprozesse Winter 2026", duration_min: 120, ausgangssituation: "Sie sind Mitarbeiterin bzw. Mitarbeiter im Vertriebsinnendienst der Muster Handels GmbH.", company: { name: "Muster Handels GmbH", allgemein: "Die Muster Handels GmbH beliefert Unternehmen und Behörden mit Büro- und Schulbedarf.", adresse: "Muster Handels GmbH\nLindenring 4\n68159 Mannheim", kontakt: "Telefon 0621 445500", rechtliches: "GmbH · Amtsgericht Mannheim HRB 112233", vorlagen: "" }, info: { title: "Prüfungsinformationen", items: [["Bearbeitungszeit", "120 Minuten zzgl. individueller Zusatzzeit"]] }, gradingKey: { type: "ihk" }, categories: { system: "none", list: [] }, signatures: {},
+        tasks: [{ title: "Kundenanfrage bearbeiten", situation: "Ein Neukunde bittet um ein Angebot über 200 Ordner.", tools: ["files", "mail", "editor"], materials: [], subtasks: [sub("Angebot per E-Mail", "app", "Erstellen Sie ein Angebot und senden Sie es per E-Mail an den Kunden.", [["Inhalt", 6, ""], ["Form", 4, ""]], [["Angebot vollständig, Preise korrekt", "6 P"], ["Geschäftsbrief nach DIN 5008", "4 P"]])] },
+          { title: "Reklamation", situation: "", tools: ["files", "mail", "editor"], materials: [], subtasks: [sub("Reklamation beantworten", "freitext", "", [["Inhalt", 5, ""]], [["", "5 P"]])] }] },
+      meta: { titel: "Abschlussprüfung Teil 2 – Kundenbeziehungsprozesse Winter 2026", ptitel: "Abschlussprüfung Teil 2 – Kundenbeziehungsprozesse", zeitraum: "Winter", jahr: String(now.getFullYear()), beruf_id: "bm", beruf: "Kaufmann/-frau für Büromanagement", berufsnr: "10101", fachbereich: "kfm", art: "Abschlussprüfung Teil 2", bereich: "Kundenbeziehungsprozesse", code: "BM-KBP-W" + String(now.getFullYear()).slice(2), termin: dtIso(70), dauer: 120, einsicht_h: "24 Stunden", erstellung_von: dIso(-10), erstellung_bis: dIso(20), kommission_bis: dIso(40), lektorat_bis: dIso(50), pruefloesung_bis: dIso(50), hilfsmittel: "nicht programmierbarer Taschenrechner", pool: "muster", orgs: [], version: 1 },
+      team: { koordination: [T.Brandauer.id], aufgabenerstellung: [T.Voigt.id, T.Kowalczyk.id], kommission_group: "", kommission: [T.Ohm.id, T.Ebeling.id], vorsitz: [T.Steinhoff.id], beratung: [T.Morawetz.id], lektorat: [], pruefloesung: [] },
+      history: [H(-12, KS, "angelegt", "Neue Prüfung angelegt (Status Vorbereitung)", "", "vorbereitung"), H(-11, KS, "metadaten", "Prüfungsmetadaten vollständig gesetzt (Task 2)"), H(-11, KS, "team", "Kommission „Prüfungskommission Büromanagement“ zugewiesen – Vorsitz: Steinhoff, Ayla"), H(-11, KS, "team", "Aufgabenerstellung: Voigt, Lina; Kowalczyk, Dorian zugewiesen"), H(-10, "Ohm, Gesa", "pool", "Unternehmenspool festgelegt: Muster Handels GmbH (Task 14)"), H(-2, "Voigt, Lina", "inhalt", "Inhalt im Editor gespeichert")],
+      feedback: [{ id: "fbv1", kind: "beratung", by: "Morawetz, Ilyas", pid: T.Morawetz.id, at: iso(new Date(now.getTime() - 86400000)), st: "1.1", text: "Mengenangabe im Arbeitsauftrag ergänzen (200 Ordner, Lieferung frei Haus?).", resolved: false }], reviews: {} });
+    var kgBM = out.groups.filter(function (g) { return g.kind === "kommission" && g.fachbereich === "kfm"; })[0];
+    var kgIT = out.groups.filter(function (g) { return g.kind === "kommission" && g.fachbereich === "it"; })[0];
+    exV.team.kommission_group = kgBM.id;
+    // Kommission übernimmt die Aufgabenerstellung (ohne Rolle Aufgabenerstellung, Start direkt im Review)
+    add("catalog", { title: "Abschlussprüfung Teil 1 – Einrichten eines IT-gestützten Arbeitsplatzes Winter 2026", beruf: "Fachinformatiker/-in Systemintegration", fach: "IT-Arbeitsplatz", jahr: String(now.getFullYear()), kind: "Prüfung", image: 3, description: "", duration: "90 Minuten", creator: "Koordinierungsstelle (IBBW)", tags: ["Prüfungen", "Erstellungsprozess"], contents: [], mine: false, copied_from: "", editor_by: "prozess", status: "review", release: null, rules: [],
+      content: { name: "Abschlussprüfung Teil 1 – Einrichten eines IT-gestützten Arbeitsplatzes Winter 2026", duration_min: 90, ausgangssituation: "Sie arbeiten im IT-Service der NetzWerk Systemhaus GmbH.", company: { name: "NetzWerk Systemhaus GmbH", allgemein: "Systemhaus für mittelständische Unternehmen.", adresse: "NetzWerk Systemhaus GmbH\nSchlossweg 7\n70173 Stuttgart", kontakt: "service@netzwerk-systemhaus.example", rechtliches: "GmbH", vorlagen: "" }, info: { title: "Prüfungsinformationen", items: [["Bearbeitungszeit", "90 Minuten zzgl. individueller Zusatzzeit"]] }, gradingKey: { type: "ihk" }, categories: { system: "none", list: [] }, signatures: {},
+        tasks: [{ title: "Arbeitsplatz einrichten", situation: "Ein neuer Mitarbeiter benötigt einen Arbeitsplatz.", tools: ["files", "mail", "tickets", "editor"], materials: [], subtasks: [sub("Ticket bearbeiten", "freitext", "Beschreiben Sie die Schritte zur Einrichtung des Arbeitsplatzes.", [["Vollständigkeit", 6, ""], ["Fachbegriffe", 4, ""]], [["Benutzerkonto, Rechte, Software, Datensicherung", "6 P"], ["Fachlich korrekte Begriffe", "4 P"]])] }] },
+      meta: { titel: "Abschlussprüfung Teil 1 – Einrichten eines IT-gestützten Arbeitsplatzes Winter 2026", ptitel: "Abschlussprüfung Teil 1 – Einrichten eines IT-gestützten Arbeitsplatzes", zeitraum: "Winter", jahr: String(now.getFullYear()), beruf_id: "fisi", beruf: "Fachinformatiker/-in Systemintegration", berufsnr: "20201", fachbereich: "it", art: "Abschlussprüfung Teil 1", bereich: "IT-Arbeitsplatz", code: "FISI-AP1-W" + String(now.getFullYear()).slice(2), termin: dtIso(60), dauer: 90, einsicht_h: "48 Stunden", kommission_erstellt: true, kommission_bis: dIso(30), lektorat_bis: dIso(40), pruefloesung_bis: dIso(40), hilfsmittel: "", pool: "netzwerk", orgs: [], version: 1 },
+      team: { koordination: [T.Brandauer.id], aufgabenerstellung: [], kommission_group: kgIT.id, kommission: [T.Morawetz.id, T["Dähne"].id], vorsitz: [T.Gaspari.id], beratung: [], lektorat: [T.Kowalczyk.id], pruefloesung: [] },
+      history: [H(-6, KS, "angelegt", "Neue Prüfung angelegt – die Kommission übernimmt die Aufgabenerstellung (Start im Status Kommission/Review)", "", "review"), H(-6, KS, "team", "Kommission „Prüfungskommission IT-Berufe“ zugewiesen – Vorsitz: Gaspari, Emil"), H(-5, "Dähne, Niklas", "pool", "Unternehmenspool festgelegt: NetzWerk Systemhaus GmbH (Task 14)")], feedback: [], reviews: {} });
+
+    // ---------- Abgeschlossene Prüfung mit Ergebnissen (Testdaten Prüfungseinsicht, Ergebnisse, Korrektur) ----------
+    var catZP = add("catalog", { title: "Zwischenprüfung Büromanagement Sommer " + now.getFullYear(), beruf: "Kaufmann/-frau für Büromanagement", fach: "Geschäftsprozesse", jahr: String(now.getFullYear()), kind: "Prüfung", image: 0, description: "", duration: "90 Minuten", creator: "Koordinierungsstelle (IBBW)", tags: ["Prüfungen"], contents: [], mine: false, copied_from: "", editor_by: "prozess", status: "veroeffentlicht", release: null, rules: [],
+      meta: { titel: "Zwischenprüfung Büromanagement Sommer " + now.getFullYear(), ptitel: "Musterprüfung Geschäftsprozesse", zeitraum: "Sommer", jahr: String(now.getFullYear()), beruf_id: "bm", beruf: "Kaufmann/-frau für Büromanagement", berufsnr: "10101", fachbereich: "kfm", art: "Zwischenprüfung", bereich: "Geschäftsprozesse", code: "BM-ZP-S" + String(now.getFullYear()).slice(2), termin: dtIso(-21), dauer: 90, einsicht_h: "24 Stunden", pool: "funsport", orgs: [afs.id, bts.id], version: 1 },
+      team: {}, history: [H(-120, KS, "angelegt", "Prüfung angelegt", "", "vorbereitung"), H(-21, "System (Zeitsteuerung)", "veroeffentlicht", "Prüfungsstart erreicht – Inhalt für die Durchführung freigegeben", "begutachtung", "veroeffentlicht")], feedback: [], reviews: {} });
+    var pr3 = CO({ title: catZP.title, kind: "pruefung", catalog: catZP.id, orgs: [afs.id, bts.id], exam_code: catZP.meta.code, status: "veröffentlicht", description: "Abgeschlossene Prüfung mit Ergebnissen (Testdaten für Ergebnisse und Prüfungseinsicht)." });
+    catZP.meta.course = pr3.id;
+    var zpRooms = { afs: R(Object.assign(fromVenue(V["Raum 202"]), { exam_name: pr3.title, exam_code: pr3.exam_code, planned_start: day(-21), started_at: day(-21), course: pr3.id, org: afs.id, owner: T.Hinrichs.id, state: "TERMINATED" })),
+      bts: R(Object.assign(fromVenue(V["Raum 110"]), { exam_name: pr3.title, exam_code: pr3.exam_code, planned_start: day(-21), started_at: day(-21), course: pr3.id, org: bts.id, owner: T.Ammermann.id, state: "TERMINATED" })) };
+    var btsGrp0 = btsGroups[0];
+    pr3.groups = [{ group: gFA.id, role: "teilnehmer" }, { group: btsGrp0.id, role: "teilnehmer" }];
+    pr3.members = [{ person: T.Hinrichs.id, role: "schuladmin" }, { person: T.Ammermann.id, role: "schuladmin" }, { person: T["Riedmüller"].id, role: "pruefungseinsicht" }, { person: T.Hinrichs.id, role: "pruefungseinsicht" }, { person: T["Dähne"].id, role: "pruefungseinsicht" }, { person: T.Ammermann.id, role: "pruefungseinsicht" }];
+    var kA = [T.Ohm], kA2 = [T.Steinhoff], kB = [T.Gaspari], kB2 = [T["Dähne"]];
+    pr3.corrections = [K(1, gFA, kA, afs), K(2, gFA, kA2, afs), K(1, btsGrp0, kB, bts), K(2, btsGrp0, kB2, bts)]; pr3.third = {}; pr3.korr_end = dIso(-3); pr3.dk_threshold = 1;
+    var zpPeople = groupMembers.FA230a.ids.slice(0, 6).map(function (id) { return { per: out.persons.filter(function (x) { return x.id === id; })[0], room: zpRooms.afs, org: afs, k1: kA, k2: kA2 }; })
+      .concat(btsGrp0.members.slice(0, 4).map(function (id) { return { per: out.persons.filter(function (x) { return x.id === id; })[0], room: zpRooms.bts, org: bts, k1: kB, k2: kB2 }; }));
+    zpPeople.forEach(function (z, i) {
+      var per = z.per;
+      var zp = add("participants", { lastname: per.lastname, firstname: per.firstname, username: per.username, group_name: i < 6 ? "FA230a" : btsGrp0.name, org: z.org.name, person: per.id, room: z.room.id, seat: "1-" + (i % 6 + 1), present: true, status: i === 5 ? "nicht_teilnahme" : "beendet", extra_time: 0, comment: "", health: "ok", cheat_ack: true, bookmarks: [], nta: 0, violations: 0, started_at: day(-21), finished_at: day(-21) });
+      if (i === 5) return;
+      add("items", { participant: zp.id, kind: "mail", folder: "sent", submission: "1.1", data: { task: "1", from: per.firstname + " " + per.lastname, from_mail: per.username + "@azubi.funsport-innovations.de", to: "Karim.Baeumler@funsport-innovations.de", subject: "AW: Quantitativer Angebotsvergleich für neue Lithium-Batterie-Packs", date: "13.10.2025 10:2" + (i % 10), attachments: [],
+        body: "Sehr geehrter Herr Bäumler,\n\nnach meinem Angebotsvergleich ist das Angebot der " + (i % 2 ? "InnovaTech GmbH" : "BatteryWorld GmbH") + " günstiger.\n\nMit freundlichen Grüßen\n" + per.firstname + " " + per.lastname } });
+      add("items", { participant: zp.id, kind: "note", folder: "notes", submission: "2.1", data: { task: "2", title: "Anfrage", html: "<p>Sehr geehrte Damen und Herren,</p><p>bitte senden Sie uns ein Angebot über 500 Kugellager Typ 608-2RS.</p>" } });
+      var e1 = {};
+      [1, 2].forEach(function (c) {
+        var pts = {};
+        Object.keys(CRITERIA).forEach(function (st) { pts[st] = CRITERIA[st].map(function (m, k) { var base = c === 1 ? m * (0.42 + rnd() * 0.56) : (e1[st][k] * (0.9 + rnd() * 0.15)); return Math.min(m, Math.max(0, Math.round(base * 2) / 2)); }); if (c === 1) e1[st] = pts[st]; });
+        var marks = { "1.1": [{ id: "zp" + i + c, type: "sign", sign: c === 1 ? (i % 3 ? "r" : "Ug") : "(r)", ax: 420, ay: 300 + c * 20 }, { id: "zl" + i + c, type: "hline", style: c === 1 ? "wavy" : "single", x1: 330, x2: 520, y: 330 + c * 10 }] };
+        add("gradings", { participant: zp.id, corrector: c, points: pts, not_done: {}, marks: marks, released: true, approvals: (c === 1 ? z.k1 : z.k2).map(function (x) { return x.id; }) });
+      });
+    });
+
     // ---------- Einstellungen ----------
     add("settings", { key: "favorites", value: ["Uv", "Ug", "r", "(r)", "f"] });
     add("settings", { key: "einsicht", value: { released: false } });
+    // Stammdaten der Koordinierungsstelle (Berufsnummern sind Demowerte)
+    add("settings", { key: "fachbereiche", value: [{ id: "kfm", name: "Kaufmännische Berufe" }, { id: "it", name: "IT-Berufe" }, { id: "tech", name: "Gewerblich-technische Berufe" }] });
+    add("settings", { key: "berufe", value: [
+      { id: "bm", nr: "10101", name: "Kaufmann/-frau für Büromanagement", fb: "kfm", titel: ["Abschlussprüfung Teil 1 – Informationstechnisches Büromanagement", "Abschlussprüfung Teil 2 – Kundenbeziehungsprozesse", "Abschlussprüfung Teil 2 – Wirtschafts- und Sozialkunde", "Musterprüfung Geschäftsprozesse"] },
+      { id: "ik", nr: "10102", name: "Industriekaufmann/-frau", fb: "kfm", titel: ["Abschlussprüfung – Geschäftsprozesse", "Abschlussprüfung – Kaufmännische Steuerung und Kontrolle", "Abschlussprüfung – Wirtschafts- und Sozialkunde"] },
+      { id: "eh", nr: "10103", name: "Kaufmann/-frau im Einzelhandel", fb: "kfm", titel: ["Abschlussprüfung Teil 1 – Verkauf und Werbemaßnahmen", "Abschlussprüfung Teil 2 – Geschäftsprozesse im Einzelhandel"] },
+      { id: "fisi", nr: "20201", name: "Fachinformatiker/-in Systemintegration", fb: "it", titel: ["Abschlussprüfung Teil 1 – Einrichten eines IT-gestützten Arbeitsplatzes", "Abschlussprüfung Teil 2 – Konzeption und Administration von IT-Systemen", "Abschlussprüfung Teil 2 – Analyse und Entwicklung von Netzwerken"] },
+      { id: "fiae", nr: "20202", name: "Fachinformatiker/-in Anwendungsentwicklung", fb: "it", titel: ["Abschlussprüfung Teil 1 – Einrichten eines IT-gestützten Arbeitsplatzes", "Abschlussprüfung Teil 2 – Planen eines Softwareproduktes", "Abschlussprüfung Teil 2 – Entwicklung und Umsetzung von Algorithmen"] },
+      { id: "mech", nr: "30301", name: "Mechatroniker/-in", fb: "tech", titel: ["Abschlussprüfung Teil 1", "Abschlussprüfung Teil 2 – Arbeitsplanung", "Abschlussprüfung Teil 2 – Funktionsanalyse"] }] });
+    [{ id: "funsport", name: "FunSport Innovations GmbH", fachbereich: "kfm", branche: "Sportartikel / E-Mobilität", allgemein: "Die FunSport Innovations GmbH entwickelt und vertreibt Funsport-Produkte, u. a. das E-Skateboard „Speedster“. 35 Beschäftigte.", adresse: "FunSport Innovations GmbH\nSportparkallee 12\n70173 Stuttgart", kontakt: "Telefon 0711 123456-0\ninfo@funsport-innovations.de", rechtliches: "GmbH · Amtsgericht Stuttgart HRB 765432" },
+     { id: "muster", name: "Muster Handels GmbH", fachbereich: "kfm", branche: "Großhandel Bürobedarf", allgemein: "Die Muster Handels GmbH beliefert Unternehmen und Behörden in Baden-Württemberg mit Büro- und Schulbedarf. 120 Beschäftigte, eigener Onlineshop.", adresse: "Muster Handels GmbH\nLindenring 4\n68159 Mannheim", kontakt: "Telefon 0621 445500\nservice@muster-handels.example", rechtliches: "GmbH · Amtsgericht Mannheim HRB 112233" },
+     { id: "nordwerk", name: "NordWerk Maschinenbau AG", fachbereich: "tech", branche: "Maschinen- und Anlagenbau", allgemein: "Die NordWerk Maschinenbau AG fertigt Verpackungsmaschinen für die Lebensmittelindustrie. 480 Beschäftigte an zwei Standorten.", adresse: "NordWerk Maschinenbau AG\nIndustriestraße 20\n89077 Ulm", kontakt: "Telefon 0731 90880\ninfo@nordwerk.example", rechtliches: "AG · Amtsgericht Ulm HRB 445566" },
+     { id: "netzwerk", name: "NetzWerk Systemhaus GmbH", fachbereich: "it", branche: "IT-Dienstleistungen", allgemein: "Systemhaus für mittelständische Unternehmen: Arbeitsplatz-IT, Netzwerke und Support. 60 Beschäftigte.", adresse: "NetzWerk Systemhaus GmbH\nSchlossweg 7\n70173 Stuttgart", kontakt: "service@netzwerk-systemhaus.example", rechtliches: "GmbH · Amtsgericht Stuttgart HRB 778899" },
+     { id: "datenhafen", name: "Datenhafen Software GmbH", fachbereich: "it", branche: "Softwareentwicklung", allgemein: "Die Datenhafen Software GmbH entwickelt Logistik-Software für Häfen und Speditionen. 90 Beschäftigte.", adresse: "Datenhafen Software GmbH\nKaiweg 3\n20457 Hamburg", kontakt: "kontakt@datenhafen.example", rechtliches: "GmbH · Amtsgericht Hamburg HRB 556677" }]
+      .forEach(function (u) { u.by = "Koordinierungsstelle"; add("settings", { key: "pool:" + u.id, value: u }); });
+    add("settings", { key: "signsets", value: { active: "std", sets: [
+      { id: "std", name: "Korrekturzeichen (Standard)", groups: [
+        { group: "Allgemeine Korrekturzeichen", items: [["r", "richtiges Teilergebnis"], ["f", "falsches Teilergebnis"], ["(r)", "es wird mit einem Fehler richtig weitergerechnet"], ["Ug", "ungenau"], ["Ul", "unleserlich"], ["Uv", "unvollständig"]] },
+        { group: "Sprachlich-formale Mängel", items: [["R", "Rechtschreibung"], ["Z", "Zeichensetzung"], ["Gr", "Grammatik"], ["A", "Ausdruck"], ["Sb", "Satzbau"]] },
+        { group: "Mängel inhaltlicher Art", items: [["I", "Inhalt"], ["Def", "Definition"], ["Log", "Logik"], ["Th", "Thema bzw. Aufgabenstellung nicht beachtet, falsches Textverständnis"], ["ÜF", "Übertragungsfehler – Fehler ohne Punktabzug, wenn er als Flüchtigkeitsfehler anzusehen ist"], ["Zs", "Zusammenhang"], ["Wf", "Fehler, der wiederholt vorkommt"]] }] },
+      { id: "kurz", name: "Kurzsatz (Entwurf)", groups: [{ group: "Allgemeine Korrekturzeichen", items: [["r", "richtig"], ["f", "falsch"], ["(r)", "Folgefehler richtig weitergerechnet"], ["Uv", "unvollständig"]] }, { group: "Sprache", items: [["R", "Rechtschreibung"], ["Gr", "Grammatik"], ["A", "Ausdruck"]] }] }] } });
     add("settings", { key: "demo", value: { seeded_at: iso(now), seed_version: SEED_VERSION } });
     return out;
   }

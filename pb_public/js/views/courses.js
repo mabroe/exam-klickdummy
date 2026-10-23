@@ -2,12 +2,13 @@
 //  - Unterricht (Lehrkraft): Teilnehmende (Personen, vorhandene Gruppen, eigene Gruppen) und weitere Lehrkräfte (Mitbetreuung)
 //  - Prüfung (Schuladministration): Teilnehmende, Raumaufsichten, Korrektor:innen (Erst/Zweit/Dritt), Prüfungseinsicht –
 //    jeweils nur für Personen der eigenen Organisation
-import { D, byId, upd, create, del, log } from "../data.js?v=8.9";
-import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=8.9";
-import { navigate, redraw } from "../app.js?v=8.9";
-import * as RU from "./rules.js?v=8.9";
-import * as CRx from "./creation.js?v=8.9";
-import { assignments, approvalStateFor, orgIds, inOrg, sameOrg, orgsLabel, lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=8.9";
+import { D, byId, upd, create, del, log } from "../data.js?v=9.0";
+import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=9.0";
+import { navigate, redraw } from "../app.js?v=9.0";
+import * as RU from "./rules.js?v=9.0";
+import * as CRx from "./creation.js?v=9.0";
+import * as ED from "./editor.js?v=9.0";
+import { assignments, approvalStateFor, orgIds, inOrg, sameOrg, orgsLabel, lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=9.0";
 
 const ROOM_STATE = { CREATED: ["In Vorbereitung", "gray"], RUNNING: ["Prüfung läuft", "cyan"], PAUSED: ["Prüfung pausiert", "yellowb"], TERMINATED: ["Prüfung beendet", "green"] };
 const UI = { q: "", addQ: "" };
@@ -25,16 +26,18 @@ export function list() {
       return `<div class="pagehead"><div><h1>${adm ? "Prüfungen" : "Mein Unterricht"}</h1><div class="sub">${esc(personName(p))} · ${esc(orgIds(p).map(orgName).join(" · "))}</div></div>
         ${adm ? "" : `<a class="btn primary" href="#/app/katalog">${icon("copy")} Inhalt aus dem Katalog kopieren</a>`}</div>
       <p class="muted">${adm ? "Prüfungsebene: Prüfungen, an denen Ihre Schule beteiligt ist. Sie ordnen Teilnehmende, Raumaufsichten und Korrektor:innen Ihrer Schule zu und organisieren die Raumaufsichten." : "Unterrichtsebene: aus dem Katalog kopierte Kurse, die Sie besitzen oder mitbetreuen. Fügen Sie Teilnehmende und Lehrkräfte hinzu und planen Sie die Raumaufsicht."}</p>
-      ${list.length ? `<div class="tablewrap mt"><table class="tbl"><thead><tr><th>Titel</th><th>Ebene</th><th>${adm ? "Beteiligte Schulen" : "Besitzer"}</th><th class="num">Teilnehmende${adm ? " (eigene Schule)" : ""}</th><th class="num">Raumaufsichten</th><th>Status</th><th></th></tr></thead>
+      ${list.length ? `<div class="tablewrap mt"><table class="tbl"><thead><tr><th>Titel</th><th>Ebene</th><th>${adm ? "Prüfungstermin" : "Besitzer"}</th><th class="num">Teilnehmende${adm ? " (eigene Schule)" : ""}</th><th class="num">Raumaufsichten</th><th>Status</th><th></th></tr></thead>
         <tbody>${list.map((c) => { const tn = (adm ? own(c) : members(c)).filter((m) => m.role === "teilnehmer"); const rooms = visibleRooms(p).filter((r) => r.course === c.id);
           return `<tr class="rowlink" data-href="#/app/kurs/${c.id}/mitglieder" tabindex="0"><td><b>${esc(c.title)}</b>${c.kind === "pruefung" ? (() => { const ci = CRx.contentInfo(byId("catalog", c.catalog)); return ci ? `<div class="xs"><span class="badge ${ci.badge}">${icon(ci.key === "frei" ? "circle-check" : ci.key === "begutachtung" ? "eye" : "lock")} ${esc(ci.text)}</span></div>` : ""; })() : c.catalog ? `<div class="xs muted">Kopie von „${esc(byId("catalog", c.catalog)?.title || "Katalog")}“</div>` : ""}</td><td><span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span></td>
-          <td>${adm ? (c.orgs || []).map((o) => esc(orgShort(o))).join(", ") : esc(personName(byId("persons", c.owner)))}</td><td class="num">${new Set(tn.map((m) => m.person)).size}</td><td class="num">${rooms.length}</td><td>${esc(c.status || "–")}</td>
+          <td class="small">${adm ? esc(examDate(c)) : esc(personName(byId("persons", c.owner)))}</td><td class="num">${new Set(tn.map((m) => m.person)).size}</td><td class="num">${rooms.length}</td><td>${esc(c.status || "–")}</td>
           <td><a class="linkarrow" href="#/app/kurs/${c.id}/mitglieder">${icon("arrow-right")} Öffnen</a></td></tr>`; }).join("")}</tbody></table></div>`
       : `<div class="empty">${icon("book-open")}<h3>${adm ? "Keine Prüfungen für Ihre Schule" : "Noch kein Unterricht"}</h3>${adm ? "" : `<p>Kopieren Sie eine Prüfung aus dem Katalog.</p><a class="btn primary" href="#/app/katalog">Zum Katalog</a>`}</div>`}`;
     },
   };
 }
 
+// Prüfungstermin aus den Rahmendaten (keine Angaben zu anderen beteiligten Schulen – Datenschutz)
+const examDate = (c) => { const k = byId("catalog", c.catalog); const t = k?.meta?.termin; return t ? fmtDateTime(new Date(t)) : "–"; };
 // ---------- Kursdetail ----------
 export function detail(id, tab) {
   return {
@@ -46,15 +49,16 @@ export function detail(id, tab) {
       const tabs = [["mitglieder", "Mitglieder und Gruppen"], ...(c.kind === "pruefung" ? [["korrektoren", "Korrektoren"]] : []), ["steuerung", `Aufgabensteuerung${RU.rulesOfCourse(c).length ? ` <span class="badge gray">${RU.rulesOfCourse(c).length}</span>` : ""}`], ["raumaufsichten", "Raumaufsichten"], ["info", "Kursinformationen"]];
       const catX = byId("catalog", c.catalog); const ciX = CRx.contentInfo(catX); const hidden = catX?.status && !CRx.canViewContent(catX);
       const lockNote = ciX ? `<div class="notice ${ciX.key === "frei" ? "success" : ciX.key === "begutachtung" ? "info" : "warn"} small mb">${icon(ciX.key === "frei" ? "circle-check" : ciX.key === "begutachtung" ? "eye" : "lock")}<span><b>${esc(ciX.text)}.</b> ${ciX.key === "begutachtung" ? "Schuladministration und Korrektor:innen können die Prüfung jetzt begutachten. Fehler melden Sie bitte außerhalb des Portals an die Koordinierungsstelle bzw. Prüfungskommission." : ciX.key === "frei" ? "" : "Die Organisation an Ihrer Schule (Teilnehmende, Raumaufsichten, Korrektoren) ist bereits möglich; der Inhalt ist bis zum Begutachtungszeitraum nicht einsehbar."}</span></div>` : "";
-      const body = (tab === "steuerung" || tab === "info") && hidden ? `<div class="empty">${icon("lock")}<h3>Inhalt nicht einsehbar</h3><p>${esc(ciX.text)}.</p></div>` : tab === "steuerung" ? RU.tabRules(c) : tab === "raumaufsichten" ? tabRooms(c, p) : tab === "info" ? tabInfo(c) : tab === "korrektoren" && c.kind === "pruefung" ? tabCorrectors(c, p) : c.kind === "pruefung" ? tabMembersExam(c, p) : tabMembersLesson(c, p);
+      const body = (tab === "steuerung" || (tab === "info" && c.kind !== "pruefung")) && hidden ? `<div class="empty">${icon("lock")}<h3>Inhalt nicht einsehbar</h3><p>${esc(ciX.text)}.</p></div>` : tab === "steuerung" ? RU.tabRules(c) : tab === "raumaufsichten" ? tabRooms(c, p) : tab === "info" ? tabInfo(c) : tab === "korrektoren" && c.kind === "pruefung" ? tabCorrectors(c, p) : c.kind === "pruefung" ? tabMembersExam(c, p) : tabMembersLesson(c, p);
       return `<div class="breadcrumb"><a href="#/app/kurse">${p.kind === "schuladmin" ? "Prüfungen" : "Mein Unterricht"}</a>${icon("chevron-right")}<b>${esc(c.title)}</b></div>
-      <div class="pagehead"><div><h1>${esc(c.title)}</h1><div class="row mt-s small"><span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span><span>${c.kind === "pruefung" ? "Beteiligte Schulen: " + (c.orgs || []).map((o) => esc(orgShort(o))).join(", ") : "Besitzer: " + esc(personName(byId("persons", c.owner)))}</span></div></div>
-        <div class="actions-bar">${c.catalog && CRx.canViewContent(byId("catalog", c.catalog)) ? `<a class="btn" href="#/app/vorschau/${c.catalog}/dashboard" data-pvfrom="${c.id}">${icon("eye")} ${byId("catalog", c.catalog)?.status === "begutachtung" ? "Prüfung begutachten" : "Vorschau"}</a>` : c.catalog ? `<span class="btn" aria-disabled="true" style="opacity:.6;cursor:not-allowed" title="${esc(CRx.contentInfo(byId("catalog", c.catalog))?.text || "")}">${icon("lock")} Inhalt nicht einsehbar</span>` : ""}<button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button></div></div>
+      <div class="pagehead"><div><h1>${esc(c.title)}</h1><div class="row mt-s small"><span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span><span>${c.kind === "pruefung" ? "Ihre Schule: " + esc(orgsOwn(c, p)) + (examDate(c) !== "–" ? " · Prüfungstermin " + esc(examDate(c)) : "") : "Besitzer: " + esc(personName(byId("persons", c.owner)))}</span>${c.kind === "unterricht" && catX ? `<span class="badge ${catX.mine ? "cyan" : "gray"}">${catX.mine ? `${icon("copy")} eigene Kopie` : "Katalogeintrag"}${ED.releaseOf(catX) ? " · " + esc(ED.releaseLabel(catX)) : ""}</span>` : ""}</div></div>
+        <div class="actions-bar">${c.kind === "unterricht" && catX && ED.canEdit(catX) ? `<a class="btn" href="#/app/editor/${catX.id}/allgemein">${icon("pencil")} Inhalt bearbeiten</a>` : ""}${c.kind === "unterricht" && catX && ED.canPublish(catX) ? `<button class="btn" data-publish="${ED.releaseOf(catX) ? 0 : 1}">${icon(ED.releaseOf(catX) ? "eye-off" : "globe")} ${ED.releaseOf(catX) ? "Katalogfreigabe beenden" : "Für meine Schule freigeben"}</button>` : ""}${c.catalog && CRx.canViewContent(byId("catalog", c.catalog)) ? `<a class="btn" href="#/app/vorschau/${c.catalog}/dashboard" data-pvfrom="${c.id}">${icon("eye")} ${byId("catalog", c.catalog)?.status === "begutachtung" ? "Prüfung begutachten" : "Vorschau"}</a>` : c.catalog ? `<span class="btn" aria-disabled="true" style="opacity:.6;cursor:not-allowed" title="${esc(CRx.contentInfo(byId("catalog", c.catalog))?.text || "")}">${icon("lock")} Inhalt nicht einsehbar</span>` : ""}<button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button></div></div>
       ${lockNote}<nav class="tabs">${tabs.map(([k, l]) => `<a href="#/app/kurs/${id}/${k}" class="${k === tab ? "active" : ""}">${l}</a>`).join("")}</nav>${body}`;
     },
     mount(el) {
       const c = byId("courses", id); if (!c || !canManageCourse(c)) return;
-      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=8.9").then((m) => m.newRoomDialog(c.id))));
+      const pub = el.querySelector("[data-publish]"); if (pub) pub.onclick = () => ED.publish(byId("catalog", c.catalog), pub.dataset.publish === "1");
+      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=9.0").then((m) => m.newRoomDialog(c.id))));
       el.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => addPersons(c, b.dataset.add, b.dataset.stage)));
       el.querySelectorAll("[data-addgroup]").forEach((b) => (b.onclick = () => addGroup(c, b.dataset.addgroup)));
       const ng = el.querySelector("[data-owngroup]"); if (ng) ng.onclick = () => ownGroup(c);
@@ -71,9 +75,10 @@ export function detail(id, tab) {
   };
 }
 
+const orgsOwn = (c, p) => (c.orgs || []).filter((o) => inOrg(p, o)).map((o) => orgShort(o)).join(", ") || "–";
 const delBtn = (pid, role, label) => `<button class="iconbtn" data-rmm="${pid}" data-role="${role}" title="Entfernen" aria-label="${esc(label)} entfernen">${icon("trash-2")}</button>`;
 function personRows(list, c, role, extraCol) {
-  return list.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Name</th><th>Anmeldename</th><th>Schule</th>${extraCol ? `<th>${extraCol.head}</th>` : ""}<th>Zugeordnet über</th><th></th></tr></thead><tbody>${list.map((m) => { const pe = byId("persons", m.person); return `<tr><td><b>${esc(personName(pe))}</b></td><td>${esc(pe?.username || "")}</td><td>${esc(orgsLabel(pe))}</td>${extraCol ? `<td>${extraCol.cell(m)}</td>` : ""}<td>${m.via ? `<span class="badge gray">${icon("users")} Gruppe ${esc(m.via)}</span>` : "einzeln"}</td><td>${m.via || m.role === "besitzer" ? "" : delBtn(m.person, m.role, personName(pe))}</td></tr>`; }).join("")}</tbody></table></div>` : `<div class="empty small">${icon("users")}<div>Noch niemand zugeordnet</div></div>`;
+  return list.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Name</th><th>Anmeldename</th><th>Schule</th>${extraCol ? `<th>${extraCol.head}</th>` : ""}<th>Zugeordnet über</th><th></th></tr></thead><tbody>${list.map((m) => { const pe = byId("persons", m.person); return `<tr><td><b>${esc(personName(pe))}</b></td><td>${esc(pe?.username || "")}</td><td>${esc(c.kind === "pruefung" ? orgIds(pe).filter((o) => inOrg(me(), o)).map(orgShort).join(" · ") || "–" : orgsLabel(pe))}</td>${extraCol ? `<td>${extraCol.cell(m)}</td>` : ""}<td>${m.via ? `<span class="badge gray">${icon("users")} Gruppe ${esc(m.via)}</span>` : "einzeln"}</td><td>${m.via || m.role === "besitzer" ? "" : delBtn(m.person, m.role, personName(pe))}</td></tr>`; }).join("")}</tbody></table></div>` : `<div class="empty small">${icon("users")}<div>Noch niemand zugeordnet</div></div>`;
 }
 function groupRows(c, ownOrgOnly) {
   const p = me();
@@ -100,10 +105,10 @@ function tabMembersLesson(c, p) {
 function tabMembersExam(c, p) {
   const ms = members(c);
   const mine = ms.filter((m) => sameOrg(byId("persons", m.person), p));
-  const hidden = new Set(ms.filter((m) => !sameOrg(byId("persons", m.person), p)).map((m) => m.person)).size;
+
   const sec = (role, ic, title, addLabel, extra) => { const l = mine.filter((m) => m.role === role); return `<div class="card pad mt"><div class="row between wrap"><h3>${icon(ic)} ${title} (${new Set(l.map((m) => m.person)).size})</h3><div class="row wrap">${role === "teilnehmer" ? `<button class="btn sm" data-addgroup="teilnehmer">${icon("users")} Klasse/Kurs hinzufügen</button>` : ""}<button class="btn sm" data-add="${role}">${icon("user-round-plus")} ${addLabel}</button></div></div>${role === "teilnehmer" ? groupRows(c, true) : ""}${personRows(l, c, role, extra)}</div>`; };
-  return `<div class="notice info small mb">${icon("info")}<span>Prüfungsebene (Task 52 / 24): Sie ordnen Personen Ihrer Schule <b>${esc(orgName(p.org))}</b> zu. ${hidden ? `${hidden} Mitglieder anderer Schulen sind ausgeblendet.` : ""}</span></div>
-  ${(() => { const sa = ms.filter((m) => m.role === "schuladmin"); return sa.length ? `<div class="card pad mt"><h3>${icon("building-2")} Schuladministration (${sa.length})</h3><p class="xs muted">Von der Koordinierungsstelle mit der Zuordnung der Organisationen automatisch hinzugefügt.</p><div class="row wrap" style="gap:6px">${sa.map((m) => { const pe = byId("persons", m.person); return `<span class="badge gray">${icon("user")} ${esc(personName(pe))} (${esc(orgShort(pe?.org))})</span>`; }).join("")}</div></div>` : ""; })()}
+  return `<div class="notice info small mb">${icon("info")}<span>Prüfungsebene (Task 52 / 24): Sie ordnen Personen Ihrer Schule <b>${esc(orgName(p.org))}</b> zu. Angaben zu anderen Schulen werden aus Datenschutzgründen nicht angezeigt.</span></div>
+  ${(() => { const sa = mine.filter((m) => m.role === "schuladmin"); return sa.length ? `<div class="card pad mt"><h3>${icon("building-2")} Schuladministration (${sa.length})</h3><p class="xs muted">Von der Koordinierungsstelle mit der Zuordnung Ihrer Schule automatisch hinzugefügt.</p><div class="row wrap" style="gap:6px">${sa.map((m) => { const pe = byId("persons", m.person); return `<span class="badge gray">${icon("user")} ${esc(personName(pe))} (${esc(orgShort(pe?.org))})</span>`; }).join("")}</div></div>` : ""; })()}
   ${sec("teilnehmer", "graduation-cap", "Teilnehmende", "Teilnehmende hinzufügen")}
   ${sec("raumaufsicht", "monitor", "Raumaufsichten", "Raumaufsicht hinzufügen")}
   <div class="card pad mt"><div class="row between wrap"><h3>${icon("file-pen-line")} Korrektor:innen</h3><a class="btn sm" href="#/app/kurs/${c.id}/korrektoren">${icon("arrow-right")} Zu den Korrektoren</a></div><p class="small muted" style="margin:0">Korrektorengruppen werden je Korrekturstufe (Erst-, Zweitkorrektur, Endbeurteilung) für Klassen/Kurse oder einzelne Prüflinge im Reiter „Korrektoren“ zugewiesen.</p></div>
@@ -117,9 +122,14 @@ function tabRooms(c, p) {
 }
 function tabInfo(c) {
   const k = byId("catalog", c.catalog);
+  if (c.kind === "pruefung") return `<div class="card pad" style="max-width:720px"><div class="kv">${icon("book-open")}<div><div class="small">Ebene</div><span class="v">Prüfung</span></div></div>
+    <div class="kv">${icon("clipboard-list")}<div><div class="small">Prüfung</div><span class="v">${esc(k?.title || c.title)}</span></div></div>
+    <div class="kv">${icon("presentation")}<div><div class="small">Ausbildungsberuf</div><span class="v">${esc(k?.meta?.beruf || k?.beruf || "–")}${k?.meta?.berufsnr ? ` (${esc(k.meta.berufsnr)})` : ""}</span></div></div>
+    <div class="kv">${icon("calendar")}<div><div class="small">Prüfungstermin</div><span class="v">${esc(examDate(c))}</span></div></div>
+    <div class="kv">${icon("building-2")}<div><div class="small">Ihre Schule</div><span class="v">${(c.orgs || []).filter((o) => inOrg(me(), o)).map((o) => esc(orgName(o))).join(", ")}</span></div></div></div>`;
   return `<div class="card pad" style="max-width:720px"><div class="kv">${icon("book-open")}<div><div class="small">Ebene</div><span class="v">${KIND[c.kind]}</span></div></div>
     <div class="kv">${icon("copy")}<div><div class="small">Grundlage</div><span class="v">${esc(k?.title || "Prüfung der Koordinierungsstelle")}</span></div></div>
-    <div class="kv">${icon("building-2")}<div><div class="small">Organisation(en)</div><span class="v">${c.kind === "pruefung" ? (c.orgs || []).map((o) => esc(orgName(o))).join(", ") : esc(orgName(c.org))}</span></div></div>
+    <div class="kv">${icon("building-2")}<div><div class="small">${c.kind === "pruefung" ? "Ihre Schule" : "Organisation"}</div><span class="v">${c.kind === "pruefung" ? (c.orgs || []).filter((o) => inOrg(me(), o)).map((o) => esc(orgName(o))).join(", ") : esc(orgName(c.org))}</span></div></div>
     <div class="kv">${icon("info")}<div><div class="small">Beschreibung</div><span class="v">${esc(c.description || k?.description || "–")}</span></div></div></div>`;
 }
 
@@ -261,14 +271,16 @@ export async function copyToLesson(cat) {
   const p = me();
   if (!p || p.kind !== "lehrkraft") { toast("Nur auf Unterrichtsebene", "Das Kopieren aus dem Katalog ist Lehrkräften vorbehalten. Melden Sie sich als Lehrkraft an.", "info"); return null; }
   const n = D.courses.filter((x) => x.catalog === cat.id && x.owner === p.id).length + 1;
-  const v = await modal({ title: "Prüfung als Unterricht kopieren",
+  const v = await modal({ title: "Als Unterricht kopieren",
     body: `<div class="field"><label class="lbl">Kurstitel</label><input class="input" data-t value="${esc(cat.title)} – ${esc(p.lastname)}${n > 1 ? " " + n : ""}"></div><p class="small">${esc(cat.description)}</p>
-      <div class="notice info small">${icon("info")}<span>Die Kopie gehört Ihnen (<b>Besitzer</b>) und erscheint unter „Mein Unterricht“. Anschließend fügen Sie Teilnehmende und ggf. weitere Lehrkräfte hinzu und planen die Raumaufsicht.</span></div>`,
+      <div class="notice info small">${icon("info")}<span>Es entsteht eine <b>eigene Kopie</b> des Inhalts, die Sie im Editor anpassen können (auch die Mitbetreuung Ihres Unterrichts). Der Kurs gehört Ihnen (<b>Besitzer</b>) und erscheint unter „Mein Unterricht“. Anschließend fügen Sie Teilnehmende und ggf. weitere Lehrkräfte hinzu und planen die Raumaufsicht.</span></div>`,
     footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>${icon("copy")} Kopieren</button>`,
     onMount: (m, close) => (m.querySelector("[data-ok]").onclick = () => close(m.querySelector("[data-t]").value.trim())) });
   if (!v) return null;
-  const c = await create("courses", { title: v, kind: "unterricht", catalog: cat.id, org: p.org, orgs: [], owner: p.id, members: [{ person: p.id, role: "besitzer" }], groups: [], status: "veröffentlicht", exam_code: "FA230", description: cat.description });
-  toast("Kurs kopiert", `„${v}“ – jetzt Mitglieder hinzufügen.`);
+  // eigene Kopie des Inhalts (im Editor bearbeitbar – auch durch die Mitbetreuung); der Katalogeintrag bleibt unverändert
+  const src = cat; const copy = await create("catalog", { title: `${src.title} (Kopie ${p.lastname})`, beruf: src.beruf, fach: src.fach, jahr: src.jahr, kind: src.kind, description: src.description, duration: src.duration, creator: personName(p), tags: [...(src.tags || [])], contents: [...(src.contents || [])], mine: true, copied_from: src.id, image: src.image || 0, content: src.content ? JSON.parse(JSON.stringify(src.content)) : null, rules: JSON.parse(JSON.stringify(src.rules || [])), editor_by: p.id, release: null });
+  const c = await create("courses", { title: v, kind: "unterricht", catalog: copy.id, org: p.org, orgs: [], owner: p.id, members: [{ person: p.id, role: "besitzer" }], groups: [], status: "veröffentlicht", exam_code: "", description: cat.description });
+  toast("Kurs kopiert", `„${v}“ – eigene Kopie des Inhalts angelegt, jetzt Mitglieder hinzufügen.`);
   navigate(`#/app/kurs/${c.id}/mitglieder`);
   return c;
 }

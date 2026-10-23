@@ -1,9 +1,9 @@
 // Datenschicht: PocketBase (lokaler Server) oder Browser-Datenbank (GitHub Pages) + Realtime-Spiegel aller Collections im Speicher
-import PocketBase from "./vendor/pocketbase.es.mjs?v=8.9";
-import { toPb } from "./ui.js?v=8.9";
-import CFG from "./config.js?v=8.9";
+import PocketBase from "./vendor/pocketbase.es.mjs?v=9.0";
+import { toPb } from "./ui.js?v=9.0";
+import CFG from "./config.js?v=9.0";
 
-export const APP_VERSION = "8.9";
+export const APP_VERSION = "9.0";
 // Backend ermitteln: PocketBase, wenn erreichbar, sonst Datenbank im Browser
 export const backend = { mode: "local", url: "" };
 async function probe(url) {
@@ -28,7 +28,7 @@ if (backend.mode === "pocketbase") {
     beacon: (col, id, data) => { try { fetch(`${backend.url}api/collections/${col}/records/${id}`, { method: "PATCH", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }); } catch {} },
   };
 } else {
-  const { createLocalBackend } = await import("./localdb.js?v=8.9");
+  const { createLocalBackend } = await import("./localdb.js?v=9.0");
   const lb = await createLocalBackend({ version: APP_VERSION });
   pb = lb.client; api = lb.api;
 }
@@ -88,7 +88,7 @@ export async function upd(c, id, data) {
   const local = byId(c, id); if (local) Object.assign(local, data);
   // Reine Heartbeat-Aktualisierungen lösen kein Neuzeichnen aus
   const hbOnly = c === "participants" && Object.keys(data).every((k) => k === "last_seen");
-  emit(hbOnly ? "_hb" : c, { action: "local" });
+  emit(hbOnly ? "_hb" : c, { action: "local", id });
   const rec = await pb.collection(c).update(id, data);
   patchLocal(c, rec); return rec;
 }
@@ -98,7 +98,7 @@ export async function create(c, data) {
 }
 export async function del(c, id) {
   const arr = D[c]; const i = arr.findIndex((r) => r.id === id); if (i >= 0) arr.splice(i, 1);
-  emit(c, { action: "local" });
+  emit(c, { action: "local-delete", id });
   await pb.collection(c).delete(id);
 }
 

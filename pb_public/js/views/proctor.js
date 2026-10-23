@@ -1,10 +1,10 @@
 // Raumaufsicht: Übersicht der Raumaufsichten und Steuerkonsole eines Raums
-import { D, byId, upd, create, del, log, demoApi } from "../data.js?v=8.9";
-import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, isDistance, windowState, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=8.9";
-import { navigate, redraw, session, directHelp } from "../app.js?v=8.9";
-import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, orgsLabel, KIND, members } from "../access.js?v=8.9";
-import * as CR from "./creation.js?v=8.9";
-import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=8.9";
+import { D, byId, upd, create, del, log, demoApi } from "../data.js?v=9.0";
+import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, isDistance, windowState, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=9.0";
+import { navigate, redraw, session, directHelp } from "../app.js?v=9.0";
+import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, orgsLabel, KIND, members } from "../access.js?v=9.0";
+import * as CR from "./creation.js?v=9.0";
+import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=9.0";
 
 const MR = { status: "", q: "" }; // Filter „Mein Raum“ (Großraum)
 const pending = new Set();
@@ -694,7 +694,7 @@ function bindAufsicht(el, room) {
     const have = new Set(D.supervisors.filter((s) => s.room === room.id).map((s) => s.person || s.lastname));
     const cand = roomCandidates(room, "aufsicht").filter((pe) => !have.has(pe.id));
     const v = await modal({ title: "Aufsichtspersonen hinzufügen", size: "wide", body: `<p class="xs muted">${c?.kind === "pruefung" ? `Zur Auswahl stehen Personen mit der Rolle „Raumaufsicht“ in der Prüfung „${esc(c.title)}“ (Schule ${esc(orgShort(room.org))}). Weitere ordnet die Schuladministration unter Prüfungen › Mitglieder zu.` : c ? `Zur Auswahl stehen die Lehrkräfte des Unterrichts „${esc(c.title)}“ (Besitzer und Mitbetreuung).` : ""}</p>
-      <div class="tablewrap"><table class="tbl"><thead><tr><th></th><th>Nachname</th><th>Vorname</th><th>Kürzel</th><th>Schule</th></tr></thead><tbody>${cand.length ? cand.map((pe) => `<tr><td><input type="checkbox" data-i="${pe.id}" aria-label="${esc(personName(pe))}"></td><td>${esc(pe.lastname)}</td><td>${esc(pe.firstname)}</td><td>${esc(pe.short || "")}</td><td>${esc(orgsLabel(pe))}</td></tr>`).join("") : `<tr><td colspan="5"><div class="empty small">Keine weiteren Personen verfügbar${c ? ` – Mitglieder verwalten Sie im <a href="#/app/kurs/${c.id}/mitglieder">Kurs</a>` : ""}</div></td></tr>`}</tbody></table></div>`,
+      <div class="tablewrap"><table class="tbl"><thead><tr><th></th><th>Nachname</th><th>Vorname</th><th>Kürzel</th><th>Schule</th></tr></thead><tbody>${cand.length ? cand.map((pe) => `<tr><td><input type="checkbox" data-i="${pe.id}" aria-label="${esc(personName(pe))}"></td><td>${esc(pe.lastname)}</td><td>${esc(pe.firstname)}</td><td>${esc(pe.short || "")}</td><td>${esc(c?.kind === "pruefung" ? orgShort(room.org) : orgsLabel(pe))}</td></tr>`).join("") : `<tr><td colspan="5"><div class="empty small">Keine weiteren Personen verfügbar${c ? ` – Mitglieder verwalten Sie im <a href="#/app/kurs/${c.id}/mitglieder">Kurs</a>` : ""}</div></td></tr>`}</tbody></table></div>`,
       footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Aufsichtspersonen hinzufügen</button>`, onMount: (m, close) => (m.querySelector("[data-ok]").onclick = () => close([...m.querySelectorAll("[data-i]:checked")].map((x) => byId("persons", x.dataset.i)))) });
     if (!v || !v.length) return;
     for (const pe of v) { await create("supervisors", { lastname: pe.lastname, firstname: pe.firstname, short: pe.short || "", username: pe.username, person: pe.id, room: room.id, present: false, from: room.start_earliest, to: "", periods: [{ from: room.start_earliest || "", to: "" }] }); log(room.id, null, `Aufsichtsperson ${pe.lastname}, ${pe.firstname} hinzugefügt`, "", "aktion", actor()); }
@@ -703,7 +703,7 @@ function bindAufsicht(el, room) {
   el.querySelector("[data-delsv]").onclick = async () => {
     const list = [...st.sel].map((id) => byId("supervisors", id)).filter(Boolean);
     if (!(await confirmBox("Aufsichtspersonen löschen", list.map((s) => `${esc(s.lastname)}, ${esc(s.firstname)}`).join("<br>"), "Löschen"))) return;
-    const { del } = await import("../data.js?v=8.9");
+    const { del } = await import("../data.js?v=9.0");
     for (const s of list) { await del("supervisors", s.id); log(room.id, null, `Aufsichtsperson ${s.lastname} entfernt`, "", "aktion", actor()); }
     st.sel.clear(); toast("Aufsichtspersonen entfernt");
   };
@@ -735,4 +735,4 @@ function bindProtokoll(el, room) {
     if (v !== null && v !== undefined) { await upd("protocol", r.id, { comment: v }); toast("Kommentar gespeichert"); }
   }));
 }
-function downloadProtocol(room) { import("./protocolpdf.js?v=8.9").then((m) => m.protocolPdf(room)); }
+function downloadProtocol(room) { import("./protocolpdf.js?v=9.0").then((m) => m.protocolPdf(room)); }

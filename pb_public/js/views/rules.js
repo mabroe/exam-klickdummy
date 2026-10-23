@@ -1,8 +1,8 @@
 // Aufgabensteuerung im Kurs: schreibgeschützte Anzeige der Regeln aus dem Inhalt der Prüfung bzw. des Kurses (Katalog).
 // Die Regeln hängen fest an der Prüfung/am Kurs und werden im Prüfungseditor (Rolle Prüfungserstellung bzw. Lehrkraft für eigene Inhalte) konfiguriert.
-import { byId } from "../data.js?v=8.9";
-import { icon, esc } from "../ui.js?v=8.9";
-import { ACTIONS, condText } from "../rules.js?v=8.9";
+import { byId } from "../data.js?v=9.0";
+import { icon, esc } from "../ui.js?v=9.0";
+import { ACTIONS, condText } from "../rules.js?v=9.0";
 
 const actText = (a) => {
   const where = a.task ? `Aufgabe ${esc(a.task)}` : "aktuelle Aufgabe";
