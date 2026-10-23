@@ -1,21 +1,22 @@
 // Exam Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.7";
-import { lock as lockGate } from "./gate.js?v=8.7";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.7";
-import * as TN from "./views/participant.js?v=8.7";
-import * as PR from "./views/proctor.js?v=8.7";
-import * as KO from "./views/correction.js?v=8.7";
-import * as LK from "./views/teacher.js?v=8.7";
-import * as RS from "./views/results.js?v=8.7";
-import * as KU from "./views/courses.js?v=8.7";
-import * as GD from "./guide.js?v=8.7";
-import * as ED from "./views/editor.js?v=8.7";
-import { CORRECTORS } from "./scenario.js?v=8.7";
-import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.7";
-import { seatCount, seatCmp } from "./seats.js?v=8.7";
-import { syncForRoute } from "./content.js?v=8.7";
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.8";
+import { lock as lockGate } from "./gate.js?v=8.8";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.8";
+import * as TN from "./views/participant.js?v=8.8";
+import * as PR from "./views/proctor.js?v=8.8";
+import * as KO from "./views/correction.js?v=8.8";
+import * as LK from "./views/teacher.js?v=8.8";
+import * as RS from "./views/results.js?v=8.8";
+import * as KU from "./views/courses.js?v=8.8";
+import * as GD from "./guide.js?v=8.8";
+import * as ED from "./views/editor.js?v=8.8";
+import * as CR from "./views/creation.js?v=8.8";
+import { CORRECTORS } from "./scenario.js?v=8.8";
+import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.8";
+import { seatCount, seatCmp } from "./seats.js?v=8.8";
+import { syncForRoute } from "./content.js?v=8.8";
 
-export const VERSION = "8.7";
+export const VERSION = "8.8";
 export const VERSION_LABEL = `Version ${VERSION} · 22.10.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },
@@ -64,6 +65,8 @@ const routes = [
   [/^app\/raeume$/, () => PR.venues()],
   [/^app\/pruefungseinsicht$/, () => RS.einsichtList()],
   [/^app\/editor\/([^/]+)(?:\/([^/]+))?$/, (m) => ED.editor(m[1], m[2] || "allgemein")],
+  [/^app\/erstellung$/, () => CR.list()],
+  [/^app\/erstellung\/([^/]+)(?:\/([^/]+))?$/, (m) => CR.detail(m[1], m[2] || "uebersicht")],
   [/^app\/pruefungseinsicht\/([^/]+)$/, (m) => RS.einsichtSession(m[1])],
 ];
 
@@ -141,7 +144,7 @@ function userMenu() {
 }
 function staffShell(v) {
   const adm = me()?.kind === "schuladmin";
-  const nav = session.role === "einsicht" ? [["einsicht", "#/app/pruefungseinsicht", "eye", "Prüfungseinsicht"]] : session.role === "autor" ? [["katalog", "#/app/katalog", "pencil", "Katalog und Editor"]] : [
+  const nav = session.role === "einsicht" ? [["einsicht", "#/app/pruefungseinsicht", "eye", "Prüfungseinsicht"]] : session.role === "autor" ? [["erstellung", "#/app/erstellung", "clipboard-list", "Erstellung"], ["katalog", "#/app/katalog", "pencil", "Katalog und Editor"]] : [
     ["aufgaben", "#/app/aufgaben", "circle-check", "Aufgaben"],
     ["katalog", "#/app/katalog", "pencil", "Katalog"],
     ["kurse", "#/app/kurse", adm ? "clipboard-list" : "book-open", adm ? "Prüfungen" : "Mein Unterricht"],
@@ -161,7 +164,7 @@ function plainShell(v) {
 function bindShell() {
   const um = root.querySelector("[data-usermenu]");
   if (um) um.onclick = () => popMenu(um, [
-    { header: "Angemeldet als " + (ROLES[session.role]?.label || "Gast") + (me() ? " · " + orgShort(me().org) : "") },
+    { header: "Angemeldet als " + (ROLES[session.role]?.label || "Gast") + (me() ? " · " + (me().org ? orgShort(me().org) : "IBBW") : "") },
     { label: "Rolle wechseln", icon: "refresh-cw", run: () => navigate("#/") },
     { label: "Demo-Verwaltung", icon: "sliders-horizontal", run: () => navigate("#/app/admin") },
     "-",
@@ -187,7 +190,7 @@ function rolePill() {
   if (!session.role || !parseHash().path) return;
   const a = document.createElement("a");
   a.className = "rolepill"; a.href = "#/";
-  a.innerHTML = `<span class="dot"></span>${esc(session.userName())} (${esc(ROLES[session.role]?.label || "")}${me() ? ", " + esc(orgShort(me().org)) : ""}) · Rolle wechseln <span style="opacity:.6;font-weight:400">v${VERSION}</span>`;
+  a.innerHTML = `<span class="dot"></span>${esc(session.userName())} (${esc(ROLES[session.role]?.label || "")}${me() ? ", " + esc(me().org ? orgShort(me().org) : "IBBW") : ""}) · Rolle wechseln <span style="opacity:.6;font-weight:400">v${VERSION}</span>`;
   document.body.appendChild(a);
 }
 
@@ -198,6 +201,12 @@ function notFound() {
 // ---------- Rollen- und Personenwahl ----------
 const P = (kind) => D.persons.filter((p) => p.kind === kind).sort((a, b) => a.org.localeCompare(b.org) || a.lastname.localeCompare(b.lastname));
 const optP = (list, sel) => list.map((p) => `<option value="${p.id}" ${p.username === sel ? "selected" : ""}>${esc(personName(p))} (${esc(orgsLabel(p))})</option>`).join("");
+// Personen der Prüfungserstellung: Koordinierungsstelle zuerst, dann Fachexpert:innen und Lehrkräfte (mit ihren Rollen im Erstellungsprozess)
+function creationPersons() {
+  const roles = (p) => D.catalog.filter((c) => c.status).flatMap((c) => Object.entries(c.team || {}).filter(([k, ids]) => k !== "koordination" && ids.includes(p.id)).map(([k]) => CR.EROLES[k]?.label)).filter(Boolean);
+  const list = D.persons.filter((p) => ["koordination", "fachexperte", "lehrkraft"].includes(p.kind)).sort((a, b) => (a.kind === "koordination" ? -1 : b.kind === "koordination" ? 1 : 0) || a.lastname.localeCompare(b.lastname));
+  return list.map((p) => { const r = [...new Set(roles(p))]; return `<option value="${p.id}">${esc(personName(p))} – ${p.kind === "koordination" ? "Koordinierungsstelle" : r.length ? esc(r.join(", ")) : p.kind === "fachexperte" ? "Fachexpert:in (IBBW)" : esc(orgsLabel(p))}</option>`; }).join("");
+}
 export function login(person, role, extra = {}) { store.set("person", person?.id || ""); setRole(role, extra); }
 function startView() {
   const room = D.rooms.find((r) => r.name === "Raum 123") || D.rooms[0];
@@ -219,7 +228,7 @@ function startView() {
       ${(() => { const g = GD.status(); return g ? `<div class="guidepick guideresume"><div class="grow"><b>${icon("list-checks")} ${esc(g.name)} ${g.paused ? "pausiert" : "läuft"}</b><span class="small muted">${g.done} von ${g.total} Schritten erledigt${g.step ? ` · nächster Schritt: <b>${esc(g.step.title)}</b>` : " · abgeschlossen"}</span></div>
         <button class="btn primary" data-guideresume>${icon("arrow-right")} An der letzten Stelle fortsetzen</button><button class="btn" data-guide="${g.kind}" data-restart>${icon("rotate-ccw")} Neu beginnen</button><button class="btn ghost" data-guideoff>${icon("x")} Beenden</button>${g.kind === "unterricht" ? `<button class="btn ghost" data-guide="pruefung" data-switch>${icon("clipboard-list")} Stattdessen: Prüfung (Schuladmin)</button>` : `<button class="btn ghost" data-guide="unterricht" data-switch>${icon("book-open")} Stattdessen: Unterricht (Lehrkraft)</button>`}</div>`
         : `<div class="guidepick"><div><b>${icon("list-checks")} Testbare Klickstrecken</b><span class="small muted">Führen Schritt für Schritt durch die Workflows; der Fortschritt wird automatisch erkannt. Sie können jederzeit über diese Seite an der letzten Stelle weitermachen.</span></div>
-        <button class="btn primary" data-guide="unterricht">${icon("book-open")} Unterricht (Lehrkraft)</button><button class="btn primary" data-guide="pruefung">${icon("clipboard-list")} Prüfung (Schuladmin)</button></div>`; })()}
+        <button class="btn primary" data-guide="erstellung">${icon("pencil")} Prüfungserstellung (Koordinierungsstelle)</button><button class="btn primary" data-guide="unterricht">${icon("book-open")} Unterricht (Lehrkraft)</button><button class="btn primary" data-guide="pruefung">${icon("clipboard-list")} Prüfung (Schuladmin)</button></div>`; })()}
       <div class="rolegrid five six seven">
         <div class="rolecard"><div class="rico">${icon("graduation-cap", "lg")}</div><h3>Prüfling</h3>
           <ul><li>Wartebereich, Belehrung, Gesundheitsabfrage</li><li>Prüfungsmodus mit Werkzeugen</li><li>Abgaben markieren</li></ul>
@@ -238,8 +247,9 @@ function startView() {
           <label class="lbl mt-s" for="ksel">Person und Korrekturrolle</label><select class="select" id="ksel">${correctors.map((k) => `<option value="${k.pe.id}|${k.stage}">${esc(personName(k.pe))} – ${STAGE_LABEL[k.stage]}</option>`).join("")}</select>
           <button class="btn primary" data-role="korrektor">${icon("arrow-right")} Zur Korrektur</button></div>
         <div class="rolecard"><div class="rico">${icon("pencil", "lg")}</div><h3>Prüfungserstellung</h3>
-          <ul><li>Koordinierungsstelle (IBBW)</li><li>Prüfungen und Unterrichtsinhalte im Editor erstellen</li><li>Aufgaben, Materialien, Bewertung, Aufgabensteuerung</li></ul>
-          <button class="btn primary" data-role="autor">${icon("arrow-right")} Zum Editor</button></div>
+          <ul><li>Koordinierungsstelle: Prüfung anlegen, Rahmendaten, Personen</li><li>Aufgabenerstellung, Kommission, Vorsitz, Beratung, Lektorat, Prüflösung</li><li>Editor, Freigabe bis zum Prüfungsstart</li></ul>
+          <label class="lbl mt-s" for="ersel">Person</label><select class="select" id="ersel">${creationPersons()}</select>
+          <button class="btn primary" data-role="autor">${icon("arrow-right")} Zur Prüfungserstellung</button></div>
         <div class="rolecard"><div class="rico">${icon("eye", "lg")}</div><h3>Prüfungseinsicht</h3>
           <ul><li>Einsicht immer in Präsenz</li><li>Person begleitet die Einsicht</li><li>Endnote und Abgabe mit Korrekturzeichen</li></ul>
           <label class="lbl mt-s" for="eisel">Person</label><select class="select" id="eisel">${optP(einsichtPersons().sort((a, b) => a.org.localeCompare(b.org) || a.lastname.localeCompare(b.lastname)), "t.riedmueller")}</select>
@@ -263,7 +273,7 @@ function startView() {
         if (r === "aufsicht") { login(byId("persons", v("#ausel")), "aufsicht"); const vr = visibleRooms(); navigate(vr.length === 1 ? `#/app/raum/${vr[0].id}/meinraum` : "#/app/raumaufsicht"); } // genau eine Raumaufsicht: direkt öffnen
         if (r === "korrektor") { const [pid, st] = v("#ksel").split("|"); login(byId("persons", pid), "korrektor", { corrector: +st }); navigate("#/app/korrektur"); }
         if (r === "schuladmin") { login(byId("persons", v("#sasel")), "schuladmin"); navigate("#/app/kurse"); }
-        if (r === "autor") { login(null, "autor"); navigate("#/app/katalog"); }
+        if (r === "autor") { login(byId("persons", v("#ersel")), "autor"); navigate("#/app/erstellung"); }
         if (r === "einsicht") { login(byId("persons", v("#eisel")), "einsicht"); navigate("#/app/pruefungseinsicht"); }
       }));
       el.querySelectorAll("[data-guide]").forEach((b) => (b.onclick = async () => { if ((b.hasAttribute("data-restart") || b.hasAttribute("data-switch")) && !(await confirmBox(b.hasAttribute("data-switch") ? "Andere Klickstrecke starten" : "Klickstrecke neu beginnen", "<p>Der bisherige Fortschritt der laufenden Klickstrecke wird verworfen. Ihre angelegten Daten bleiben erhalten.</p>", b.hasAttribute("data-switch") ? "Starten" : "Neu beginnen"))) return; GD.start(b.dataset.guide, b.hasAttribute("data-restart")); }));

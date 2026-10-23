@@ -1,6 +1,6 @@
 // Aktiven Prüfungs-/Kursinhalt bestimmen: Katalogeintrag (Vorschau, Editor), Teilnahme (Prüfling, Korrektur, Einsicht) oder Kurs
-import { D, byId } from "./data.js?v=8.7";
-import { useContent, defaultContent } from "./scenario.js?v=8.7";
+import { D, byId } from "./data.js?v=8.8";
+import { useContent, defaultContent } from "./scenario.js?v=8.8";
 
 export const hasOwnContent = (cat) => !!(cat?.content && Array.isArray(cat.content.tasks) && cat.content.tasks.length);
 export const catalogOfCourse = (c) => byId("catalog", c?.catalog);

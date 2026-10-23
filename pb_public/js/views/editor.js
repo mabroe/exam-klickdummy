@@ -5,14 +5,15 @@
 //    Teilaufgaben mit Fragetyp, Arbeitsauftrag, Bewertungsraster und Erwartungshorizont (auch mit Bildern)
 //  - Aufgabensteuerung: Regeln (Bedingungen mit UND/ODER, Aktionen)
 //  - Prüfen: Vollständigkeit und Übersicht, Speichern, Vorschau
-import { D, byId, upd, create } from "../data.js?v=8.7";
-import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=8.7";
-import { navigate, redraw, session } from "../app.js?v=8.7";
-import { me, personName } from "../access.js?v=8.7";
-import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=8.7";
-import { hasOwnContent, contentFromDefault, FOLDER } from "../content.js?v=8.7";
-import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=8.7";
-import { condText } from "../rules.js?v=8.7";
+import { D, byId, upd, create } from "../data.js?v=8.8";
+import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=8.8";
+import { navigate, redraw, session } from "../app.js?v=8.8";
+import { me, personName } from "../access.js?v=8.8";
+import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=8.8";
+import { hasOwnContent, contentFromDefault, FOLDER } from "../content.js?v=8.8";
+import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=8.8";
+import { condText } from "../rules.js?v=8.8";
+import { inProcess, canEditContent, statusBadge } from "./creation.js?v=8.8";
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const rid = () => Math.random().toString(36).slice(2, 12);
@@ -20,9 +21,11 @@ const DRAFTS = new Map(); // Katalog-ID -> Entwurf { cat, content, rules, dirty,
 let rev = 0;
 
 // ---------- Berechtigung ----------
-export const isAuthor = () => session.role === "autor";
+// Koordinierungsstelle (Rolle Prüfungserstellung): alle Inhalte außerhalb des Erstellungsprozesses
+export const isAuthor = () => session.role === "autor" && (!me() || me().kind === "koordination");
 export function canEdit(cat) {
   if (!cat) return false;
+  if (inProcess(cat)) return canEditContent(cat); // Erstellungsprozess: Rechte je Rolle und Status
   if (isAuthor()) return true;
   const p = me();
   return session.role === "lehrkraft" && !!p && cat.editor_by === p.id && cat.kind !== "Prüfung";
@@ -59,10 +62,12 @@ export async function newContentDialog() {
 
 // ---------- Entwurf ----------
 function draftOf(cat) {
+  const old = DRAFTS.get(cat.id);
+  if (old && !old.dirty && old.updated !== cat.updated) DRAFTS.delete(cat.id); // gespeicherter Stand hat sich geändert (z. B. andere Rolle)
   if (!DRAFTS.has(cat.id)) {
     const content = hasOwnContent(cat) ? clone(cat.content) : contentFromDefault();
     content.name = content.name || cat.title; content.duration_min = content.duration_min || parseInt(cat.duration) || 90;
-    DRAFTS.set(cat.id, { id: cat.id, cat: { title: cat.title, kind: cat.kind, beruf: cat.beruf, fach: cat.fach, jahr: cat.jahr, description: cat.description || "" }, content: normalizeContent(content), rules: clone(cat.rules || []), dirty: !hasOwnContent(cat) ? false : false, sel: "t0", mk: "file", fromDefault: !hasOwnContent(cat) });
+    DRAFTS.set(cat.id, { id: cat.id, cat: { title: cat.title, kind: cat.kind, beruf: cat.beruf, fach: cat.fach, jahr: cat.jahr, description: cat.description || "" }, content: normalizeContent(content), rules: clone(cat.rules || []), dirty: false, updated: cat.updated, sel: "t0", mk: "file", fromDefault: !hasOwnContent(cat) });
   }
   return DRAFTS.get(cat.id);
 }
@@ -124,7 +129,7 @@ const DAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"];
 export function editor(id, tab = "allgemein") {
   const cat = byId("catalog", id);
   if (!cat) return { redirect: "#/app/katalog" };
-  if (!canEdit(cat)) return { shell: "staff", rail: "katalog", title: "Editor", render: () => `<div class="empty">${icon("lock")}<h2>Keine Bearbeitung möglich</h2><p>Prüfungen bearbeitet die Koordinierungsstelle (Rolle „Prüfungserstellung“). Lehrkräfte bearbeiten eigene Unterrichtsinhalte.</p><a class="btn" href="#/app/katalog">Zum Katalog</a></div>` };
+  if (!canEdit(cat)) return { shell: "staff", rail: "katalog", title: "Editor", render: () => inProcess(cat) ? `<div class="empty">${icon("lock")}<h2>Keine Bearbeitung möglich</h2><p>Im Status „${esc(statusBadge(cat).replace(/<[^>]+>/g, ""))}“ haben Sie keine Bearbeitungsrechte. Bearbeiten dürfen in der Vorbereitung die Aufgabenerstellung, im Review die Kommission und der Kommissionsvorsitz.</p><a class="btn" href="#/app/erstellung/${id}/uebersicht">Zur Prüfungserstellung</a></div>` : `<div class="empty">${icon("lock")}<h2>Keine Bearbeitung möglich</h2><p>Prüfungen bearbeitet die Koordinierungsstelle (Rolle „Prüfungserstellung“). Lehrkräfte bearbeiten eigene Unterrichtsinhalte.</p><a class="btn" href="#/app/katalog">Zum Katalog</a></div>` };
   const E = draftOf(cat); activate(E);
   if (!TABS.some(([k]) => k === tab)) tab = "allgemein";
   return {
@@ -132,8 +137,8 @@ export function editor(id, tab = "allgemein") {
     render() {
       const total = E.content.tasks.reduce((a, t) => a + t.points, 0); const used = D.courses.filter((c) => c.catalog === id).length;
       const issues = validate(E); const nErr = issues.filter((x) => x.lvl === "error").length;
-      return `<div class="edwrap"><div class="breadcrumb"><a href="#/app/katalog">Katalog</a>${icon("chevron-right")}<a href="#/app/katalog/${id}">${esc(cat.title)}</a>${icon("chevron-right")}<b>Editor</b></div>
-      <div class="pagehead"><div><h1>${icon("pencil")} ${esc(E.cat.title || "Ohne Titel")}</h1><div class="row mt-s small wrap"><span class="badge ${E.cat.kind === "Prüfung" ? "purple" : "cyan"}">${esc(E.cat.kind)}</span><span>${E.content.tasks.length} Aufgaben · ${E.content.tasks.reduce((a, t) => a + t.subtasks.length, 0)} Teilaufgaben · <b>${pts(total)} Punkte</b> · ${E.content.duration_min} Min.</span>
+      return `<div class="edwrap"><div class="breadcrumb">${inProcess(cat) ? `<a href="#/app/erstellung">Prüfungserstellung</a>${icon("chevron-right")}<a href="#/app/erstellung/${id}/uebersicht">${esc(cat.title)}</a>` : `<a href="#/app/katalog">Katalog</a>${icon("chevron-right")}<a href="#/app/katalog/${id}">${esc(cat.title)}</a>`}${icon("chevron-right")}<b>Editor</b></div>
+      <div class="pagehead"><div><h1>${icon("pencil")} ${esc(E.cat.title || "Ohne Titel")}</h1><div class="row mt-s small wrap"><span class="badge ${E.cat.kind === "Prüfung" ? "purple" : "cyan"}">${esc(E.cat.kind)}</span>${inProcess(cat) ? statusBadge(cat) : ""}<span>${E.content.tasks.length} Aufgaben · ${E.content.tasks.reduce((a, t) => a + t.subtasks.length, 0)} Teilaufgaben · <b>${pts(total)} Punkte</b> · ${E.content.duration_min} Min.</span>
         ${used ? `<span class="badge yellowb" title="Kurse, die diesen Inhalt nutzen">${icon("users")} in ${used} Kurs${used === 1 ? "" : "en"} verwendet</span>` : ""}${E.dirty ? `<span class="badge yellowb" data-dirty>ungespeicherte Änderungen</span>` : `<span class="badge green" data-dirty>gespeichert</span>`}${nErr ? `<a class="badge red" href="#/app/editor/${id}/pruefen">${nErr} Fehler</a>` : ""}</div></div>
         <div class="actions-bar"><button class="btn" data-preview>${icon("eye")} Vorschau</button><button class="btn primary" data-save>${icon("save")} Speichern</button></div></div>
       ${E.fromDefault ? `<div class="notice info small mb">${icon("info")}<span>Dieser Inhalt nutzt bisher die Musterprüfung. Beim Speichern wird er als eigener Inhalt dieses Katalogeintrags abgelegt (inkl. der bereitgestellten Materialien).</span></div>` : ""}
@@ -151,7 +156,7 @@ function tabGeneral(E) {
   const c = E.content;
   return `<div class="edgrid2"><section class="card pad"><h3>Kopfdaten</h3>
     ${fld("cat.title", "Titel", E.cat.title)}
-    <div class="grid2"><div class="field"><label class="lbl">Art</label><select class="select" data-ep="cat.kind" ${isAuthor() ? "" : "disabled"}><option ${E.cat.kind === "Prüfung" ? "selected" : ""}>Prüfung</option><option ${E.cat.kind !== "Prüfung" ? "selected" : ""}>Lernerfolgskontrolle</option></select></div>
+    <div class="grid2"><div class="field"><label class="lbl">Art</label><select class="select" data-ep="cat.kind" ${isAuthor() && !inProcess(byId("catalog", E.id)) ? "" : "disabled"}><option ${E.cat.kind === "Prüfung" ? "selected" : ""}>Prüfung</option><option ${E.cat.kind !== "Prüfung" ? "selected" : ""}>Lernerfolgskontrolle</option></select></div>
       ${fld("content.duration_min", "Bearbeitungszeit (Minuten)", c.duration_min, { type: "number", num: true })}</div>
     <div class="grid2">${fld("cat.beruf", "Ausbildungsberuf", E.cat.beruf)}${fld("cat.fach", "Fach / Lernfeld", E.cat.fach)}</div>
     ${fld("cat.jahr", "Jahr", E.cat.jahr)}
@@ -354,9 +359,10 @@ export async function save(E, cat) {
   const subCount = c.tasks.reduce((a, t) => a + t.subtasks.length, 0);
   const types = [...new Set(c.tasks.flatMap((t) => t.subtasks.map((s) => qShort(s))))];
   const patch = { ...E.cat, duration: `${c.duration_min} Minuten`, content: c, rules: E.rules, contents: [`${c.tasks.length} Aufgaben mit ${subCount} Teilaufgaben (${types.join(", ")})`, c.ausgangssituation ? "Ausgangssituation mit Unternehmensprofil" : "", "Bewertungsraster und Erwartungshorizont je Teilaufgabe", E.rules.length ? `Aufgabensteuerung mit ${E.rules.length} Regeln` : ""].filter(Boolean) };
+  if (inProcess(cat)) { delete patch.kind; patch.history = [...(cat.history || []), { at: new Date().toISOString(), by: me() ? personName(me()) : "Koordinierungsstelle", ev: "inhalt", text: "Inhalt im Editor gespeichert" }]; }
   if (!cat.editor_by) patch.editor_by = isAuthor() ? "autor" : me()?.id || "";
   try { await upd("catalog", cat.id, patch); } catch (e) { toast("Nicht gespeichert", e?.response?.message || e?.message || "", "error"); return false; }
-  E.dirty = false; E.fromDefault = false;
+  E.dirty = false; E.fromDefault = false; E.updated = byId("catalog", cat.id)?.updated;
   toast("Inhalt gespeichert", `${c.tasks.length} Aufgaben · ${subCount} Teilaufgaben`);
   redraw(); return true;
 }

@@ -1,12 +1,12 @@
 // Korrekturworkflow: Korrekturübersicht, Korrekturmodus, Vergleich, Erwartungshorizont
-import { D, byId, upd, create, setting, setSetting } from "../data.js?v=8.7";
-import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=8.7";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.7";
-import { contentScope } from "../content.js?v=8.7";
-import { navigate, redraw, session } from "../app.js?v=8.7";
-import { me, courseOf, correctorStages, canCorrect, correctionOver, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses, STAGE_LABEL } from "../access.js?v=8.7";
-import { linearGrade, fmtNote, approvalState, approvalText } from "../grades.js?v=8.7";
-export { mode } from "./kmode.js?v=8.7";
+import { D, byId, upd, create, setting, setSetting } from "../data.js?v=8.8";
+import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=8.8";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.8";
+import { contentScope } from "../content.js?v=8.8";
+import { navigate, redraw, session } from "../app.js?v=8.8";
+import { me, courseOf, correctorStages, canCorrect, correctionOver, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses, STAGE_LABEL } from "../access.js?v=8.8";
+import { linearGrade, fmtNote, approvalState, approvalText } from "../grades.js?v=8.8";
+export { mode } from "./kmode.js?v=8.8";
 
 const S = { view: "aufgaben", collapsed: {} };
 // Lehrkraft (Unterrichtsebene): genau eine Korrektur; Korrektor:in (Prüfungsebene): Erst-, Zweit-, Drittkorrektur

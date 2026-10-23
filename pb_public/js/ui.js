@@ -1,5 +1,5 @@
 // Gemeinsame UI-Helfer
-import { ICONS } from "./icons.js?v=8.7";
+import { ICONS } from "./icons.js?v=8.8";
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const icon = (name, cls = "") => `<svg class="ico ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ""}</svg>`;

@@ -230,9 +230,28 @@ Das Prüfungsprotokoll gibt es **nur bei Prüfungen** (nicht im Unterricht). Der
 - **Prüfungseinsicht (Prüfung)**: Es gibt **keine Freigabe** und **keinen eigenständigen Zugriff** für Prüflinge – auch nicht per Direktaufruf. Die Einsicht findet **immer in Präsenz** statt: Eine Person mit der Rolle **„Prüfungseinsicht“** (Kursmitglied der Prüfung, Prüfungen › Mitglieder) meldet sich an (Startseite › Prüfungseinsicht), wählt einen Prüfling ihrer Schule mit abgeschlossener Prüfung und beginnt die Einsicht nach einer Bestätigung (Prüfling anwesend, Begleitung während der gesamten Einsicht). Gezeigt werden **nur die Endnote und die Abgabe inkl. Korrekturzeichen** – keine Punkte je Teilaufgabe, Begründungen, Bemerkungen, Kommentare oder Erwartungshorizont. Eine Leiste zeigt die begleitende Person; Beginn und Ende werden im Prüfungsprotokoll festgehalten. Demo: Thea Riedmüller (AFS), Niklas Dähne (BTS). Lehrkräfte und Schuladministration sehen weiterhin die vollständige Einsicht in den Ergebnissen.
 - **Korrektur und Ergebnis (Unterricht)**: Die Lehrkraft gibt die Korrektur **je Durchführung** frei (Ergebnisse › „Freigabe der Korrektur für die Schüler:innen“, `rooms.released`). Schüler:innen sehen anschließend **nur ihre eigenen** Ergebnisse: Punkte je Teilaufgabe, Note, Begründung und Korrekturzeichen. Demo: „Klassenarbeit HTML · Probelauf“ (Brockmann, Reinholz, Thamm) ist korrigiert und freigegeben.
 
+## Erstellungsprozess einer Prüfung (Instanz OPE)
+
+Prüfungen entstehen in einem festen Prozess (Navigation **„Erstellung“**, Startseite › Prüfungserstellung mit Personenwahl). Status: **Vorbereitung → Kommission/Review → Lektorat und Prüflösen → Review → Gesperrt (final freigegeben, bis zum Prüfungsstart) → Veröffentlicht**. Prüfungen im Erstellungsprozess erscheinen nicht im Katalog der Schulen.
+
+| Rolle | Aufgaben (Task) | Status |
+|---|---|---|
+| Koordinierungsstelle (Lisette Brandauer) | Prüfung anlegen (38), Rahmendaten/Prüfungsmetadaten setzen und bearbeiten (2/3), Personen im Erstellungsprozess zuweisen (4/5), Erstellungsprozess einsehen (6), Prüfungsfreigabe aufheben (8), zum Prüfungstermin veröffentlichen und Schulen zuordnen (47) | alle |
+| Aufgabenerstellung | Aufgaben im Editor erstellen, an die Kommission übergeben (46, Statuswechsel Nr. 1) | Vorbereitung |
+| Kommission | Unternehmenspool festlegen (14), Aufgabenentwürfe einarbeiten und an Lektorat/Prüflösung weiterreichen oder zurückgeben (15, Nr. 3), Anmerkungen einarbeiten | Vorbereitung, Review |
+| Kommissionsvorsitz | wie Kommission, zusätzlich Prüfung final freigeben (12, Nr. 5 → gesperrt) | Review |
+| Beratung (optional) | Aufgabenentwürfe einsehen (Vorschau, nur lesend) und Hinweise geben (16) | Vorbereitung, Review |
+| Lektorat (optional) | Prüfung lektorieren: Anmerkungen je Teilaufgabe, Lektorat abschließen (17) | Lektorat und Prüflösen |
+| Prüflösung (optional) | Prüfung im Teilnahmemodus lösen, benötigte Zeit und Einschätzung erfassen, abschließen (18) | Lektorat und Prüflösen |
+
+- **Rahmendaten**: Prüfungstitel, -art, Beruf, Prüfungsbereich, Kennung, Prüfungstermin, Bearbeitungszeit, Erstellungs-, Kommissions-, Lektorats- und Prüflösungszeitraum, Hilfsmittel (Pflichtfelder vor der Übergabe an die Kommission). Fristen erscheinen bei den Aufgaben der Rollen als Fälligkeit.
+- **Bearbeitungsrechte im Editor**: Vorbereitung nur Aufgabenerstellung, Review nur Kommission und Vorsitz; ab „Gesperrt“ niemand. Sind alle Abschlüsse von Lektorat und Prüflösung da, geht die Prüfung automatisch zurück an die Kommission (Nr. 4). Die finale Freigabe setzt voraus, dass zugewiesenes Lektorat bzw. Prüflösung durchlaufen wurde; offene Anmerkungen werden angezeigt.
+- **Verlauf**: jeder Statuswechsel und Abschluss mit Zeitpunkt und Person.
+- **Klickstrecke „Prüfungserstellung (Koordinierungsstelle)“** auf der Startseite: führt mit automatischem Personenwechsel durch alle Schritte bis zur Sperre zum Prüfungsstart; die Veröffentlichung ist der optionale letzte Schritt.
+
 ## Prüfungseditor
 
-Prüfungen und Unterrichtsinhalte (Lernerfolgskontrollen) werden im **Editor** erstellt. Zugang: Rolle **„Prüfungserstellung“** (Koordinierungsstelle IBBW, alle Inhalte) auf der Startseite oder als **Lehrkraft** für eigene Lernerfolgskontrollen. Einstieg im Katalog über „Neuen Inhalt erstellen“ bzw. „Bearbeiten“ / „Im Editor bearbeiten“. Der Inhalt wird im Katalogeintrag gespeichert (`catalog.content`, Regeln in `catalog.rules`) und gilt für alle Kurse, die ihn nutzen.
+Prüfungen und Unterrichtsinhalte (Lernerfolgskontrollen) werden im **Editor** erstellt. Zugang: Rolle **„Prüfungserstellung“** – als Koordinierungsstelle alle Inhalte außerhalb des Erstellungsprozesses, im Erstellungsprozess je Rolle und Status (siehe oben) auf der Startseite oder als **Lehrkraft** für eigene Lernerfolgskontrollen. Einstieg im Katalog über „Neuen Inhalt erstellen“ bzw. „Bearbeiten“ / „Im Editor bearbeiten“. Der Inhalt wird im Katalogeintrag gespeichert (`catalog.content`, Regeln in `catalog.rules`) und gilt für alle Kurse, die ihn nutzen.
 - **Allgemein**: Titel, Art (Prüfung/Lernerfolgskontrolle), Beruf, Fach, Jahr, Bearbeitungszeit, Beschreibung, Ausgangssituation, Unternehmensprofil (Name, Profil, Adresse, Kontakt, Rechtliches, Vorlagen) und Prüfungsinformationen für das Dashboard.
 - **Notenschlüssel und Kategorien** (einmalig je Inhalt): linearer Notenschlüssel, IHK-Notenschlüssel (92/81/67/50/30 %), Notenstufen Schule (85/70/55/40/20 %) oder eigene Prozentgrenzen; Kategoriensystem für die Kriterien (Kompetenzbereiche, Anforderungsbereiche AFB I–III, Handlungsphasen oder eigene Kategorien). Ergebnisse zeigen den Erreichungsgrad je Kategorie.
 - **Aufgaben**: beliebig viele Aufgaben und Teilaufgaben (anlegen, sortieren, duplizieren, löschen) im Strukturbaum. Je Aufgabe: Titel, Ausgangssituation, **freigeschaltete Anwendungen** (Dateien, Mail, Kalender, Notizen, Tickets, ERP, Rechner, IDE – nur diese erscheinen bei den Teilnehmenden) und **bereitgestellte Materialien**: Dateien (Upload bis 2 MB oder Platzhalter), E-Mails mit Anhängen, Termine, Tickets, Code-Vorlagen, ERP-Artikel und -Lieferanten.
@@ -302,6 +321,7 @@ pb_public/       Frontend (ohne Build-Schritt) – wird auf GitHub Pages veröff
   js/rules.js    Aufgabensteuerung: Bedingungen, Aktionen, Auswertung
   js/content.js  Aktiver Prüfungs-/Kursinhalt je Ansicht, Materialien, Inhaltsauswahl in Übersichten
   js/views/editor.js · ruleeditor.js  Prüfungseditor und Regeleditor
+  js/views/creation.js  Erstellungsprozess (Status, Rahmendaten, Personen, Aufgaben je Rolle, Anmerkungen, Verlauf)
   js/highlight.js Textmarkierungen in Arbeitsauftrag und Ausgangssituation
   samples/       Beispieldateien (Materialien, E-Mail-Anlagen, Beispielabgaben)
   css/app.css    Designsystem nach Figma (Gelb-Header, Rail, Tabs, Modals, Toasts, Status-Chips …)

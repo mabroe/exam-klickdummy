@@ -1,14 +1,14 @@
 // Prüfling: Wartebereich, Prüfungsmodus (Dashboard, Aufgaben, Abgaben), Endbildschirm, Kursvorschau
-import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.7";
-import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=8.7";
-import { EXAM, ALL_SUBTASKS, subtask, taskOf, ALL_TOOLS, INLINE_TYPES } from "../scenario.js?v=8.7";
-import { navigate, session, render, directHelp } from "../app.js?v=8.7";
-import * as W from "./dock.js?v=8.7";
-import { einsichtView } from "./results.js?v=8.7";
-import { einsichtFor } from "../access.js?v=8.7";
-import { materialsOf, catalogOfParticipant } from "../content.js?v=8.7";
-import { markable, bindMarkables } from "../highlight.js?v=8.7";
-import { ruleMatches, evalState, runAction } from "../rules.js?v=8.7";
+import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.8";
+import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=8.8";
+import { EXAM, ALL_SUBTASKS, subtask, taskOf, ALL_TOOLS, INLINE_TYPES } from "../scenario.js?v=8.8";
+import { navigate, session, render, directHelp } from "../app.js?v=8.8";
+import * as W from "./dock.js?v=8.8";
+import { einsichtView } from "./results.js?v=8.8";
+import { einsichtFor } from "../access.js?v=8.8";
+import { materialsOf, catalogOfParticipant } from "../content.js?v=8.8";
+import { markable, bindMarkables } from "../highlight.js?v=8.8";
+import { ruleMatches, evalState, runAction } from "../rules.js?v=8.8";
 // Punktebadge: grün, sobald für die (Teil-)Aufgabe eine Abgabe markiert ist, sonst grau
 const ptsBadge = (done, label, title = "") => `<span class="badge ${done ? "lime" : "gray"}" title="${title || (done ? "Abgabe markiert" : "noch nicht bearbeitet")}">${label}</span>`;
 const taskDone = (items, t) => t.subtasks.filter((s) => items.some((i) => i.submission === s.no)).length;
@@ -340,7 +340,7 @@ function waitView(ctx) {
       el.querySelectorAll("[data-pgstep]").forEach((b) => (b.onclick = () => { ui.pdfPage = Math.max(1, Math.min(3, ui.pdfPage + +b.dataset.pgstep)); render(false); }));
       const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
       const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
-      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.7").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
+      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.8").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
       // Prüfung läuft bereits, Bestätigung fehlt
       if (room.state === "RUNNING" && !confirmedBoth && !document.querySelector(".backdrop") && !store.get("bo." + p.id)) {
         store.set("bo." + p.id, 1);
@@ -612,7 +612,7 @@ function pageBody(ctx, sub) {
   const parts = sub.split("/");
   const grid = (inner) => `<div class="tn-grid ${ui.navCollapsed ? "collapsed" : ""}">${navTree(ctx, sub)}<div>${inner}</div></div>`;
   const pvFrom = store.get("pvfrom", null);
-  const endBtn = ctx.preview ? (pvFrom?.editor ? `<a class="btn" href="#/app/editor/${pvFrom.editor}/aufgaben">${icon("arrow-left")} Zurück zum Editor</a>` : pvFrom?.course ? `<a class="btn" href="#/app/kurs/${pvFrom.course}/${pvFrom.tab || "info"}">${icon("arrow-left")} Vorschau beenden</a>` : `<a class="btn" href="#/app/katalog/${ctx.course?.id || ""}">${icon("arrow-left")} Vorschau beenden</a><button class="btn primary" data-copy>${icon("copy")} Kurs kopieren</button>`) : `<button class="btn soft" data-finish>Prüfung beenden</button>`;
+  const endBtn = ctx.preview ? (pvFrom?.erstellung ? `<a class="btn" href="#/app/erstellung/${pvFrom.erstellung}/uebersicht">${icon("arrow-left")} Zurück zur Prüfungserstellung</a>` : pvFrom?.editor ? `<a class="btn" href="#/app/editor/${pvFrom.editor}/aufgaben">${icon("arrow-left")} Zurück zum Editor</a>` : pvFrom?.course ? `<a class="btn" href="#/app/kurs/${pvFrom.course}/${pvFrom.tab || "info"}">${icon("arrow-left")} Vorschau beenden</a>` : `<a class="btn" href="#/app/katalog/${ctx.course?.id || ""}">${icon("arrow-left")} Vorschau beenden</a><button class="btn primary" data-copy>${icon("copy")} Kurs kopieren</button>`) : `<button class="btn soft" data-finish>Prüfung beenden</button>`;
   const over = timeOver(ctx) ? `<div class="notice warn mb" role="status">${icon("alarm-clock")}<span><b>Die Bearbeitungszeit ist abgelaufen.</b> ${allowedTask(ctx) ? `Sie können Aufgabe ${esc(allowedTask(ctx))} noch abschließen und Abgaben markieren;` : ""} neue Aufgaben können nicht mehr geöffnet werden. Die Prüfung wird durch die Aufsicht eingesammelt.</span></div>` : "";
   const head = (t) => over + `<div class="taskhead"><h1>${t}</h1><div class="row"><button class="helpbtn" data-help aria-label="Hilfe"><span class="q">?</span></button>${endBtn}</div></div>`;
 
@@ -740,7 +740,7 @@ function bindPage(el, ctx, sub) {
   el.querySelectorAll("[data-swapatt]").forEach((b) => (b.onclick = () => swapAttachment(ctx, b, ...b.dataset.swapatt.split("|"))));
   el.querySelectorAll("[data-openmail]").forEach((b) => (b.onclick = () => W.open("mail", { mailId: b.dataset.openmail, subtask: sub.split("/")[2] })));
   const fin = el.querySelector("[data-finish]"); if (fin) fin.onclick = () => finishExam(ctx);
-  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.7").then((m) => m.copyCourse(ctx.course));
+  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.8").then((m) => m.copyCourse(ctx.course));
   const bm = el.querySelector("[data-bookmark]");
   if (bm) bm.onclick = () => {
     const parts = sub.split("/"); const key = parts[2] || parts[1];

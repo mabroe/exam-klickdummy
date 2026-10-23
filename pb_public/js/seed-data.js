@@ -4,7 +4,7 @@
 // Alle Personennamen sind zufällig erzeugte Fantasienamen – Ähnlichkeiten mit realen Personen sind nicht beabsichtigt.
 (function (root) {
   // Stand der Demodaten. Erhöhen, wenn sich die Demodaten ändern – ältere Datenbestände werden beim Start automatisch neu aufgebaut.
-  var SEED_VERSION = 14;
+  var SEED_VERSION = 15;
   var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings"];
 
   // Bewertungskriterien je Teilaufgabe (Maximalpunkte) – muss zu js/scenario.js passen
@@ -42,6 +42,10 @@
       .forEach(function (x) { T[x[0]] = P(x[0], x[1], afs, "lehrkraft", x[2]); });
     // Lehrkraft mit Abordnung: Stammschule AFS, zusätzlich der BTS zugeordnet (sieht die berechtigten Informationen beider Schulen)
     T.Morawetz.orgs = [afs.id, bts.id];
+    // Prüfungserstellung (Instanz OPE): Koordinierungsstelle und Lektorat ohne Schulzuordnung; Kommission, Aufgabenerstellung usw. sind Lehrkräfte der Schulen
+    var X = function (lastname, firstname, kind, short) { return add("persons", { lastname: lastname, firstname: firstname, username: uname(lastname, firstname), org: "", kind: kind, short: short, email: uname(lastname, firstname) + "@ibbw.example" }); };
+    T.Brandauer = X("Brandauer", "Lisette", "koordination", "LB");
+    T.Kowalczyk = X("Kowalczyk", "Dorian", "fachexperte", "DK");
     T.Hinrichs = P("Hinrichs", "Marit", afs, "schuladmin", "MH");
     T.Ammermann = P("Ammermann", "Ilka", bts, "schuladmin", "IA");
     T.Gaspari = P("Gaspari", "Emil", bts, "lehrkraft", "EG");

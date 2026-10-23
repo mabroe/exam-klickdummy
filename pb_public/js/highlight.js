@@ -1,6 +1,6 @@
 // Textmarkierung in bereitgestellten Texten (Arbeitsauftrag, Ausgangssituation) – Selbstorganisation, wird nicht bewertet
 // Gespeichert je Prüfling als Element kind "hl" (data: { key, ranges: [{ s, e, c }] }); Offsets beziehen sich auf den reinen Text
-import { icon, esc, toast, confirmBox } from "./ui.js?v=8.7";
+import { icon, esc, toast, confirmBox } from "./ui.js?v=8.8";
 
 export const HL_COLORS = [["y", "Gelb"], ["g", "Grün"], ["r", "Rot"]];
 let pop = null; const hidePop = () => { pop?.remove(); pop = null; };

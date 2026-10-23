@@ -1143,3 +1143,24 @@ tr.rowlink:focus-visible { outline: 3px solid #4a90e2; outline-offset: -3px; }
 .edissues li.warn { color: #8a5a00; }
 .edissues .link { text-align: left; color: inherit; }
 .start .rolegrid.seven { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+/* ---------- v8.8: Erstellungsprozess ---------- */
+.estepper { list-style: none; display: flex; flex-wrap: wrap; gap: 0; padding: 0; margin: 0 0 18px; }
+.estepper li { display: flex; align-items: center; gap: 8px; padding: 8px 14px 8px 0; margin-right: 14px; font-size: 13px; color: var(--muted); position: relative; }
+.estepper li:not(:last-child)::after { content: ""; width: 28px; height: 2px; background: var(--line); margin-left: 6px; }
+.estepper .dot { width: 26px; height: 26px; border-radius: 50%; display: inline-grid; place-items: center; border: 2px solid var(--line); font-weight: 700; background: #fff; }
+.estepper .dot .ico { width: 14px; height: 14px; }
+.estepper li.done { color: var(--text, #222); }
+.estepper li.done .dot { background: #1d7f37; border-color: #1d7f37; color: #fff; }
+.estepper li.cur { color: var(--text, #222); font-weight: 700; }
+.estepper li.cur .dot { border-color: var(--brand, #0b6aa2); color: var(--brand, #0b6aa2); box-shadow: 0 0 0 3px #d7e9f5; }
+.etask { border: 1px solid var(--line-2); border-left: 4px solid var(--brand, #0b6aa2); border-radius: 6px; padding: 10px 12px; margin-top: 10px; }
+.etask.done { border-left-color: #1d7f37; opacity: .8; }
+.etask b .ico { vertical-align: -3px; }
+.metagrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 16px; }
+.poolgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.poolgrid .optcard > span { gap: 4px; }
+.plist { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; }
+.plist li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; background: var(--bg-softer); }
+.timeline { list-style: none; padding: 0; margin: 12px 0 0; border-left: 2px solid var(--line); }
+.timeline li { display: grid; grid-template-columns: 140px 1fr; gap: 12px; padding: 8px 0 8px 14px; position: relative; }
+.timeline li::before { content: ""; position: absolute; left: -6px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: var(--brand, #0b6aa2); }

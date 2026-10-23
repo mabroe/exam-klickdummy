@@ -1,11 +1,13 @@
 // Testbare Klickstrecken (Leitfaden) entlang der Workflows
+//  - Prüfungserstellung: Koordinierungsstelle, Aufgabenerstellung, Kommission, Vorsitz, Beratung, Lektorat, Prüflösung (Tasks 2–18, 46, 47)
 //  - Unterricht: Lehrkraft (Tasks 31–36, 34 als Schüler:in)
 //  - Prüfung: Schuladministration (Tasks 52, 24, 21), Raumaufsicht (Task 22/23)
 // Der Fortschritt wird aus den Daten erkannt; der Leitfaden kann jederzeit ein- und ausgeklappt werden.
-import { D, byId, onChange } from "./data.js?v=8.7";
-import { icon, esc, store, toast } from "./ui.js?v=8.7";
-import { members, personName, inOrg } from "./access.js?v=8.7";
-import { navigate, render } from "./app.js?v=8.7";
+import { D, byId, onChange } from "./data.js?v=8.8";
+import { icon, esc, store, toast } from "./ui.js?v=8.8";
+import { members, personName, inOrg } from "./access.js?v=8.8";
+import { navigate, render } from "./app.js?v=8.8";
+import * as CR from "./views/creation.js?v=8.8";
 
 const KEY = "guide";
 const st = () => store.lget(KEY, null);
@@ -72,9 +74,44 @@ function exam(s) {
   ];
 }
 
-const NAMES = { unterricht: "Klickstrecke Unterricht (Lehrkraft)", pruefung: "Klickstrecke Prüfung (Schuladministration)" };
+// ---------- Prüfungserstellung (Instanz OPE) ----------
+// Koordinierungsstelle legt die Prüfung an, setzt Rahmendaten und Personen; danach erledigen die Rollen ihre Aufgaben bis zur Sperre zum Prüfungsstart
+function creation(s) {
+  const KS = P("l.brandauer");
+  const c = D.catalog.filter((x) => x.status && !s.base.catalog.includes(x.id)).sort((a, b) => (a.created > b.created ? -1 : 1))[0];
+  const t = CR.team(c);
+  const who = (role, sugg) => { const id = t[role]?.[0]; const pe = id ? byId("persons", id) : P(sugg); return pe ? { person: pe.id, role: "autor" } : null; };
+  const nm = (role, sugg) => { const id = t[role]?.[0]; return esc(personName(id ? byId("persons", id) : P(sugg))); };
+  const ks = { person: KS?.id, role: "autor" };
+  const go = (tab) => (c ? `#/app/erstellung/${c.id}/${tab}` : "#/app/erstellung");
+  const ev = (e) => !!c && CR.hasEvent(c, e);
+  const st = c?.status || "";
+  const after = (...xs) => xs.includes(st);
+  const subsWithText = c ? (c.content?.tasks || []).flatMap((x) => x.subtasks || []).filter((x) => String(x.text || "").trim()).length : 0;
+  const has = (role) => (t[role] || []).length > 0;
+  const fb = (c?.feedback || []).filter((f) => f.kind !== "pruefloesung-ergebnis");
+  return [
+    { t: 38, title: "Neue Prüfung anlegen", text: "Als Koordinierungsstelle (Lisette Brandauer) unter „Prüfungserstellung“ auf „Neue Prüfung anlegen“ klicken und einen Prüfungstitel vergeben. Die Prüfung startet im Status <b>Vorbereitung</b>.", as: ks, go: "#/app/erstellung", done: !!c },
+    { t: 2, title: "Rahmendaten festlegen", text: "Reiter „Rahmendaten“: Prüfungsart, Beruf, Prüfungsbereich, Kennung, Prüfungstermin, Bearbeitungszeit sowie Erstellungs- und Kommissionszeitraum (Pflichtfelder *) eintragen und speichern. Ende Lektorat und Ende Prüflösung sind optional.", as: ks, go: go("rahmendaten"), done: !!c && !CR.metaMissing(c).length },
+    { t: 4, title: "Personen im Erstellungsprozess zuweisen", text: "Reiter „Personen“: <b>Aufgabenerstellung</b> (z. B. Lina Voigt), <b>Kommission</b> (z. B. Gesa Ohm, Dr. Karim Ebeling) und <b>Kommissionsvorsitz</b> (z. B. Ayla Steinhoff) zuweisen.", as: ks, go: go("personen"), done: !!c && !CR.teamMissing(c).length },
+    { t: 4, title: "Optionale Rollen zuweisen: Beratung, Lektorat, Prüflösung", text: "Ebenfalls im Reiter „Personen“: <b>Beratung</b> (z. B. Ilyas Morawetz), <b>Lektorat</b> (z. B. Dorian Kowalczyk) und <b>Prüflösung</b> (z. B. Niklas Dähne). (optional)", optional: true, as: ks, go: go("personen"), done: has("beratung") || has("lektorat") || has("pruefloesung") },
+    { t: 14, title: "Kommission: Unternehmenspool festlegen", text: `Als Kommission (${nm("kommission", "g.ohm")}) im Reiter „Unternehmenspool“ das Unternehmen für die Ausgangssituation wählen. Das Unternehmensprofil wird in den Inhalt übernommen.`, as: who("kommission", "g.ohm"), go: go("unternehmen"), done: !!c?.meta?.pool },
+    { t: 46, title: "Aufgabenerstellung: Aufgaben im Editor erstellen", text: `Als Aufgabenerstellung (${nm("aufgabenerstellung", "l.voigt")}) „Im Editor bearbeiten“: Aufgaben und Teilaufgaben mit Fragetyp, Arbeitsauftrag, Bewertungsraster und Erwartungshorizont anlegen, Materialien bereitstellen und speichern.`, as: who("aufgabenerstellung", "l.voigt"), go: c ? `#/app/editor/${c.id}/aufgaben` : "#/app/erstellung", done: subsWithText > 0 || after("review", "lektorat", "gesperrt", "veroeffentlicht") },
+    { t: 46, title: "Aufgabenentwürfe an die Kommission übergeben", text: "In der „Übersicht“ der Prüfung „An die Kommission übergeben“ (Statuswechsel Nr. 1 → Kommission/Review).", as: who("aufgabenerstellung", "l.voigt"), go: go("uebersicht"), done: ev("review-start") },
+    { t: 16, title: "Beratung: Aufgabenentwürfe einsehen", text: `Als Beratung (${nm("beratung", "i.morawetz")}) „Aufgabenentwürfe einsehen“ (Vorschau, nur lesend) und ggf. unter „Anmerkungen“ einen Hinweis an die Kommission geben. (optional)`, optional: true, as: who("beratung", "i.morawetz"), go: go("uebersicht"), done: !has("beratung") || ev("beratung-eingesehen") },
+    { t: 15, title: "Kommission: Aufgabenentwürfe einarbeiten und weiterreichen", text: `Als Kommission (${nm("kommission", "g.ohm")}) die Entwürfe im Editor einarbeiten und „An Lektorat und Prüflösung übergeben“ (Statuswechsel Nr. 3). Ohne Lektorat/Prüflösung geht es direkt zur finalen Freigabe.`, as: who("kommission", "g.ohm"), go: go("uebersicht"), done: ev("lektorat-start") || (!has("lektorat") && !has("pruefloesung") && after("gesperrt", "veroeffentlicht")) },
+    { t: 17, title: "Lektorat: Prüfung lektorieren", text: `Als Lektorat (${nm("lektorat", "d.kowalczyk")}) die Prüfung ansehen, unter „Anmerkungen“ Hinweise je Teilaufgabe erfassen und „Lektorat abschließen“.`, as: who("lektorat", "d.kowalczyk"), go: go("anmerkungen"), done: !has("lektorat") || ev("lektorat-abgeschlossen") },
+    { t: 18, title: "Prüflösung: Prüfung prüflösen", text: `Als Prüflösung (${nm("pruefloesung", "n.daehne")}) „Im Teilnahmemodus lösen“, danach unter „Anmerkungen“ benötigte Zeit und Einschätzung speichern und „Prüflösung abschließen“. Sind alle Abschlüsse da, geht die Prüfung automatisch zurück an die Kommission (Statuswechsel Nr. 4).`, as: who("pruefloesung", "n.daehne"), go: go("anmerkungen"), done: !has("pruefloesung") || ev("pruefloesung-abgeschlossen") },
+    { t: 15, title: "Kommission: Anmerkungen einarbeiten", text: `Als Kommission (${nm("kommission", "g.ohm")}) die Anmerkungen im Editor einarbeiten und im Reiter „Anmerkungen“ als eingearbeitet markieren.`, as: who("kommission", "g.ohm"), go: go("anmerkungen"), done: (ev("lektorat-ende") || after("gesperrt", "veroeffentlicht") || (!has("lektorat") && !has("pruefloesung"))) && fb.every((f) => f.resolved) },
+    { t: 12, title: "Kommissionsvorsitz: Prüfung final freigeben", text: `Als Kommissionsvorsitz (${nm("vorsitz", "a.steinhoff")}) in der „Übersicht“ „Final freigeben (sperren)“ (Statuswechsel Nr. 5). Die Prüfung ist danach bis zum Prüfungsstart <b>gesperrt</b>.`, as: who("vorsitz", "a.steinhoff"), go: go("uebersicht"), done: after("gesperrt", "veroeffentlicht") },
+    { t: 6, title: "Koordinierungsstelle: Erstellungsprozess einsehen", text: "Als Koordinierungsstelle den Reiter „Verlauf“ öffnen: alle Statuswechsel und Abschlüsse. Die Prüfung bleibt bis zum Prüfungsstart gesperrt; bei Bedarf „Freigabe aufheben“ (Task 8).", as: ks, go: go("verlauf"), done: after("gesperrt", "veroeffentlicht") && !!store.lget("erstVerlauf." + c?.id, false) },
+    { t: 47, title: "Zum Prüfungstermin veröffentlichen und Schulen zuordnen", text: "„Veröffentlichen“: Die Prüfung erscheint für die gewählten Schulen; die Schuladministration übernimmt (Teilnehmende, Raumaufsichten, Korrektoren). (optional)", optional: true, as: ks, go: go("uebersicht"), done: st === "veroeffentlicht" },
+  ];
+}
+
+const NAMES = { unterricht: "Klickstrecke Unterricht (Lehrkraft)", pruefung: "Klickstrecke Prüfung (Schuladministration)", erstellung: "Klickstrecke Prüfungserstellung (Koordinierungsstelle)" };
 // Übersprungene optionale Schritte gelten als erledigt
-const steps = (s) => { const l = s.kind === "unterricht" ? lesson(s) : exam(s); (s.skip || []).forEach((i) => { if (l[i]) l[i].done = true; }); return l; };
+const steps = (s) => { const l = s.kind === "unterricht" ? lesson(s) : s.kind === "erstellung" ? creation(s) : exam(s); (s.skip || []).forEach((i) => { if (l[i]) l[i].done = true; }); return l; };
 
 const curStep = (list) => { const i = list.findIndex((x) => !x.done && !x.optional); return i >= 0 ? i : list.findIndex((x) => !x.done); };
 export function start(kind, fresh = false) {
@@ -86,7 +123,7 @@ export function start(kind, fresh = false) {
     loginAs(x.as); toast(NAMES[kind] + " fortgesetzt", `Weiter mit Schritt ${list.indexOf(x) + 1}: ${x.title}`, "info");
     navigate(x.go || "#/app/kurse"); render(); return;
   }
-  const base = { courses: D.courses.map((c) => c.id), rooms: D.rooms.map((r) => r.id) };
+  const base = { courses: D.courses.map((c) => c.id), rooms: D.rooms.map((r) => r.id), catalog: D.catalog.map((c) => c.id) };
   if (kind === "pruefung") {
     const c = D.courses.find((x) => x.title === "FA230 - Musterprüfung"); const K = P("m.hinrichs");
     const own = members(c).filter((m) => inOrg(byId("persons", m.person), K?.org));
