@@ -5,17 +5,17 @@
 //    Teilaufgaben mit Fragetyp, Arbeitsauftrag, Bewertungsraster und Erwartungshorizont (auch mit Bildern)
 //  - Aufgabensteuerung: Regeln (Bedingungen mit UND/ODER, Aktionen)
 //  - Prüfen: Vollständigkeit und Übersicht, Speichern, Vorschau
-import { D, byId, upd, create } from "../data.js?v=9.1";
-import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=9.1";
-import { navigate, redraw, session } from "../app.js?v=9.1";
-import { me, personName, isTeacherOf, inOrg, orgShort, canManageCourse } from "../access.js?v=9.1";
-import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=9.1";
-import { hasOwnContent, contentFromDefault, FOLDER, relLabel } from "../content.js?v=9.1";
-import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=9.1";
-import { condText } from "../rules.js?v=9.1";
-import { inProcess, canEditContent, statusBadge, actionBar, runAction, STATUS_ACTS, rolesOf, seesNames } from "./creation.js?v=9.1";
-import { lockedBy, acquire, releaseAll } from "../locks.js?v=9.1";
-import { activeSignSet } from "../masterdata.js?v=9.1";
+import { D, byId, upd, create } from "../data.js?v=9.2";
+import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=9.2";
+import { navigate, redraw, session } from "../app.js?v=9.2";
+import { me, personName, isTeacherOf, inOrg, orgShort, canManageCourse } from "../access.js?v=9.2";
+import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=9.2";
+import { hasOwnContent, contentFromDefault, FOLDER, relLabel } from "../content.js?v=9.2";
+import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=9.2";
+import { condText } from "../rules.js?v=9.2";
+import { inProcess, canEditContent, statusBadge, actionBar, runAction, STATUS_ACTS, rolesOf, seesNames } from "./creation.js?v=9.2";
+import { lockedBy, acquire, releaseAll } from "../locks.js?v=9.2";
+import { activeSignSet } from "../masterdata.js?v=9.2";
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const rid = () => Math.random().toString(36).slice(2, 12);

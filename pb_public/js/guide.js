@@ -3,11 +3,11 @@
 //  - Unterricht: Lehrkraft (Tasks 31–36, 34 als Schüler:in)
 //  - Prüfung: Schuladministration (Tasks 52, 24, 21), Raumaufsicht (Task 22/23)
 // Der Fortschritt wird aus den Daten erkannt; der Leitfaden kann jederzeit ein- und ausgeklappt werden.
-import { D, byId, onChange } from "./data.js?v=9.1";
-import { icon, esc, store, toast } from "./ui.js?v=9.1";
-import { members, personName, inOrg } from "./access.js?v=9.1";
-import { navigate, render } from "./app.js?v=9.1";
-import * as CR from "./views/creation.js?v=9.1";
+import { D, byId, onChange } from "./data.js?v=9.2";
+import { icon, esc, store, toast } from "./ui.js?v=9.2";
+import { members, personName, inOrg } from "./access.js?v=9.2";
+import { navigate, render } from "./app.js?v=9.2";
+import * as CR from "./views/creation.js?v=9.2";
 
 const KEY = "guide";
 const st = () => store.lget(KEY, null);
@@ -19,6 +19,7 @@ const asPerson = (u, role, extra = {}) => ({ person: P(u)?.id, role, extra });
 function loginAs(a) {
   if (!a) return;
   if (a.role === "tn") { store.set("person", ""); store.set("role", "tn"); store.set("pid", a.pid); return; }
+  if (a.role !== "schueler") store.del("portal");
   store.set("person", a.person || ""); store.set("role", a.role); Object.entries(a.extra || {}).forEach(([k, v]) => store.set(k, v));
 }
 
@@ -125,9 +126,132 @@ function creation(s) {
   });
 }
 
-const NAMES = { unterricht: "Klickstrecke Unterricht (Lehrkraft)", pruefung: "Klickstrecke Prüfung (Schuladministration)", erstellung: "Klickstrecke Prüfungserstellung bis Prüfungsstart" };
+// ---------- Prüfung durchführen (Raumaufsicht und Prüfling) ----------
+const room123 = () => D.rooms.find((r) => r.name === "Raum 123");
+function conduct(s) {
+  const r = room123(); const tp = D.participants.find((x) => x.room === r?.id && x.username === "n.froehlke");
+  const ra = asPerson("t.riedmueller", "aufsicht"); const tn = tp ? { role: "tn", pid: tp.id } : null;
+  const subs = tp ? D.items.filter((i) => i.participant === tp.id && i.submission).length : 0;
+  const prot = r ? D.protocol.filter((x) => x.room === r.id).length : 0;
+  return [
+    { t: 22, title: "Raumaufsicht öffnen und Anwesenheit prüfen", text: "Als Raumaufsicht Thea Riedmüller „Raum 123“ öffnen: Sitzplan, Status der Prüflinge und Startfenster. Tipp: Raumaufsicht und Prüfling in zwei Browserfenstern nebeneinander öffnen – alles ist live gekoppelt.", as: ra, go: r && `#/app/raum/${r.id}/meinraum`, manual: "raum", done: !!s.manual?.raum },
+    { t: 19, title: "Prüfling: anmelden, Belehrung und Gesundheitsabfrage bestätigen", text: "Als Prüfling Niklas Fröhlke im Wartebereich die Belehrung zu Täuschungsversuchen und die Gesundheitsabfrage bestätigen. Die Raumaufsicht sieht den Status sofort im Sitzplan.", as: tn, go: "#/tn", done: !!tp?.cheat_ack && tp?.health === "ok" },
+    { t: 22, title: "Raumaufsicht: Prüfung starten", text: "Als Thea Riedmüller „Prüfung starten“. Übrige Teilnehmende lassen sich unter Administration › „Übrige Teilnehmende anmelden“ simulieren.", as: ra, go: r && `#/app/raum/${r.id}/meinraum`, done: !!r && r.state !== "CREATED" },
+    { t: 19, title: "Prüfling: Aufgabe bearbeiten und Abgabe markieren", text: "Als Niklas Fröhlke eine Aufgabe öffnen, z. B. eine E-Mail senden oder eine Datei ablegen, und als Abgabe der Teilaufgabe markieren.", as: tn, go: "#/tn/dashboard", done: subs > (s.base.subs || 0) },
+    { t: 22, title: "Raumaufsicht: Zusatzzeit oder Pause für einen Prüfling", text: "In „Mein Raum“ bzw. „Teilnehmende“ einen Prüfling wählen und z. B. Zusatzzeit gewähren oder pausieren – der Eintrag erscheint im Protokoll. (optional)", optional: true, as: ra, go: r && `#/app/raum/${r.id}/teilnehmende`, done: prot > (s.base.prot || 0) + 3 },
+    { t: 19, title: "Prüfling: Prüfung abgeben", text: "Als Niklas Fröhlke „Prüfung beenden“ und abgeben. (optional – sonst sammelt die Aufsicht ein)", optional: true, as: tn, go: "#/tn/abgaben", done: ["abgegeben", "eingesammelt", "beendet"].includes(tp?.status) },
+    { t: 23, title: "Raumaufsicht: einsammeln und beenden", text: "Als Thea Riedmüller „Prüfung einsammeln“ und anschließend „Prüfung beenden“.", as: ra, go: r && `#/app/raum/${r.id}/meinraum`, done: r?.state === "TERMINATED" },
+    { t: 23, title: "Prüfungsprotokoll herunterladen", text: "Reiter „Prüfungsprotokoll“: alle Ereignisse mit Uhrzeit, PDF herunterladen.", as: ra, go: r && `#/app/raum/${r.id}/protokoll`, manual: "prot", done: !!s.manual?.prot },
+  ];
+}
+
+// ---------- Korrektur und Ergebnisse (Prüfung) ----------
+const gjson = (stage) => JSON.stringify(D.gradings.filter((g) => +g.corrector === stage).map((g) => [g.participant, g.points, g.marks, g.not_done]));
+const approvals = (stage) => D.gradings.filter((g) => +g.corrector === stage).reduce((a, g) => a + (g.approvals || []).length, 0);
+function correction(s) {
+  const pr1 = D.courses.find((x) => x.title === "FA230 - Musterprüfung");
+  const k = (u, st) => asPerson(u, "korrektor", { corrector: st }); const sa = asPerson("m.hinrichs", "schuladmin");
+  return [
+    { t: 20, title: "Erstkorrektur: Teilaufgabe bewerten", text: "Als Erstkorrektorin Gesa Ohm die Korrekturübersicht öffnen, eine Teilaufgabe wählen und Punkte je Kriterium vergeben – Korrekturzeichen am rechten Rand (Auswahl oder Stifteingabe), Begründung.", as: k("g.ohm", 1), go: "#/app/korrektur", done: gjson(1) !== s.base.g1 },
+    { t: 20, title: "Erstkorrektur gemeinsam freigeben", text: "Die Erstkorrektur ist eine Gruppe (Gesa Ohm und Lina Voigt): Jede Person gibt frei; final ist die Bewertung, wenn alle freigegeben haben. Freigabe in der Korrekturübersicht.", as: k("g.ohm", 1), go: "#/app/korrektur", done: approvals(1) > (s.base.a1 || 0) },
+    { t: 10, title: "Zweitkorrektur", text: "Als Zweitkorrektorin Ayla Steinhoff bewerten (Zeichen am linken Rand, grün) – die Erstkorrektur ist sichtbar.", as: k("a.steinhoff", 2), go: "#/app/korrektur?k=2", done: gjson(2) !== s.base.g2 },
+    { t: 10, title: "Vergleich mit einem anderen Prüfling", text: "Im Korrekturmodus „Vergleichen“ öffnet einen anderen Prüfling derselben Teilaufgabe in einem neuen Tab. (optional)", optional: true, manual: "vgl", as: k("a.steinhoff", 2), go: "#/app/korrektur?k=2", done: !!s.manual?.vgl },
+    { t: 28, title: "Schuladministration: Ergebnisse und Drittkorrektur", text: "Als Marit Hinrichs unter „Ergebnisse“ Punkte und Noten prüfen. Die Gesamtnote ist das Mittel der Noten. Bei großer Abweichung ist die Drittkorrektur <b>automatisch angefordert</b> – zurücknehmen oder für weitere Prüflinge anfordern.", as: sa, go: "#/app/ergebnisse", done: JSON.stringify(pr1?.third || {}) !== s.base.third },
+    { t: 27, title: "Endbeurteilung (Drittkorrektur) durchführen", text: "Als Endbeurteiler Karim Ebeling die angeforderten Prüflinge bewerten (braun, linker Rand). Die Note der Endbeurteilung wird zur Gesamtnote.", as: k("k.ebeling", 3), go: "#/app/korrektur?k=3", done: D.gradings.filter((g) => +g.corrector === 3).length > (s.base.g3n || 0) },
+    { t: 30, title: "Ergebnisse exportieren", text: "Als Schuladministration „CSV exportieren“. (optional)", optional: true, manual: "csv", as: sa, go: "#/app/ergebnisse", done: !!s.manual?.csv },
+  ];
+}
+
+// ---------- Prüfungseinsicht ----------
+function einsicht(s) {
+  const pe = asPerson("t.riedmueller", "einsicht");
+  const n = (a) => D.protocol.filter((x) => x.action === a).length;
+  return [
+    { t: 37, title: "Prüfungseinsicht beginnen", text: "Als Thea Riedmüller (Rolle Prüfungseinsicht) die Liste öffnen – sie zeigt nur Prüflinge der eigenen Schule mit abgeschlossener Prüfung (z. B. Zwischenprüfung, Raum 202). „Einsicht beginnen“ bestätigt die Anwesenheit in Präsenz.", as: pe, go: "#/app/pruefungseinsicht", done: n("Prüfungseinsicht begonnen") > (s.base.ein0 || 0) },
+    { t: 38, title: "Endnote und Abgabe mit Korrekturzeichen zeigen", text: "Gezeigt werden nur Endnote und Abgaben mit Korrekturzeichen – keine Punkte je Teilaufgabe, Begründungen oder Kommentare.", as: pe, go: "#/app/pruefungseinsicht", manual: "zeigen", done: !!s.manual?.zeigen },
+    { t: 37, title: "Prüfungseinsicht beenden", text: "„Einsicht beenden“ – Beginn und Ende werden im Prüfungsprotokoll festgehalten.", as: pe, go: "#/app/pruefungseinsicht", done: n("Prüfungseinsicht beendet") > (s.base.ein1 || 0) },
+  ];
+}
+
+// ---------- Katalog (Bereichsadministration) ----------
+function catalogFlow(s) {
+  const ba = asPerson("w.hollerbach", "bereichsadmin");
+  const nw = D.catalog.filter((c) => !c.mine && !c.status && !s.base.catalog.includes(c.id));
+  const own = nw.filter((c) => !c.copied_from && !/Import/.test(c.creator || "")).sort((a, b) => (a.created > b.created ? -1 : 1))[0];
+  return [
+    { t: "–", title: "Unterrichtsinhalt erstellen", text: "Als Bereichsadministration Wenke Hollerbach im Katalog „Unterrichtsinhalt erstellen“ – der Inhalt wird als Entwurf angelegt und im Editor geöffnet.", as: ba, go: "#/app/katalog", done: !!own },
+    { t: "–", title: "Inhalt im Editor bearbeiten und speichern", text: "Aufgaben, Teilaufgaben, Bewertungsraster und Materialien anlegen (E-Mails z. B. mit relativer Zeitangabe) und speichern. „Editor beenden“ führt zurück.", as: ba, go: own ? `#/app/editor/${own.id}/aufgaben` : "#/app/katalog", done: !!own && own.updated !== own.created },
+    { t: "–", title: "Global freigeben", text: "Im Katalog (Reiter „Nicht freigegeben“) bzw. im Editor „Global freigeben“ – der Inhalt ist jetzt für alle Lehrkräfte sichtbar.", as: ba, go: "#/app/katalog", done: !!own && own.release?.scope === "global" },
+    { t: "–", title: "Durchgeführte Prüfung veröffentlichen", text: "„Durchgeführte Prüfung veröffentlichen“: z. B. die Zwischenprüfung als Übung übernehmen – ohne Teilnehmende und Ergebnisse. (optional)", optional: true, as: ba, go: "#/app/katalog", done: nw.some((c) => c.copied_from && D.catalog.some((x) => x.id === c.copied_from && x.status)) },
+    { t: "–", title: "Prüfung importieren", text: "Im Editor „Exportieren“ und die Datei über „Prüfung importieren“ wieder einlesen. (optional)", optional: true, as: ba, go: "#/app/katalog", done: nw.some((c) => /Import/.test(c.creator || "")) },
+    { t: "–", title: "Sichtbarkeit prüfen", text: "Als Lehrkraft (z. B. Amir Eggert) den Katalog öffnen: Der freigegebene Inhalt erscheint und kann kopiert werden; Entwürfe sind nicht sichtbar.", as: asPerson("a.eggert", "lehrkraft"), go: "#/app/katalog", manual: "vis", done: !!s.manual?.vis },
+  ];
+}
+
+// ---------- Stammdaten (Koordinierungsstelle) ----------
+const sj = (k) => JSON.stringify(D.settings.find((x) => x.key === k)?.value || null);
+const komJ = () => JSON.stringify(D.groups.filter((g) => g.kind === "kommission").map((g) => [g.name, g.members, g.chair, g.fachbereich]));
+const orgJ = () => JSON.stringify(D.orgs.map((o) => o.berufe || []));
+const poolN = () => D.settings.filter((x) => String(x.key).startsWith("pool:")).length;
+function masterFlow(s) {
+  const ks = asPerson("l.brandauer", "autor");
+  return [
+    { t: "–", title: "Ausbildungsberuf und Prüfungstitel pflegen", text: "Als Koordinierungsstelle unter „Stammdaten › Ausbildungsberufe“ einen Beruf bearbeiten (z. B. Prüfungstitel ergänzen) oder neu anlegen – Suche nach Name oder Berufsnummer.", as: ks, go: "#/app/stammdaten/berufe", done: sj("berufe") !== s.base.berufe },
+    { t: "–", title: "Schulen und Ausbildungsberufe zuordnen", text: "„Schulen“: hinterlegen, welche Schule welche Berufe ausbildet – Grundlage für die Auswahl der Organisationen einer Prüfung.", as: ks, go: "#/app/stammdaten/schulen", done: orgJ() !== s.base.orgs },
+    { t: "–", title: "Kommission pflegen", text: "„Kommissionen“: Mitglieder, Vorsitz oder Fachbereich ändern – die Änderung wirkt sofort in allen Prüfungen der Kommission.", as: ks, go: "#/app/stammdaten/kommissionen", done: komJ() !== s.base.kom },
+    { t: "–", title: "Unternehmenspool anlegen", text: "„Unternehmenspools“: einen Pool für einen Fachbereich anlegen.", as: ks, go: "#/app/stammdaten/pools", done: poolN() > (s.base.pools || 0) },
+    { t: "–", title: "Korrekturzeichensatz verbindlich festlegen", text: "„Korrekturzeichensätze“: einen Satz bearbeiten und als verbindlich festlegen – gilt sofort für Erstellung, Prüfung und Unterricht.", as: ks, go: "#/app/stammdaten/zeichen", done: sj("signsets") !== s.base.signs },
+    { t: "–", title: "Wirkung prüfen", text: "Als Korrektorin Gesa Ohm einen Korrekturmodus öffnen: Die Korrekturzeichen entsprechen dem verbindlichen Satz. Danach ggf. wieder den Standardsatz festlegen.", as: asPerson("g.ohm", "korrektor", { corrector: 1 }), go: "#/app/korrektur", manual: "wirk", done: !!s.manual?.wirk },
+  ];
+}
+
+// ---------- Schüler:in (Unterricht) ----------
+function studentFlow(s) {
+  const pe = P("h.nowak"); const mine = D.participants.filter((x) => x.person === pe?.id);
+  const dist = mine.find((x) => byId("rooms", x.room)?.mode === "distanz"); const pres = mine.find((x) => byId("rooms", x.room)?.name === "WG12a · Präsenzunterricht");
+  const su = pe ? { person: pe.id, role: "schueler", extra: { portal: pe.id } } : null;
+  return [
+    { t: 34, title: "Meine Teilnahmen: Distanzeinheit wählen", text: "Als Schülerin Helena Nowak „Meine Teilnahmen“ öffnen. Präsenzunterricht und Distanzeinheit stehen gleichzeitig zur Wahl – bei der Distanzeinheit „Teilnehmen“ und die Einheit selbst starten.", as: su, go: "#/schueler", done: !!dist && !["nicht_eingeloggt"].includes(dist.status) },
+    { t: 34, title: "Aufgabe bearbeiten und Abgabe markieren", text: "In der Distanzeinheit eine Aufgabe bearbeiten und als Abgabe markieren.", as: dist ? { role: "tn", pid: dist.id } : su, go: "#/tn/dashboard", done: !!dist && D.items.filter((i) => i.participant === dist.id && i.submission).length > (s.base.dsubs || 0) },
+    { t: 34, title: "Einheit abschließen", text: "„Einheit beenden“ und abgeben. Ist die Einheit mehrfach durchlaufbar, kann sie im Zeitraum wiederholt werden.", as: dist ? { role: "tn", pid: dist.id } : su, go: "#/tn/abgaben", done: !!dist && ["abgegeben", "beendet"].includes(dist.status) && (dist.status !== s.base.dstatus || (dist.attempt || 1) > (s.base.dattempt || 1)) },
+    { t: 36, title: "Korrektur und Ergebnis ansehen", text: "Zurück zu „Meine Teilnahmen“ › „Ergebnisse“: die freigegebene Korrektur des Probelaufs mit Punkten, Note, Begründung und Korrekturzeichen.", as: su, go: "#/schueler", manual: "erg", done: !!s.manual?.erg },
+    { t: 34, title: "Präsenzunterricht: Wartebereich", text: "Am Präsenzunterricht teilnehmen: Belehrung und Gesundheitsabfrage bestätigen und auf den Start durch die Lehrkraft warten. (optional)", optional: true, as: pres ? { role: "tn", pid: pres.id } : su, go: "#/tn", done: !!pres?.cheat_ack },
+  ];
+}
+
+// ---------- Eigene Unterrichtsinhalte (Lehrkraft) ----------
+function ownContent(s) {
+  const E = P("a.eggert"); const lk = asPerson("a.eggert", "lehrkraft");
+  const c = D.catalog.filter((x) => x.mine && x.editor_by === E?.id && !s.base.catalog.includes(x.id)).sort((a, b) => (a.created > b.created ? -1 : 1))[0];
+  const course = c && D.courses.find((x) => x.catalog === c.id);
+  const mitb = course && members(course).find((m) => m.role === "mitbetreuung");
+  if (c?.release && !s.manual?.relseen) { s.manual.relseen = true; save(s); }
+  return [
+    { t: 31, title: "Eigenen Inhalt mit Unterricht erstellen", text: "Als Lehrkraft Amir Eggert im Katalog „Neuen Inhalt erstellen“ (mit „Unterricht anlegen“) – alternativ einen Katalogeintrag kopieren: Es entsteht eine eigene, bearbeitbare Kopie.", as: lk, go: "#/app/katalog", done: !!c },
+    { t: 31, title: "Inhalt im Editor bearbeiten", text: "Aufgaben, Materialien (z. B. Datei unter „Eigene Dateien“, E-Mail „vor 2 Tagen“) und Bewertung anlegen und speichern.", as: lk, go: c ? `#/app/editor/${c.id}/aufgaben` : "#/app/katalog", done: !!c && c.updated !== c.created },
+    { t: 31, title: "Weitere Lehrkraft als Mitbetreuung", text: "Im Unterricht „Lehrkraft hinzufügen“ (z. B. Lina Voigt). Die Mitbetreuung kann den Inhalt ebenfalls bearbeiten.", as: lk, go: course ? `#/app/kurs/${course.id}/mitglieder` : "#/app/kurse", done: !!mitb },
+    { t: 31, title: "Mitbetreuung bearbeitet den Inhalt", text: `Als ${esc(personName(byId("persons", mitb?.person)) || "Mitbetreuung")} den Inhalt im Editor öffnen und ändern. (optional)`, optional: true, as: mitb ? { person: mitb.person, role: "lehrkraft" } : lk, go: c ? `#/app/editor/${c.id}/allgemein` : "#/app/kurse", manual: "mitb", done: !!s.manual?.mitb },
+    { t: "–", title: "Für die eigene Schule im Katalog freigeben", text: "Im Unterricht oder Editor „Für meine Schule freigeben“: Lehrkräfte der AFS sehen das Material im Katalog (Reiter „Meine Schule“).", as: lk, go: course ? `#/app/kurs/${course.id}/mitglieder` : "#/app/katalog", done: !!c?.release || !!s.manual?.relseen },
+    { t: "–", title: "Sichtbarkeit prüfen", text: "Als Lehrkraft einer anderen Schule (Emil Gaspari, BTS) den Katalog öffnen: Das Material erscheint nicht.", as: asPerson("e.gaspari", "lehrkraft"), go: "#/app/katalog", manual: "vis", done: !!s.manual?.vis },
+    { t: "–", title: "Freigabe beenden", text: "Als Amir Eggert die Freigabe wieder beenden (Katalog › „Eigene Inhalte“). Nur der Einsteller kann das. (optional)", optional: true, as: lk, go: "#/app/katalog", done: !!s.manual?.relseen && !!c && !c.release },
+  ];
+}
+
+export const KINDS = {
+  erstellung: { name: "Klickstrecke Prüfungserstellung bis Prüfungsstart", short: "Prüfungserstellung", icon: "pencil", group: "Prüfungserstellung", fn: creation },
+  stammdaten: { name: "Klickstrecke Stammdaten (Koordinierungsstelle)", short: "Stammdaten", icon: "database", group: "Prüfungserstellung", fn: masterFlow },
+  pruefung: { name: "Klickstrecke Prüfung organisieren (Schuladministration)", short: "Prüfung organisieren", icon: "clipboard-list", group: "Prüfungsdurchführung", fn: exam },
+  durchfuehrung: { name: "Klickstrecke Prüfung durchführen (Raumaufsicht und Prüfling)", short: "Prüfung durchführen", icon: "monitor", group: "Prüfungsdurchführung", fn: conduct },
+  korrektur: { name: "Klickstrecke Korrektur und Ergebnisse", short: "Korrektur und Ergebnisse", icon: "file-pen-line", group: "Prüfungsdurchführung", fn: correction },
+  einsicht: { name: "Klickstrecke Prüfungseinsicht", short: "Prüfungseinsicht", icon: "eye", group: "Prüfungsdurchführung", fn: einsicht },
+  unterricht: { name: "Klickstrecke Unterricht (Lehrkraft)", short: "Unterricht durchführen", icon: "book-open", group: "Unterricht", fn: lesson },
+  inhalte: { name: "Klickstrecke Eigene Unterrichtsinhalte (Lehrkraft)", short: "Eigene Inhalte", icon: "copy", group: "Unterricht", fn: ownContent },
+  schueler: { name: "Klickstrecke Schüler:in", short: "Schüler:in", icon: "graduation-cap", group: "Unterricht", fn: studentFlow },
+  katalog: { name: "Klickstrecke Katalog (Bereichsadministration)", short: "Katalog pflegen", icon: "library", group: "Katalog", fn: catalogFlow },
+};
+const NAMES = Object.fromEntries(Object.entries(KINDS).map(([k, v]) => [k, v.name]));
 // Übersprungene optionale Schritte gelten als erledigt
-const steps = (s) => { const l = s.kind === "unterricht" ? lesson(s) : s.kind === "erstellung" ? creation(s) : exam(s); (s.skip || []).forEach((i) => { if (l[i]) l[i].done = true; }); return l; };
+const steps = (s) => { const l = (KINDS[s.kind]?.fn || exam)(s); (s.skip || []).forEach((i) => { if (l[i]) l[i].done = true; }); return l; };
 
 const curStep = (list) => { const i = list.findIndex((x) => !x.done && !x.optional); return i >= 0 ? i : list.findIndex((x) => !x.done); };
 export function start(kind, fresh = false) {
@@ -140,6 +264,14 @@ export function start(kind, fresh = false) {
     navigate(x.go || "#/app/kurse"); render(); return;
   }
   const base = { courses: D.courses.map((c) => c.id), rooms: D.rooms.map((r) => r.id), catalog: D.catalog.map((c) => c.id) };
+  // Ausgangsstand für die Erkennung der Schritte
+  const r = room123(); const tp = D.participants.find((x) => x.room === r?.id && x.username === "n.froehlke");
+  const pr1 = D.courses.find((x) => x.title === "FA230 - Musterprüfung"); const nw = P("h.nowak"); const dist = D.participants.find((x) => x.person === nw?.id && byId("rooms", x.room)?.mode === "distanz");
+  Object.assign(base, { subs: tp ? D.items.filter((i) => i.participant === tp.id && i.submission).length : 0, prot: r ? D.protocol.filter((x) => x.room === r.id).length : 0,
+    g1: gjson(1), g2: gjson(2), a1: approvals(1), g3n: D.gradings.filter((g) => +g.corrector === 3).length, third: JSON.stringify(pr1?.third || {}),
+    ein0: D.protocol.filter((x) => x.action === "Prüfungseinsicht begonnen").length, ein1: D.protocol.filter((x) => x.action === "Prüfungseinsicht beendet").length,
+    berufe: sj("berufe"), orgs: orgJ(), kom: komJ(), pools: poolN(), signs: sj("signsets"),
+    dsubs: dist ? D.items.filter((i) => i.participant === dist.id && i.submission).length : 0, dstatus: dist?.status || "", dattempt: dist?.attempt || 1 });
   if (kind === "pruefung") {
     const c = D.courses.find((x) => x.title === "FA230 - Musterprüfung"); const K = P("m.hinrichs");
     const own = members(c).filter((m) => inOrg(byId("persons", m.person), K?.org));
@@ -151,6 +283,7 @@ export function start(kind, fresh = false) {
   navigate(first.go || "#/app/kurse"); render();
 }
 // Laufende Klickstrecke: Stand für die Startseite und Fortsetzen an der letzten Stelle
+export const isPaused = () => !!st()?.paused;
 export function status() {
   const s = st(); if (!s) return null;
   const list = steps(s); const done = list.filter((x) => x.done).length;
@@ -176,12 +309,12 @@ export function mountPanel() {
   el.className = "guidepanel" + (s.open ? "" : " closed"); el.setAttribute("aria-label", "Klickstrecke");
   el.innerHTML = `<button class="gp-head" data-gtoggle aria-expanded="${s.open}">${icon("list-checks")}<span class="grow"><b>${esc(NAMES[s.kind])}</b><span class="xs">${done} von ${list.length} Schritten erledigt</span></span>${icon(s.open ? "chevron-down" : "chevron-up")}</button>
     ${s.open ? `<div class="gp-bar"><i style="width:${Math.round((done / list.length) * 100)}%"></i></div><ol class="gp-steps">${list.map((x, i) => (!s.full && i !== cur && !(!x.done && x.optional && i < cur)) ? "" : `<li class="${x.done ? "done" : ""} ${i === cur ? "cur" : ""}"><div class="gp-row"><span class="gp-ico">${x.done ? icon("check") : i + 1}</span><span class="grow"><b>${esc(x.title)}</b>${x.optional ? ' <span class="xs muted">optional</span>' : ""}<span class="xs muted"> · Task ${x.t}</span></span></div>
-      ${i === cur || (!x.done && x.optional && i < cur) ? `<p class="small">${x.text}</p><div class="row wrap" style="gap:6px">${x.go ? `<button class="btn primary xs" data-ggo="${i}">${icon("arrow-right")} ${x.as ? "Anmelden und öffnen" : "Öffnen"}</button>` : ""}${x.manual ? `<button class="btn xs" data-gman>${icon("check")} Geprüft</button>` : ""}${x.optional ? `<button class="btn xs ghost" data-gskip="${i}">überspringen</button>` : ""}</div>` : ""}</li>`).join("")}</ol>
+      ${i === cur || (!x.done && x.optional && i < cur) ? `<p class="small">${x.text}</p><div class="row wrap" style="gap:6px">${x.go ? `<button class="btn primary xs" data-ggo="${i}">${icon("arrow-right")} ${x.as ? "Anmelden und öffnen" : "Öffnen"}</button>` : ""}${x.manual ? `<button class="btn xs" data-gman="${x.manual === true ? "vis" : x.manual}">${icon("check")} Erledigt</button>` : ""}${x.optional ? `<button class="btn xs ghost" data-gskip="${i}">überspringen</button>` : ""}</div>` : ""}</li>`).join("")}</ol>
     ${done === list.length || cur < 0 || list.every((x) => x.done || x.optional) ? `<div class="notice success small">${icon("circle-check")}<span>Klickstrecke abgeschlossen${done < list.length ? " – optionale Schritte sind noch offen" : ""}.</span></div>` : ""}<div class="row between gp-foot"><button class="link xs" data-gfull>${s.full ? "Nur aktuellen Schritt" : `Alle Schritte anzeigen`}</button><a class="xs" href="#/">Personen wechseln</a><button class="link xs" data-gstop title="Die Klickstrecke wird angehalten und kann auf der Startseite an derselben Stelle fortgesetzt werden">Pausieren</button></div>` : ""}`;
   if (!old) document.body.appendChild(el);
   el.querySelector("[data-gtoggle]").onclick = () => { if (store.get("role") === "tn") { store.set("guideOpenTn", !store.get("guideOpenTn")); const v = st(); v.open = true; save(v); } else { const v = st(); v.open = !v.open; save(v); } mountPanel(); };
   el.querySelectorAll("[data-ggo]").forEach((b) => (b.onclick = () => { const x = steps(st())[+b.dataset.ggo]; loginAs(x.as); if (location.hash === x.go) render(); else navigate(x.go); }));
-  const man = el.querySelector("[data-gman]"); if (man) man.onclick = () => { const v = st(); v.manual.vis = true; save(v); mountPanel(); };
+  el.querySelectorAll("[data-gman]").forEach((man) => (man.onclick = () => { const v = st(); v.manual[man.dataset.gman] = true; save(v); mountPanel(); }));
   el.querySelectorAll("[data-gskip]").forEach((b) => (b.onclick = () => { const v = st(); (v.skip ||= []).push(+b.dataset.gskip); save(v); mountPanel(); }));
   const fu = el.querySelector("[data-gfull]"); if (fu) fu.onclick = () => { const v = st(); v.full = !v.full; save(v); mountPanel(); };
   const stp = el.querySelector("[data-gstop]"); if (stp) stp.onclick = () => { stop(); render(); };

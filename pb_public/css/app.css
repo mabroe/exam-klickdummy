@@ -1177,3 +1177,8 @@ fieldset.edlocked .btn, fieldset.edlocked input, fieldset.edlocked select, field
 .bpick option[hidden] { display: none; }
 td.ctr, th.ctr { text-align: center; }
 .card.pad.muted { opacity: .7; }
+.start .rolesec { display: flex; align-items: center; gap: 8px; font-size: 20px; margin: 34px 0 0; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.start .rolesec + .rolegrid { margin-top: 14px; }
+.guidepick .gbtns { display: flex; flex-wrap: wrap; gap: 8px; }
+.guidepick .ggroup { display: flex; flex-direction: column; gap: 6px; }
+.start .rolegrid.five.six.seven { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }

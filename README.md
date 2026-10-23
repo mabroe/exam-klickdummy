@@ -83,33 +83,24 @@ Zuordnungen in der Raumaufsicht erfolgen **aus den Kursmitgliedern**: Teilnehmen
 
 ## Testbare Klickstrecken
 
-Auf der Startseite starten zwei Klickstrecken. Ein **Leitfaden unten rechts** zeigt den aktuellen Schritt mit Erläuterung und der Schaltfläche „Anmelden und öffnen“ (wechselt die Person und öffnet die richtige Seite). Erledigte Schritte werden automatisch aus den Daten erkannt; „Alle Schritte anzeigen“ blendet die vollständige Liste ein. „Pausieren“ hält die Klickstrecke an; auf der Startseite lässt sie sich jederzeit **an der letzten Stelle fortsetzen** oder neu beginnen – auch nach einem Personenwechsel oder Ausflug in andere Bereiche.
+Auf der Startseite gibt es für **jeden Workflow eine eigene Klickstrecke** (gruppiert nach Prüfungserstellung, Prüfungsdurchführung, Unterricht und Katalog). Ein **Leitfaden unten rechts** zeigt den aktuellen Schritt mit Erläuterung und der Schaltfläche „Anmelden und öffnen“ (wechselt die Person und öffnet die richtige Seite). Erledigte Schritte werden automatisch aus den Daten erkannt; „Alle Schritte anzeigen“ blendet die vollständige Liste ein. „Pausieren“ hält die Klickstrecke an; auf der Startseite lässt sie sich jederzeit **an der letzten Stelle fortsetzen** oder neu beginnen – auch nach einem Personenwechsel oder Ausflug in andere Bereiche.
 
-**Unterricht (Lehrkraft Amir Eggert)**
-1. Prüfung aus dem Katalog kopieren (Task 31)
-2. Schüler:innen hinzufügen – Klasse WG12a oder einzeln (Task 31)
-3. Weitere Lehrkraft als Mitbetreuung hinzufügen (optional)
-4. Eigene Gruppe anlegen (optional)
-5. Raumaufsicht mit Sitzplätzen und Anordnung erstellen – ohne realen Raum (Task 32)
-6. Teilnehmende aus dem Kurs zuordnen (Task 32)
-7. Sichtbarkeit prüfen: Lehrkraft ohne Bezug sieht die Raumaufsicht nicht, Mitbetreuung schon
-8. Prüfung starten (Task 33)
-9. Als Schüler:in teilnehmen (Task 34)
-10. Einsammeln und beenden (Task 33) – im Unterricht gibt es kein Prüfungsprotokoll
-11. Korrigieren – genau eine Korrektur (Task 35, optional)
-12. Korrektur an eine andere Lehrkraft des Kurses weitergeben (optional)
+| Klickstrecke | Personen | Schritte |
+|---|---|---|
+| **Prüfungserstellung bis Prüfungsstart** | Koordinierungsstelle, Kommission, Vorsitz, Aufgabenerstellung, Beratung, Lektorat, Prüflösung, Schuladministration | Anlegen (Beruf, Titel, Jahr), Rahmendaten, Personen, Unternehmenspool, Aufgaben im Editor, Übergaben, Lektorat, Prüflösung, finale Freigabe, Organisationen, Schule organisiert, Begutachtung, Fehlerbehebung, Prüfungsstart. Nicht besetzte Rollen werden zuerst zugewiesen; übernimmt die Kommission die Erstellung, entfallen die Schritte der Aufgabenerstellung. |
+| **Stammdaten** | Koordinierungsstelle, Korrektorin | Ausbildungsberuf und Prüfungstitel, Schulen ↔ Berufe, Kommission pflegen, Unternehmenspool, Korrekturzeichensatz verbindlich festlegen, Wirkung prüfen |
+| **Prüfung organisieren** | Schuladministration (Marit Hinrichs), Raumaufsicht | Teilnehmende, Raumaufsicht und Korrektorengruppen zuordnen, Raumaufsicht in einem freien Raum erstellen, Aufsichtspersonen und Teilnehmende, Sichtbarkeit, Durchführung, Protokoll, Ergebnisse |
+| **Prüfung durchführen** | Raumaufsicht (Thea Riedmüller), Prüfling (Niklas Fröhlke) | Raum 123 öffnen, Belehrung und Gesundheitsabfrage, Prüfung starten, Abgabe markieren, Zusatzzeit/Pause (optional), Abgeben (optional), einsammeln und beenden, Protokoll |
+| **Korrektur und Ergebnisse** | Erstkorrektur (Gesa Ohm), Zweitkorrektur (Ayla Steinhoff), Schuladministration, Endbeurteilung (Karim Ebeling) | bewerten, gemeinsam freigeben, Zweitkorrektur, Vergleich (optional), Ergebnisse und Drittkorrektur, Endbeurteilung, CSV-Export (optional) |
+| **Prüfungseinsicht** | Prüfungseinsicht (Thea Riedmüller) | Einsicht in Präsenz beginnen, Endnote und Abgabe zeigen, beenden (Protokoll) |
+| **Unterricht durchführen** | Lehrkraft (Amir Eggert), Schüler:in | Kopieren, Schüler:innen und Mitbetreuung, eigene Gruppe, Raumaufsicht mit Sitzordnung, Sichtbarkeit, Start, Teilnahme, Einsammeln, Korrektur, Korrektur weitergeben |
+| **Eigene Unterrichtsinhalte** | Lehrkraft (Amir Eggert), Mitbetreuung, Lehrkraft einer anderen Schule | Inhalt mit Unterricht erstellen, im Editor bearbeiten, Mitbetreuung hinzufügen und bearbeiten lassen, für die eigene Schule freigeben, Sichtbarkeit prüfen, Freigabe beenden |
+| **Schüler:in** | Helena Nowak | Distanzeinheit wählen, bearbeiten und abgeben, Korrektur und Ergebnis ansehen, Präsenzunterricht (optional) |
+| **Katalog pflegen** | Bereichsadministration (Wenke Hollerbach), Lehrkraft | Unterrichtsinhalt erstellen und bearbeiten, global freigeben, durchgeführte Prüfung veröffentlichen und Import (optional), Sichtbarkeit prüfen |
 
-**Prüfung (Schuladministration Marit Hinrichs)**
-1. Prüfung „FA230“ öffnen, Teilnehmende der eigenen Schule zuordnen (Task 52)
-2. Raumaufsicht (Person) zuordnen (Task 52)
-3. Korrektorengruppen zuweisen – je Stufe mehrere Personen, für eine Klasse oder einzelne Prüflinge (Task 24)
-4. Raumaufsicht in einem freien realen Raum erstellen – belegte Räume sind gesperrt (Task 21)
-5. Aufsichtspersonen zuordnen (Task 21)
-6. Teilnehmende zuordnen (Task 21)
-7. Sichtbarkeit prüfen: Schuladmin der BTS sieht die Raumaufsicht nicht; die Raumaufsicht sieht nur ihre Räume
-8. Raumaufsicht durchführen als zugeordnete Raumaufsicht (Task 22)
-9. Beenden und Protokoll herunterladen (Task 23)
-10. Ergebnisse prüfen und über eine Drittkorrektur entscheiden (Task 28)
+Schritte, die sich nicht aus den Daten erkennen lassen (z. B. „Sichtbarkeit prüfen“), werden mit „Erledigt“ abgehakt; optionale Schritte lassen sich überspringen.
+
+**Rollen auf der Startseite:** Alle Rollen sind als eigene Karten wählbar, gegliedert nach Unterricht (Lehrkraft, Schüler:in), Prüfungsdurchführung (Schuladministration, Raumaufsicht, Prüfling, Korrektor:in, Prüfungseinsicht), Prüfungserstellung (Koordinierungsstelle, Aufgabenerstellung, Kommission, Kommissionsvorsitz, Beratung, Lektorat, Prüflösung, weitere Person) und Katalog (Bereichsadministration). Die Karten der Erstellungsrollen listen die Personen mit dieser Rolle; ist eine Person nur einer Prüfung zugewiesen, öffnet sich diese direkt.
 
 ## Empfohlene Demo (zwei Fenster nebeneinander)
 

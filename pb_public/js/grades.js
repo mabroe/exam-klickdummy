@@ -1,7 +1,7 @@
 // Bewertung: linearer Notenschlüssel, Freigabestatus der Korrektorengruppen, Gesamtnote
-import { D, byId } from "./data.js?v=9.1";
-import { ALL_SUBTASKS, TOTAL_POINTS, EXAM, GRADING_KEYS } from "./scenario.js?v=9.1";
-import { courseOfParticipant, correctorsFor, thirdRequested, approvalStateFor, setDkRecommend } from "./access.js?v=9.1";
+import { D, byId } from "./data.js?v=9.2";
+import { ALL_SUBTASKS, TOTAL_POINTS, EXAM, GRADING_KEYS } from "./scenario.js?v=9.2";
+import { courseOfParticipant, correctorsFor, thirdRequested, approvalStateFor, setDkRecommend } from "./access.js?v=9.2";
 
 // Linearer Notenschlüssel (entspricht der Tabelle „Notenschlüssel 100 P“ und ihrer Anpassung an die Maximalpunktzahl):
 // Note = 6 − 5 · Punkte / Maximalpunkte, auf eine Nachkommastelle zugunsten des Prüflings abgerundet (100 P → 1,0; 50 P → 3,5; 0 P → 6,0)

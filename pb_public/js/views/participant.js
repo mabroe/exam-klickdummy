@@ -1,20 +1,20 @@
 // Prüfling: Wartebereich, Prüfungsmodus (Dashboard, Aufgaben, Abgaben), Endbildschirm, Kursvorschau
-import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=9.1";
-import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=9.1";
-import { EXAM, ALL_SUBTASKS, subtask, taskOf, ALL_TOOLS, INLINE_TYPES } from "../scenario.js?v=9.1";
-import { navigate, session, render, directHelp } from "../app.js?v=9.1";
-import * as W from "./dock.js?v=9.1";
-import { einsichtView } from "./results.js?v=9.1";
-import { einsichtFor } from "../access.js?v=9.1";
-import { materialsOf, catalogOfParticipant } from "../content.js?v=9.1";
-import * as CR from "./creation.js?v=9.1";
-import * as ED from "./editor.js?v=9.1";
-import { inCatalog } from "./teacher.js?v=9.1";
-import { canManageCourse } from "../access.js?v=9.1";
-import { markable, bindMarkables } from "../highlight.js?v=9.1";
-import { ruleMatches, evalState, runAction } from "../rules.js?v=9.1";
-import { rulesPanel } from "./rules.js?v=9.1";
-import { portalLink } from "./student.js?v=9.1";
+import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=9.2";
+import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=9.2";
+import { EXAM, ALL_SUBTASKS, subtask, taskOf, ALL_TOOLS, INLINE_TYPES } from "../scenario.js?v=9.2";
+import { navigate, session, render, directHelp } from "../app.js?v=9.2";
+import * as W from "./dock.js?v=9.2";
+import { einsichtView } from "./results.js?v=9.2";
+import { einsichtFor } from "../access.js?v=9.2";
+import { materialsOf, catalogOfParticipant } from "../content.js?v=9.2";
+import * as CR from "./creation.js?v=9.2";
+import * as ED from "./editor.js?v=9.2";
+import { inCatalog } from "./teacher.js?v=9.2";
+import { canManageCourse } from "../access.js?v=9.2";
+import { markable, bindMarkables } from "../highlight.js?v=9.2";
+import { ruleMatches, evalState, runAction } from "../rules.js?v=9.2";
+import { rulesPanel } from "./rules.js?v=9.2";
+import { portalLink } from "./student.js?v=9.2";
 // Punktebadge: grün, sobald für die (Teil-)Aufgabe eine Abgabe markiert ist, sonst grau
 const ptsBadge = (done, label, title = "") => `<span class="badge ${done ? "lime" : "gray"}" title="${title || (done ? "Abgabe markiert" : "noch nicht bearbeitet")}">${label}</span>`;
 const taskDone = (items, t) => t.subtasks.filter((s) => items.some((i) => i.submission === s.no)).length;
@@ -351,7 +351,7 @@ function waitView(ctx) {
       el.querySelectorAll("[data-pgstep]").forEach((b) => (b.onclick = () => { ui.pdfPage = Math.max(1, Math.min(3, ui.pdfPage + +b.dataset.pgstep)); render(false); }));
       const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
       const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
-      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=9.1").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
+      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=9.2").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
       // Prüfung läuft bereits, Bestätigung fehlt
       if (room.state === "RUNNING" && !confirmedBoth && !document.querySelector(".backdrop") && !store.get("bo." + p.id)) {
         store.set("bo." + p.id, 1);
@@ -752,7 +752,7 @@ function bindPage(el, ctx, sub) {
   el.querySelectorAll("[data-swapatt]").forEach((b) => (b.onclick = () => swapAttachment(ctx, b, ...b.dataset.swapatt.split("|"))));
   el.querySelectorAll("[data-openmail]").forEach((b) => (b.onclick = () => W.open("mail", { mailId: b.dataset.openmail, subtask: sub.split("/")[2] })));
   const fin = el.querySelector("[data-finish]"); if (fin) fin.onclick = () => finishExam(ctx);
-  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=9.1").then((m) => m.copyCourse(ctx.course));
+  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=9.2").then((m) => m.copyCourse(ctx.course));
   el.querySelectorAll("[data-pvrules]").forEach((b) => (b.onclick = () => modal({ title: "Aufgabensteuerung (Vorschau)", size: "wide", body: `<p class="small">Regeln, die während der Bearbeitung automatisch neue Inhalte bereitstellen. Sie werden im Prüfungseditor konfiguriert und sind kein Bestandteil der Kurs- bzw. Prüfungskonfiguration. In der Vorschau lösen sie wie bei den Teilnehmenden aus.</p>${rulesPanel(ctx.course, RS?.fired || [])}` })));
   const bm = el.querySelector("[data-bookmark]");
   if (bm) bm.onclick = () => {

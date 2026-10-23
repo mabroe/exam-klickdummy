@@ -4,7 +4,7 @@
 // Alle Personennamen sind zufällig erzeugte Fantasienamen – Ähnlichkeiten mit realen Personen sind nicht beabsichtigt.
 (function (root) {
   // Stand der Demodaten. Erhöhen, wenn sich die Demodaten ändern – ältere Datenbestände werden beim Start automatisch neu aufgebaut.
-  var SEED_VERSION = 18;
+  var SEED_VERSION = 19;
   var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings"];
 
   // Bewertungskriterien je Teilaufgabe (Maximalpunkte) – muss zu js/scenario.js passen
@@ -435,7 +435,7 @@
         tasks: [{ title: "Kundenanfrage bearbeiten", situation: "Ein Neukunde bittet um ein Angebot über 200 Ordner.", tools: ["files", "mail", "editor"], materials: [], subtasks: [sub("Angebot per E-Mail", "app", "Erstellen Sie ein Angebot und senden Sie es per E-Mail an den Kunden.", [["Inhalt", 6, ""], ["Form", 4, ""]], [["Angebot vollständig, Preise korrekt", "6 P"], ["Geschäftsbrief nach DIN 5008", "4 P"]])] },
           { title: "Reklamation", situation: "", tools: ["files", "mail", "editor"], materials: [], subtasks: [sub("Reklamation beantworten", "freitext", "", [["Inhalt", 5, ""]], [["", "5 P"]])] }] },
       meta: { titel: "Abschlussprüfung Teil 2 – Kundenbeziehungsprozesse Winter 2026", ptitel: "Abschlussprüfung Teil 2 – Kundenbeziehungsprozesse", zeitraum: "Winter", jahr: String(now.getFullYear()), beruf_id: "bm", beruf: "Kaufmann/-frau für Büromanagement", berufsnr: "10101", fachbereich: "kfm", art: "Abschlussprüfung Teil 2", bereich: "Kundenbeziehungsprozesse", code: "BM-KBP-W" + String(now.getFullYear()).slice(2), termin: dtIso(70), dauer: 120, einsicht_h: "24 Stunden", erstellung_von: dIso(-10), erstellung_bis: dIso(20), kommission_bis: dIso(40), lektorat_bis: dIso(50), pruefloesung_bis: dIso(50), hilfsmittel: "nicht programmierbarer Taschenrechner", pool: "muster", orgs: [], version: 1 },
-      team: { koordination: [T.Brandauer.id], aufgabenerstellung: [T.Voigt.id, T.Kowalczyk.id], kommission_group: "", kommission: [T.Ohm.id, T.Ebeling.id], vorsitz: [T.Steinhoff.id], beratung: [T.Morawetz.id], lektorat: [], pruefloesung: [] },
+      team: { koordination: [T.Brandauer.id], aufgabenerstellung: [T.Voigt.id, T.Kowalczyk.id], kommission_group: "", kommission: [T.Ohm.id, T.Ebeling.id], vorsitz: [T.Steinhoff.id], beratung: [T.Morawetz.id], lektorat: [T["Riedmüller"].id], pruefloesung: [T["Dähne"].id] },
       history: [H(-12, KS, "angelegt", "Neue Prüfung angelegt (Status Vorbereitung)", "", "vorbereitung"), H(-11, KS, "metadaten", "Prüfungsmetadaten vollständig gesetzt (Task 2)"), H(-11, KS, "team", "Kommission „Prüfungskommission Büromanagement“ zugewiesen – Vorsitz: Steinhoff, Ayla"), H(-11, KS, "team", "Aufgabenerstellung: Voigt, Lina; Kowalczyk, Dorian zugewiesen"), H(-10, "Ohm, Gesa", "pool", "Unternehmenspool festgelegt: Muster Handels GmbH (Task 14)"), H(-2, "Voigt, Lina", "inhalt", "Inhalt im Editor gespeichert")],
       feedback: [{ id: "fbv1", kind: "beratung", by: "Morawetz, Ilyas", pid: T.Morawetz.id, at: iso(new Date(now.getTime() - 86400000)), st: "1.1", text: "Mengenangabe im Arbeitsauftrag ergänzen (200 Ordner, Lieferung frei Haus?).", resolved: false }], reviews: {} });
     var kgBM = out.groups.filter(function (g) { return g.kind === "kommission" && g.fachbereich === "kfm"; })[0];

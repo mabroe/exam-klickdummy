@@ -1,13 +1,13 @@
 // Korrekturworkflow: Korrekturübersicht, Korrekturmodus, Vergleich, Erwartungshorizont
-import { D, byId, upd, create, setting, setSetting } from "../data.js?v=9.1";
-import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=9.1";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=9.1";
-import { contentScope } from "../content.js?v=9.1";
-import * as CRk from "./creation.js?v=9.1";
-import { navigate, redraw, session } from "../app.js?v=9.1";
-import { me, courseOf, correctorStages, canCorrect, correctionOver, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses, STAGE_LABEL } from "../access.js?v=9.1";
-import { linearGrade, fmtNote, approvalState, approvalText } from "../grades.js?v=9.1";
-export { mode } from "./kmode.js?v=9.1";
+import { D, byId, upd, create, setting, setSetting } from "../data.js?v=9.2";
+import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=9.2";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=9.2";
+import { contentScope } from "../content.js?v=9.2";
+import * as CRk from "./creation.js?v=9.2";
+import { navigate, redraw, session } from "../app.js?v=9.2";
+import { me, courseOf, correctorStages, canCorrect, correctionOver, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses, STAGE_LABEL } from "../access.js?v=9.2";
+import { linearGrade, fmtNote, approvalState, approvalText } from "../grades.js?v=9.2";
+export { mode } from "./kmode.js?v=9.2";
 
 const S = { view: "aufgaben", collapsed: {} };
 // Lehrkraft (Unterrichtsebene): genau eine Korrektur; Korrektor:in (Prüfungsebene): Erst-, Zweit-, Drittkorrektur

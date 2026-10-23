@@ -1,26 +1,26 @@
 // Exam Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=9.1";
-import { lock as lockGate } from "./gate.js?v=9.1";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=9.1";
-import * as TN from "./views/participant.js?v=9.1";
-import * as PR from "./views/proctor.js?v=9.1";
-import * as KO from "./views/correction.js?v=9.1";
-import * as LK from "./views/teacher.js?v=9.1";
-import * as RS from "./views/results.js?v=9.1";
-import * as KU from "./views/courses.js?v=9.1";
-import * as GD from "./guide.js?v=9.1";
-import * as ED from "./views/editor.js?v=9.1";
-import * as CR from "./views/creation.js?v=9.1";
-import { CORRECTORS } from "./scenario.js?v=9.1";
-import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=9.1";
-import { seatCount, seatCmp } from "./seats.js?v=9.1";
-import { syncForRoute } from "./content.js?v=9.1";
-import * as SD from "./views/stammdaten.js?v=9.1";
-import * as STU from "./views/student.js?v=9.1";
-import { closeAll as closeWindows } from "./views/dock.js?v=9.1";
-import { applySigns } from "./masterdata.js?v=9.1";
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=9.2";
+import { lock as lockGate } from "./gate.js?v=9.2";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=9.2";
+import * as TN from "./views/participant.js?v=9.2";
+import * as PR from "./views/proctor.js?v=9.2";
+import * as KO from "./views/correction.js?v=9.2";
+import * as LK from "./views/teacher.js?v=9.2";
+import * as RS from "./views/results.js?v=9.2";
+import * as KU from "./views/courses.js?v=9.2";
+import * as GD from "./guide.js?v=9.2";
+import * as ED from "./views/editor.js?v=9.2";
+import * as CR from "./views/creation.js?v=9.2";
+import { CORRECTORS } from "./scenario.js?v=9.2";
+import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=9.2";
+import { seatCount, seatCmp } from "./seats.js?v=9.2";
+import { syncForRoute } from "./content.js?v=9.2";
+import * as SD from "./views/stammdaten.js?v=9.2";
+import * as STU from "./views/student.js?v=9.2";
+import { closeAll as closeWindows } from "./views/dock.js?v=9.2";
+import { applySigns } from "./masterdata.js?v=9.2";
 
-export const VERSION = "9.1";
+export const VERSION = "9.2";
 export const VERSION_LABEL = `Version ${VERSION} · 23.10.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },
@@ -217,6 +217,16 @@ function creationPersons() {
   const list = D.persons.filter((p) => ["fachexperte", "lehrkraft"].includes(p.kind)).sort((a, b) => a.lastname.localeCompare(b.lastname));
   return list.map((p) => { const r = [...new Set(roles(p))]; return `<option value="${p.id}">${esc(personName(p))} – ${p.kind === "koordination" ? "Koordinierungsstelle" : r.length ? esc(r.join(", ")) : p.kind === "fachexperte" ? "Fachexpert:in (IBBW)" : esc(orgsLabel(p))}</option>`; }).join("");
 }
+// Rollen im Erstellungsprozess als eigene Karten: Personen, denen die Rolle in mindestens einer Prüfung zugewiesen ist
+const ER_ICON = { aufgabenerstellung: "pencil", kommission: "users", vorsitz: "user", beratung: "eye", lektorat: "file-text", pruefloesung: "circle-check" };
+const ER_TXT = { aufgabenerstellung: ["Aufgaben im Editor erstellen", "an die Kommission übergeben"], kommission: ["Unternehmenspool, Entwürfe einarbeiten", "an Lektorat/Prüflösung übergeben"], vorsitz: ["final freigeben (verschlüsseln)", "Fehlerbehebung vor Prüfungsstart"], beratung: ["Aufgabenentwürfe einsehen", "Hinweise an die Kommission"], lektorat: ["Prüfung lektorieren", "Anmerkungen erfassen"], pruefloesung: ["im Teilnahmemodus lösen", "Ergebnis erfassen"] };
+const examsOfRole = (pid, role) => D.catalog.filter((c) => c.status && (CR.team(c)[role] || []).includes(pid));
+function roleCard(role) {
+  const ps = D.persons.filter((p) => ["lehrkraft", "fachexperte", "koordination"].includes(p.kind) && examsOfRole(p.id, role).length).sort((a, b) => a.lastname.localeCompare(b.lastname));
+  return `<div class="rolecard"><div class="rico">${icon(ER_ICON[role], "lg")}</div><h3>${esc(CR.EROLES[role].label)}</h3><ul>${ER_TXT[role].map((t) => `<li>${t}</li>`).join("")}</ul>
+    <label class="lbl mt-s" for="er-${role}">Person</label><select class="select" id="er-${role}">${ps.map((p) => `<option value="${p.id}">${esc(personName(p))} (${examsOfRole(p.id, role).length} Prüfung${examsOfRole(p.id, role).length === 1 ? "" : "en"})</option>`).join("") || `<option value="">derzeit niemand zugewiesen</option>`}</select>
+    <button class="btn primary" data-role="er" data-er="${role}" ${ps.length ? "" : "disabled"}>${icon("arrow-right")} Anmelden</button></div>`;
+}
 // Schüler:innen mit Teilnahmen (ohne den Großraum-Testfall); zuerst Personen mit mehreren gleichzeitigen Teilnahmen
 function studentOpts() {
   const cnt = new Map(); D.participants.forEach((x) => { const r = byId("rooms", x.room); if (x.person && r && seatCount(r) <= 60) cnt.set(x.person, (cnt.get(x.person) || 0) + 1); });
@@ -239,52 +249,65 @@ function startView() {
     render: () => `<div class="start"><header class="topbar">${brand()}<span class="bold">Klickdummy · Prüfungsplattform Exam</span></header>
     <div class="wrap">
       <h1>Anmelden als …</h1>
-      <p class="lead mt">Wählen Sie eine Person. Zwei Schulen sind angelegt (AFS und BTS), damit die Sichtbarkeit je Konto und Organisation testbar ist. Die Rollen sind live gekoppelt – öffnen Sie z. B. Raumaufsicht und Prüfling in zwei Browserfenstern${backend.mode === "local" ? " bzw. Tabs dieses Browsers" : ""}.</p>
-      ${(() => { const g = GD.status(); return g ? `<div class="guidepick guideresume"><div class="grow"><b>${icon("list-checks")} ${esc(g.name)} ${g.paused ? "pausiert" : "läuft"}</b><span class="small muted">${g.done} von ${g.total} Schritten erledigt${g.step ? ` · nächster Schritt: <b>${esc(g.step.title)}</b>` : " · abgeschlossen"}</span></div>
-        <button class="btn primary" data-guideresume>${icon("arrow-right")} An der letzten Stelle fortsetzen</button><button class="btn" data-guide="${g.kind}" data-restart>${icon("rotate-ccw")} Neu beginnen</button><button class="btn ghost" data-guideoff>${icon("x")} Beenden</button>${g.kind === "unterricht" ? `<button class="btn ghost" data-guide="pruefung" data-switch>${icon("clipboard-list")} Stattdessen: Prüfung (Schuladmin)</button>` : `<button class="btn ghost" data-guide="unterricht" data-switch>${icon("book-open")} Stattdessen: Unterricht (Lehrkraft)</button>`}</div>`
-        : `<div class="guidepick"><div><b>${icon("list-checks")} Testbare Klickstrecken</b><span class="small muted">Führen Schritt für Schritt durch die Workflows; der Fortschritt wird automatisch erkannt. Sie können jederzeit über diese Seite an der letzten Stelle weitermachen.</span></div>
-        <button class="btn primary" data-guide="erstellung">${icon("pencil")} Prüfungserstellung (Koordinierungsstelle)</button><button class="btn primary" data-guide="unterricht">${icon("book-open")} Unterricht (Lehrkraft)</button><button class="btn primary" data-guide="pruefung">${icon("clipboard-list")} Prüfung (Schuladmin)</button></div>`; })()}
+      <p class="lead mt">Wählen Sie eine Rolle und Person. Mehrere fiktive Schulen sind angelegt (u. a. AFS und BTS), damit die Sichtbarkeit je Konto und Organisation testbar ist. Die Rollen sind live gekoppelt – öffnen Sie z. B. Raumaufsicht und Prüfling in zwei Browserfenstern${backend.mode === "local" ? " bzw. Tabs dieses Browsers" : ""}.</p>
+      ${(() => { const g = GD.status(); const groups = [...new Set(Object.values(GD.KINDS).map((k) => k.group))];
+        const picker = (cur) => groups.map((gr) => `<div class="ggroup"><span class="xs muted bold">${esc(gr)}</span><div class="gbtns">${Object.entries(GD.KINDS).filter(([k, v]) => v.group === gr && k !== cur).map(([k, v]) => `<button class="btn ${cur ? "ghost" : "primary"} sm" data-guide="${k}" ${cur ? "data-switch" : ""}>${icon(v.icon)} ${esc(v.short)}</button>`).join("")}</div></div>`).join("");
+        return g ? `<div class="guidepick guideresume"><div class="grow"><b>${icon("list-checks")} ${esc(g.name)} ${g.paused ? "pausiert" : "läuft"}</b><span class="small muted">${g.done} von ${g.total} Schritten erledigt${g.step ? ` · nächster Schritt: <b>${esc(g.step.title)}</b>` : " · abgeschlossen"}</span></div>
+        <div class="row wrap" style="gap:8px"><button class="btn primary" data-guideresume>${icon("arrow-right")} An der letzten Stelle fortsetzen</button><button class="btn" data-guide="${g.kind}" data-restart>${icon("rotate-ccw")} Neu beginnen</button><button class="btn ghost" data-guideoff>${icon("x")} Beenden</button></div>
+        <details class="mt-s" open><summary class="small">Stattdessen eine andere Klickstrecke starten</summary><div class="col mt-s" style="gap:8px">${picker(g.kind)}</div></details></div>`
+        : `<div class="guidepick"><div><b>${icon("list-checks")} Testbare Klickstrecken</b><span class="small muted">Für jeden Workflow eine eigene Klickstrecke: Sie führt Schritt für Schritt durch den Ablauf, meldet die jeweilige Person automatisch an und erkennt den Fortschritt aus den Daten. Fortsetzen jederzeit über diese Seite.</span></div><div class="col" style="gap:10px">${picker("")}</div></div>`; })()}
+      <h2 class="rolesec">${icon("book-open")} Unterricht</h2>
       <div class="rolegrid five six seven">
-        <div class="rolecard"><div class="rico">${icon("book-open", "lg")}</div><h3>Schüler:in</h3>
-          <ul><li>Eigene Teilnahmen: Präsenz oder Distanz wählen</li><li>Freigegebene Korrektur und Ergebnisse des Unterrichts</li></ul>
-          <label class="lbl mt-s" for="susel">Person</label><select class="select" id="susel">${studentOpts()}</select>
-          <button class="btn primary" data-role="schueler">${icon("arrow-right")} Zu meinen Teilnahmen</button></div>
-        <div class="rolecard"><div class="rico">${icon("graduation-cap", "lg")}</div><h3>Prüfling</h3>
-          <ul><li>Wartebereich, Belehrung, Gesundheitsabfrage</li><li>Prüfungsmodus mit Werkzeugen</li><li>Abgaben markieren</li></ul>
-          <label class="lbl mt-s" for="pidsel">Teilnahme</label><select class="select" id="pidsel">${tnOpts}</select>
-          <button class="btn primary" data-role="tn">${icon("log-in")} Zur Prüfung</button></div>
         <div class="rolecard"><div class="rico">${icon("school", "lg")}</div><h3>Lehrkraft</h3>
           <ul><li>Unterrichtsebene: Prüfung aus dem Katalog kopieren</li><li>Teilnehmende, Gruppen, weitere Lehrkräfte</li><li>Raumaufsicht planen und durchführen, korrigieren</li></ul>
           <label class="lbl mt-s" for="lksel">Person</label><select class="select" id="lksel">${optP(P("lehrkraft"), "a.eggert")}</select>
           <button class="btn primary" data-role="lehrkraft">${icon("arrow-right")} Zum Unterricht</button></div>
-        <div class="rolecard"><div class="rico">${icon("monitor", "lg")}</div><h3>Raumaufsicht</h3>
-          <ul><li>Nur zugeordnete Raumaufsichten</li><li>Starten, pausieren, einsammeln, beenden</li><li>Protokoll</li></ul>
-          <label class="lbl mt-s" for="ausel">Person</label><select class="select" id="ausel">${optP(P("lehrkraft").filter((p) => supIds.has(p.id)), "t.riedmueller")}</select>
-          <button class="btn primary" data-role="aufsicht">${icon("arrow-right")} Zur Raumaufsicht</button></div>
-        <div class="rolecard"><div class="rico">${icon("file-pen-line", "lg")}</div><h3>Korrektor:in</h3>
-          <ul><li>Erst rot rechts, Zweit grün links, Dritt braun links</li><li>Stifteingabe mit Zeichenerkennung</li><li>Vergleich, Freigabe</li></ul>
-          <label class="lbl mt-s" for="ksel">Person und Korrekturrolle</label><select class="select" id="ksel">${correctors.map((k) => `<option value="${k.pe.id}|${k.stage}">${esc(personName(k.pe))} – ${STAGE_LABEL[k.stage]}</option>`).join("")}</select>
-          <button class="btn primary" data-role="korrektor">${icon("arrow-right")} Zur Korrektur</button></div>
-        <div class="rolecard"><div class="rico">${icon("building-2", "lg")}</div><h3>Koordinierungsstelle</h3>
-          <ul><li>Prüfung anlegen, Rahmendaten, Personen und Kommissionen</li><li>Organisationen nach der Freigabe</li><li>Stammdaten, Korrekturzeichensätze</li></ul>
-          <label class="lbl mt-s" for="kssel">Person</label><select class="select" id="kssel">${D.persons.filter((p) => p.kind === "koordination").sort((a, b) => a.lastname.localeCompare(b.lastname)).map((p) => `<option value="${p.id}">${esc(personName(p))} (IBBW)</option>`).join("")}</select>
-          <button class="btn primary" data-role="koordination">${icon("arrow-right")} Zur Koordinierungsstelle</button></div>
-        <div class="rolecard"><div class="rico">${icon("pencil", "lg")}</div><h3>Prüfungserstellung</h3>
-          <ul><li>Aufgabenerstellung, Kommission, Vorsitz</li><li>Beratung, Lektorat, Prüflösung</li><li>Editor und Freigabe je Rolle und Status</li></ul>
-          <label class="lbl mt-s" for="ersel">Person</label><select class="select" id="ersel">${creationPersons()}</select>
-          <button class="btn primary" data-role="autor">${icon("arrow-right")} Zur Prüfungserstellung</button></div>
-        <div class="rolecard"><div class="rico">${icon("eye", "lg")}</div><h3>Prüfungseinsicht</h3>
-          <ul><li>Einsicht immer in Präsenz</li><li>Person begleitet die Einsicht</li><li>Endnote und Abgabe mit Korrekturzeichen</li></ul>
-          <label class="lbl mt-s" for="eisel">Person</label><select class="select" id="eisel">${optP(einsichtPersons().sort((a, b) => a.org.localeCompare(b.org) || a.lastname.localeCompare(b.lastname)), "t.riedmueller")}</select>
-          <button class="btn primary" data-role="einsicht">${icon("arrow-right")} Zur Prüfungseinsicht</button></div>
-        <div class="rolecard"><div class="rico">${icon("library", "lg")}</div><h3>Bereichsadministration</h3>
-          <ul><li>Katalog für den Unterricht pflegen</li><li>Inhalte global freigeben und Freigabe beenden</li><li>Editor für Katalogeinträge</li></ul>
-          <label class="lbl mt-s" for="basel">Person</label><select class="select" id="basel">${optP(P("bereichsadmin"), "w.hollerbach")}</select>
-          <button class="btn primary" data-role="bereichsadmin">${icon("arrow-right")} Zum Katalog</button></div>
+        <div class="rolecard"><div class="rico">${icon("book-open", "lg")}</div><h3>Schüler:in</h3>
+          <ul><li>Eigene Teilnahmen: Präsenz oder Distanz wählen</li><li>Freigegebene Korrektur und Ergebnisse des Unterrichts</li></ul>
+          <label class="lbl mt-s" for="susel">Person</label><select class="select" id="susel">${studentOpts()}</select>
+          <button class="btn primary" data-role="schueler">${icon("arrow-right")} Zu meinen Teilnahmen</button></div>
+      </div>
+      <h2 class="rolesec">${icon("clipboard-list")} Prüfungsdurchführung</h2>
+      <div class="rolegrid five six seven">
         <div class="rolecard"><div class="rico">${icon("building-2", "lg")}</div><h3>Schuladministration</h3>
           <ul><li>Prüfungsebene: Teilnehmende, Raumaufsichten, Korrektoren zuordnen</li><li>Prüfungsräume und Raumaufsichten der eigenen Schule</li><li>Ergebnisse, Drittkorrektur</li></ul>
           <label class="lbl mt-s" for="sasel">Person</label><select class="select" id="sasel">${optP(P("schuladmin"), "m.hinrichs")}</select>
           <button class="btn primary" data-role="schuladmin">${icon("arrow-right")} Zu den Prüfungen</button></div>
+        <div class="rolecard"><div class="rico">${icon("monitor", "lg")}</div><h3>Raumaufsicht</h3>
+          <ul><li>Nur zugeordnete Raumaufsichten</li><li>Starten, pausieren, einsammeln, beenden</li><li>Protokoll</li></ul>
+          <label class="lbl mt-s" for="ausel">Person</label><select class="select" id="ausel">${optP(P("lehrkraft").filter((p) => supIds.has(p.id)), "t.riedmueller")}</select>
+          <button class="btn primary" data-role="aufsicht">${icon("arrow-right")} Zur Raumaufsicht</button></div>
+        <div class="rolecard"><div class="rico">${icon("graduation-cap", "lg")}</div><h3>Prüfling</h3>
+          <ul><li>Wartebereich, Belehrung, Gesundheitsabfrage</li><li>Prüfungsmodus mit Werkzeugen</li><li>Abgaben markieren</li></ul>
+          <label class="lbl mt-s" for="pidsel">Teilnahme</label><select class="select" id="pidsel">${tnOpts}</select>
+          <button class="btn primary" data-role="tn">${icon("log-in")} Zur Prüfung</button></div>
+        <div class="rolecard"><div class="rico">${icon("file-pen-line", "lg")}</div><h3>Korrektor:in</h3>
+          <ul><li>Erst rot rechts, Zweit grün links, Dritt braun links</li><li>Stifteingabe mit Zeichenerkennung</li><li>Vergleich, Freigabe</li></ul>
+          <label class="lbl mt-s" for="ksel">Person und Korrekturrolle</label><select class="select" id="ksel">${correctors.map((k) => `<option value="${k.pe.id}|${k.stage}">${esc(personName(k.pe))} – ${STAGE_LABEL[k.stage]}</option>`).join("")}</select>
+          <button class="btn primary" data-role="korrektor">${icon("arrow-right")} Zur Korrektur</button></div>
+        <div class="rolecard"><div class="rico">${icon("eye", "lg")}</div><h3>Prüfungseinsicht</h3>
+          <ul><li>Einsicht immer in Präsenz</li><li>Person begleitet die Einsicht</li><li>Endnote und Abgabe mit Korrekturzeichen</li></ul>
+          <label class="lbl mt-s" for="eisel">Person</label><select class="select" id="eisel">${optP(einsichtPersons().sort((a, b) => a.org.localeCompare(b.org) || a.lastname.localeCompare(b.lastname)), "t.riedmueller")}</select>
+          <button class="btn primary" data-role="einsicht">${icon("arrow-right")} Zur Prüfungseinsicht</button></div>
+      </div>
+      <h2 class="rolesec">${icon("pencil")} Prüfungserstellung</h2>
+      <div class="rolegrid five six seven">
+        <div class="rolecard"><div class="rico">${icon("building-2", "lg")}</div><h3>Koordinierungsstelle</h3>
+          <ul><li>Prüfung anlegen, Rahmendaten, Personen und Kommissionen</li><li>Organisationen nach der Freigabe</li><li>Stammdaten, Korrekturzeichensätze</li></ul>
+          <label class="lbl mt-s" for="kssel">Person</label><select class="select" id="kssel">${D.persons.filter((p) => p.kind === "koordination").sort((a, b) => a.lastname.localeCompare(b.lastname)).map((p) => `<option value="${p.id}">${esc(personName(p))} (IBBW)</option>`).join("")}</select>
+          <button class="btn primary" data-role="koordination">${icon("arrow-right")} Zur Koordinierungsstelle</button></div>
+        ${["aufgabenerstellung", "kommission", "vorsitz", "beratung", "lektorat", "pruefloesung"].map((k) => roleCard(k)).join("")}
+        <div class="rolecard"><div class="rico">${icon("pencil", "lg")}</div><h3>Weitere Person</h3>
+          <ul><li>Lehrkräfte und Fachexpert:innen</li><li>auch ohne bisherige Zuweisung</li></ul>
+          <label class="lbl mt-s" for="ersel">Person</label><select class="select" id="ersel">${creationPersons()}</select>
+          <button class="btn primary" data-role="autor">${icon("arrow-right")} Zur Prüfungserstellung</button></div>
+      </div>
+      <h2 class="rolesec">${icon("library")} Katalog</h2>
+      <div class="rolegrid five six seven">
+        <div class="rolecard"><div class="rico">${icon("library", "lg")}</div><h3>Bereichsadministration</h3>
+          <ul><li>Katalog für den Unterricht pflegen</li><li>Inhalte global freigeben und Freigabe beenden</li><li>Editor für Katalogeinträge</li></ul>
+          <label class="lbl mt-s" for="basel">Person</label><select class="select" id="basel">${optP(P("bereichsadmin"), "w.hollerbach")}</select>
+          <button class="btn primary" data-role="bereichsadmin">${icon("arrow-right")} Zum Katalog</button></div>
       </div>
       <div class="demo-strip">
         <button class="btn" data-reset>${icon("rotate-ccw")} Demo zurücksetzen</button>
@@ -301,6 +324,7 @@ function startView() {
         if (r === "korrektor") { const [pid, st] = v("#ksel").split("|"); login(byId("persons", pid), "korrektor", { corrector: +st }); navigate("#/app/korrektur"); }
         if (r === "schuladmin") { login(byId("persons", v("#sasel")), "schuladmin"); navigate("#/app/kurse"); }
         if (r === "autor") { login(byId("persons", v("#ersel")), "autor"); navigate("#/app/erstellung"); }
+        if (r === "er") { const role = b.dataset.er; const pe = byId("persons", v("#er-" + role)); login(pe, "autor"); const ex = examsOfRole(pe?.id, role); navigate(ex.length === 1 ? `#/app/erstellung/${ex[0].id}/uebersicht` : "#/app/erstellung"); }
         if (r === "koordination") { login(byId("persons", v("#kssel")), "autor"); navigate("#/app/erstellung"); }
         if (r === "schueler") { login(byId("persons", v("#susel")), "schueler", { portal: v("#susel") }); navigate("#/schueler"); }
         if (r === "einsicht") { login(byId("persons", v("#eisel")), "einsicht"); navigate("#/app/pruefungseinsicht"); }
