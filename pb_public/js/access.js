@@ -3,8 +3,8 @@
 //    Besitzer/Mitbetreuung des Unterrichtskurses
 //  - Raumaufsicht (Prüfungsebene): sieht nur Raumaufsichten, in denen sie als Aufsichtsperson eingetragen ist
 //  - Schuladministration (Prüfungsebene): sieht die Prüfungs-Raumaufsichten ihrer Organisation
-import { D, byId } from "./data.js?v=8.8";
-import { store, isFinished } from "./ui.js?v=8.8";
+import { D, byId } from "./data.js?v=8.9";
+import { store, isFinished } from "./ui.js?v=8.9";
 
 export const me = () => byId("persons", store.get("person"));
 export const orgOf = (p) => byId("orgs", p?.org);
@@ -18,7 +18,7 @@ export const orgShort = (id) => byId("orgs", id)?.short || "–";
 export const personName = (p) => (p ? `${p.lastname}, ${p.firstname}` : "–");
 export const courseOf = (room) => byId("courses", room?.course);
 export const KIND = { unterricht: "Unterricht", pruefung: "Prüfung" };
-export const ROLE_LABEL = { besitzer: "Besitzer", mitbetreuung: "Mitbetreuung", teilnehmer: "Teilnehmende", raumaufsicht: "Raumaufsicht", korrektor: "Korrektor:in", pruefungseinsicht: "Prüfungseinsicht" };
+export const ROLE_LABEL = { besitzer: "Besitzer", mitbetreuung: "Mitbetreuung", teilnehmer: "Teilnehmende", raumaufsicht: "Raumaufsicht", korrektor: "Korrektor:in", pruefungseinsicht: "Prüfungseinsicht", schuladmin: "Schuladministration" };
 export const STAGE_LABEL = { 1: "Erstkorrektur", 2: "Zweitkorrektur", 3: "Drittkorrektur" };
 
 // Alle Mitglieder eines Kurses, Gruppen aufgelöst: [{ person, role, stage, via }]

@@ -1,14 +1,14 @@
 // Ergebnisse (Task 28/30/36) und Prüfungseinsicht (Task 37/38)
-import { D, byId, upd, log } from "../data.js?v=8.8";
-import { icon, esc, toast, confirmBox, brand, modal, statusChip, fmtTime, fmtDateTime, parseDate } from "../ui.js?v=8.8";
-import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS, categoryList, CATEGORY_SYSTEMS } from "../scenario.js?v=8.8";
-import { navigate, redraw, session } from "../app.js?v=8.8";
-import { store } from "../ui.js?v=8.8";
-import { grading, stPoints, candidates, fmtP } from "./correction.js?v=8.8";
-import { keyThresholds, gradingKeyLabel, linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=8.8";
-import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, orgShort, personName, einsichtCandidates } from "../access.js?v=8.8";
-import { roPaper, fitRoPapers } from "./kmode.js?v=8.8";
-import { contentScope } from "../content.js?v=8.8";
+import { D, byId, upd, log } from "../data.js?v=8.9";
+import { icon, esc, toast, confirmBox, brand, modal, statusChip, fmtTime, fmtDateTime, parseDate } from "../ui.js?v=8.9";
+import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS, categoryList, CATEGORY_SYSTEMS } from "../scenario.js?v=8.9";
+import { navigate, redraw, session } from "../app.js?v=8.9";
+import { store } from "../ui.js?v=8.9";
+import { grading, stPoints, candidates, fmtP } from "./correction.js?v=8.9";
+import { keyThresholds, gradingKeyLabel, linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=8.9";
+import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, orgShort, personName, einsichtCandidates } from "../access.js?v=8.9";
+import { roPaper, fitRoPapers } from "./kmode.js?v=8.9";
+import { contentScope } from "../content.js?v=8.9";
 
 // Endpunkte je Teilaufgabe: Endbeurteilung (falls angefordert und erfasst), sonst Mittelwert Erst/Zweit, sonst Erstkorrektur
 export function finalPoints(pid, st) {

@@ -232,22 +232,23 @@ Das Prüfungsprotokoll gibt es **nur bei Prüfungen** (nicht im Unterricht). Der
 
 ## Erstellungsprozess einer Prüfung (Instanz OPE)
 
-Prüfungen entstehen in einem festen Prozess (Navigation **„Erstellung“**, Startseite › Prüfungserstellung mit Personenwahl). Status: **Vorbereitung → Kommission/Review → Lektorat und Prüflösen → Review → Gesperrt (final freigegeben, bis zum Prüfungsstart) → Veröffentlicht**. Prüfungen im Erstellungsprozess erscheinen nicht im Katalog der Schulen.
+Prüfungen entstehen ausschließlich im Erstellungsprozess (Navigation **„Erstellung“**, Startseite › Prüfungserstellung mit Personenwahl) – **der Katalog enthält nur Inhalte für den Unterricht**. Status: **Vorbereitung → Kommission/Review → Lektorat und Prüflösen → Review → Verschlüsselt (final freigegeben, weggesperrt) → Begutachtung durch die Schulen → Prüfungsstart**.
 
 | Rolle | Aufgaben (Task) | Status |
 |---|---|---|
-| Koordinierungsstelle (Lisette Brandauer) | Prüfung anlegen (38), Rahmendaten/Prüfungsmetadaten setzen und bearbeiten (2/3), Personen im Erstellungsprozess zuweisen (4/5), Erstellungsprozess einsehen (6), Prüfungsfreigabe aufheben (8), zum Prüfungstermin veröffentlichen und Schulen zuordnen (47) | alle |
-| Aufgabenerstellung | Aufgaben im Editor erstellen, an die Kommission übergeben (46, Statuswechsel Nr. 1) | Vorbereitung |
-| Kommission | Unternehmenspool festlegen (14), Aufgabenentwürfe einarbeiten und an Lektorat/Prüflösung weiterreichen oder zurückgeben (15, Nr. 3), Anmerkungen einarbeiten | Vorbereitung, Review |
-| Kommissionsvorsitz | wie Kommission, zusätzlich Prüfung final freigeben (12, Nr. 5 → gesperrt) | Review |
-| Beratung (optional) | Aufgabenentwürfe einsehen (Vorschau, nur lesend) und Hinweise geben (16) | Vorbereitung, Review |
-| Lektorat (optional) | Prüfung lektorieren: Anmerkungen je Teilaufgabe, Lektorat abschließen (17) | Lektorat und Prüflösen |
-| Prüflösung (optional) | Prüfung im Teilnahmemodus lösen, benötigte Zeit und Einschätzung erfassen, abschließen (18) | Lektorat und Prüflösen |
+| Koordinierungsstelle (Lisette Brandauer) | Prüfung anlegen (38), Rahmendaten und Prüfungsrumpf (2/3), **Organisationen zuordnen** (47, Schuladministrationen werden automatisch hinzugefügt), Personen zuweisen (4/5), Verlauf (6), Freigabe aufheben (8), Fehlerbehebung vor Prüfungsbeginn (50) | alle |
+| Aufgabenerstellung | Aufgaben im Editor erstellen, an die Kommission übergeben (46, Nr. 1) | Vorbereitung |
+| Kommission (als **Gruppe** gewählt) | Unternehmenspool (14), Entwürfe einarbeiten und weiterreichen (15, Nr. 3), Anmerkungen einarbeiten, Fehlerbehebung vor Prüfungsbeginn (49) | Vorbereitung, Review, Begutachtung |
+| Kommissionsvorsitz (automatisch der Vorsitz der Kommissionsgruppe) | final freigeben → **Verschlüsselung** (12, Nr. 5) | Review |
+| Beratung, Lektorat, Prüflösung (optional) | Entwürfe einsehen (16), lektorieren (17), im Teilnahmemodus prüflösen (18) | Vorbereitung/Review bzw. Lektorat |
+| Schuladministration und Korrektor:innen der teilnehmenden Schulen | **Prüfungsbegutachtung vor Prüfungsstart** (48) – Fehler werden außerhalb des Portals gemeldet | Begutachtung |
 
-- **Rahmendaten**: Prüfungstitel, -art, Beruf, Prüfungsbereich, Kennung, Prüfungstermin, Bearbeitungszeit, Erstellungs-, Kommissions-, Lektorats- und Prüflösungszeitraum, Hilfsmittel (Pflichtfelder vor der Übergabe an die Kommission). Fristen erscheinen bei den Aufgaben der Rollen als Fälligkeit.
-- **Bearbeitungsrechte im Editor**: Vorbereitung nur Aufgabenerstellung, Review nur Kommission und Vorsitz; ab „Gesperrt“ niemand. Sind alle Abschlüsse von Lektorat und Prüflösung da, geht die Prüfung automatisch zurück an die Kommission (Nr. 4). Die finale Freigabe setzt voraus, dass zugewiesenes Lektorat bzw. Prüflösung durchlaufen wurde; offene Anmerkungen werden angezeigt.
-- **Verlauf**: jeder Statuswechsel und Abschluss mit Zeitpunkt und Person.
-- **Klickstrecke „Prüfungserstellung (Koordinierungsstelle)“** auf der Startseite: führt mit automatischem Personenwechsel durch alle Schritte bis zur Sperre zum Prüfungsstart; die Veröffentlichung ist der optionale letzte Schritt.
+- **Kommissionen**: Gruppen der Koordinierungsstelle („Prüfungskommission Büromanagement“, Vorsitz Ayla Steinhoff; „Prüfungskommission IT-Berufe“, Vorsitz Emil Gaspari). Es wird genau eine Kommission ausgewählt; ihr Vorsitz wird automatisch Kommissionsvorsitz.
+- **Verschlüsselung**: Mit der finalen Freigabe werden Inhalt und Aufgabensteuerung mit **AES-256-GCM** (WebCrypto) verschlüsselt; im Datensatz bleibt nur ein Platzhalter mit Fingerabdruck (SHA-256). Niemand – auch nicht Koordinierungsstelle oder Kommission – kann den Inhalt einsehen oder bearbeiten. Im Klickdummy liegt der Schlüssel in einem eigenen Feld; produktiv gehört er in eine Schlüsselverwaltung mit zeitgesteuerter Freigabe.
+- **Prüfungsrumpf (Durchführungskonfiguration)**: Prüfungstermin, Bearbeitungszeit und **Vorlauf der Begutachtung** (2, 12, 24, 48 oder 72 Stunden vor Prüfungsstart). Zum Beginn des Vorlaufs wird die Prüfung automatisch entschlüsselt und für Schuladministration (Schulleitung) und Korrektor:innen der teilnehmenden Schulen zur Begutachtung freigeschaltet; zum Prüfungsstart wird der Inhalt für die Durchführung freigegeben (Raumaufsichten können erst dann starten). Demo-Schaltflächen der Koordinierungsstelle simulieren beide Zeitpunkte.
+- **Fehlerbehebung**: Im Begutachtungszeitraum können Koordinierungsstelle, Kommission und Vorsitz bis zum Prüfungsstart im Editor korrigieren. Die Korrektur wird beim Speichern **direkt freigegeben** (Version 2, 3 …), ohne erneuten Freigabeprozess.
+- **Organisation vor der Freigabe**: Sobald die Koordinierungsstelle die Organisationen zuordnet (üblich ca. 2 Monate vorher), erscheint die Prüfung bei den Schulen unter „Prüfungen“. Teilnehmende, Raumaufsichten und Korrektoren können zugeordnet werden; der Inhalt (Vorschau, Kursinformationen, Aufgabensteuerung) ist bis zum Begutachtungszeitraum gesperrt.
+- **Klickstrecke „Prüfungserstellung bis Prüfungsstart“** auf der Startseite: alle Schritte mit automatischem Personenwechsel – von der Anlage über die Organisation an der Schule, Erstellung, Review, Lektorat und Prüflösung, Verschlüsselung und Begutachtung bis zum Prüfungsstart.
 
 ## Prüfungseditor
 

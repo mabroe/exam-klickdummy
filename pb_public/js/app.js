@@ -1,22 +1,22 @@
 // Exam Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.8";
-import { lock as lockGate } from "./gate.js?v=8.8";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.8";
-import * as TN from "./views/participant.js?v=8.8";
-import * as PR from "./views/proctor.js?v=8.8";
-import * as KO from "./views/correction.js?v=8.8";
-import * as LK from "./views/teacher.js?v=8.8";
-import * as RS from "./views/results.js?v=8.8";
-import * as KU from "./views/courses.js?v=8.8";
-import * as GD from "./guide.js?v=8.8";
-import * as ED from "./views/editor.js?v=8.8";
-import * as CR from "./views/creation.js?v=8.8";
-import { CORRECTORS } from "./scenario.js?v=8.8";
-import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.8";
-import { seatCount, seatCmp } from "./seats.js?v=8.8";
-import { syncForRoute } from "./content.js?v=8.8";
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=8.9";
+import { lock as lockGate } from "./gate.js?v=8.9";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=8.9";
+import * as TN from "./views/participant.js?v=8.9";
+import * as PR from "./views/proctor.js?v=8.9";
+import * as KO from "./views/correction.js?v=8.9";
+import * as LK from "./views/teacher.js?v=8.9";
+import * as RS from "./views/results.js?v=8.9";
+import * as KU from "./views/courses.js?v=8.9";
+import * as GD from "./guide.js?v=8.9";
+import * as ED from "./views/editor.js?v=8.9";
+import * as CR from "./views/creation.js?v=8.9";
+import { CORRECTORS } from "./scenario.js?v=8.9";
+import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=8.9";
+import { seatCount, seatCmp } from "./seats.js?v=8.9";
+import { syncForRoute } from "./content.js?v=8.9";
 
-export const VERSION = "8.8";
+export const VERSION = "8.9";
 export const VERSION_LABEL = `Version ${VERSION} · 22.10.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },
@@ -304,6 +304,8 @@ async function boot() {
     refresh();
   });
   window.addEventListener("hashchange", () => render());
+  // Zeitsteuerung der Prüfungen (Begutachtungszeitraum, Prüfungsstart)
+  CR.autoAdvance(); setInterval(() => CR.autoAdvance(), 20000);
   // Vorschau: Herkunft merken (aus einem Kurs → zurück zum Kurs, aus dem Katalog → zurück zum Katalog)
   // Tabellenzeilen mit data-href: Klick in die Zeile öffnet den Eintrag (Schaltflächen und Links in der Zeile behalten ihre Funktion)
   document.addEventListener("click", (e) => {

@@ -5,15 +5,15 @@
 //    Teilaufgaben mit Fragetyp, Arbeitsauftrag, Bewertungsraster und Erwartungshorizont (auch mit Bildern)
 //  - Aufgabensteuerung: Regeln (Bedingungen mit UND/ODER, Aktionen)
 //  - Prüfen: Vollständigkeit und Übersicht, Speichern, Vorschau
-import { D, byId, upd, create } from "../data.js?v=8.8";
-import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=8.8";
-import { navigate, redraw, session } from "../app.js?v=8.8";
-import { me, personName } from "../access.js?v=8.8";
-import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=8.8";
-import { hasOwnContent, contentFromDefault, FOLDER } from "../content.js?v=8.8";
-import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=8.8";
-import { condText } from "../rules.js?v=8.8";
-import { inProcess, canEditContent, statusBadge } from "./creation.js?v=8.8";
+import { D, byId, upd, create } from "../data.js?v=8.9";
+import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=8.9";
+import { navigate, redraw, session } from "../app.js?v=8.9";
+import { me, personName } from "../access.js?v=8.9";
+import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=8.9";
+import { hasOwnContent, contentFromDefault, FOLDER } from "../content.js?v=8.9";
+import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=8.9";
+import { condText } from "../rules.js?v=8.9";
+import { inProcess, canEditContent, statusBadge } from "./creation.js?v=8.9";
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const rid = () => Math.random().toString(36).slice(2, 12);
@@ -48,7 +48,7 @@ export async function newContentDialog() {
   const author = isAuthor();
   const v = await modal({ title: "Neuen Inhalt erstellen", size: "narrow",
     body: `<div class="field"><label class="lbl" for="nc-t">Titel</label><input id="nc-t" class="input" data-f="title" placeholder="z. B. Lernerfolgskontrolle Tabellenkalkulation"></div>
-      <div class="field"><label class="lbl" for="nc-k">Art</label><select id="nc-k" class="select" data-f="kind">${author ? `<option>Prüfung</option>` : ""}<option ${author ? "" : "selected"}>Lernerfolgskontrolle</option></select>${author ? "" : `<p class="xs muted" style="margin:4px 0 0">Prüfungen erstellt die Koordinierungsstelle (Rolle Prüfungserstellung).</p>`}</div>
+      <div class="field"><label class="lbl" for="nc-k">Art</label><select id="nc-k" class="select" data-f="kind"><option selected>Lernerfolgskontrolle</option></select><p class="xs muted" style="margin:4px 0 0">Der Katalog enthält Inhalte für den Unterricht. Prüfungen entstehen im Erstellungsprozess der Koordinierungsstelle (Navigation „Erstellung“).</p></div>
       <div class="grid2"><div class="field"><label class="lbl" for="nc-b">Ausbildungsberuf</label><input id="nc-b" class="input" data-f="beruf" value="Kaufmann/-frau für Büromanagement"></div><div class="field"><label class="lbl" for="nc-f">Fach / Lernfeld</label><input id="nc-f" class="input" data-f="fach" value="Informationsverarbeitung"></div></div>
       <div class="field"><label class="lbl" for="nc-d">Bearbeitungszeit (Minuten)</label><input id="nc-d" class="input" type="number" min="5" data-f="dur" value="45"></div>`,
     footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Erstellen und im Editor öffnen</button>`,
@@ -156,7 +156,7 @@ function tabGeneral(E) {
   const c = E.content;
   return `<div class="edgrid2"><section class="card pad"><h3>Kopfdaten</h3>
     ${fld("cat.title", "Titel", E.cat.title)}
-    <div class="grid2"><div class="field"><label class="lbl">Art</label><select class="select" data-ep="cat.kind" ${isAuthor() && !inProcess(byId("catalog", E.id)) ? "" : "disabled"}><option ${E.cat.kind === "Prüfung" ? "selected" : ""}>Prüfung</option><option ${E.cat.kind !== "Prüfung" ? "selected" : ""}>Lernerfolgskontrolle</option></select></div>
+    <div class="grid2"><div class="field"><label class="lbl">Art</label><select class="select" data-ep="cat.kind" disabled>${inProcess(byId("catalog", E.id)) ? `<option selected>Prüfung</option>` : `<option selected>Lernerfolgskontrolle</option>`}</select></div>
       ${fld("content.duration_min", "Bearbeitungszeit (Minuten)", c.duration_min, { type: "number", num: true })}</div>
     <div class="grid2">${fld("cat.beruf", "Ausbildungsberuf", E.cat.beruf)}${fld("cat.fach", "Fach / Lernfeld", E.cat.fach)}</div>
     ${fld("cat.jahr", "Jahr", E.cat.jahr)}
@@ -359,7 +359,12 @@ export async function save(E, cat) {
   const subCount = c.tasks.reduce((a, t) => a + t.subtasks.length, 0);
   const types = [...new Set(c.tasks.flatMap((t) => t.subtasks.map((s) => qShort(s))))];
   const patch = { ...E.cat, duration: `${c.duration_min} Minuten`, content: c, rules: E.rules, contents: [`${c.tasks.length} Aufgaben mit ${subCount} Teilaufgaben (${types.join(", ")})`, c.ausgangssituation ? "Ausgangssituation mit Unternehmensprofil" : "", "Bewertungsraster und Erwartungshorizont je Teilaufgabe", E.rules.length ? `Aufgabensteuerung mit ${E.rules.length} Regeln` : ""].filter(Boolean) };
-  if (inProcess(cat)) { delete patch.kind; patch.history = [...(cat.history || []), { at: new Date().toISOString(), by: me() ? personName(me()) : "Koordinierungsstelle", ev: "inhalt", text: "Inhalt im Editor gespeichert" }]; }
+  if (inProcess(cat)) {
+    delete patch.kind;
+    // Begutachtung: Fehlerbehebung wird direkt freigegeben (kein erneuter Freigabeprozess)
+    if (cat.status === "begutachtung") { if (!(await confirmBox("Korrektur direkt freigeben", `<p>Die Änderung wird <b>sofort freigegeben</b> und ist für die Schulen sichtbar (Version ${(+cat.meta?.version || 1) + 1}). Ein erneuter Freigabeprozess ist nicht erforderlich.</p>`, "Speichern und freigeben", "Abbrechen", false))) return false; patch.meta = { ...(cat.meta || {}), version: (+cat.meta?.version || 1) + 1 }; }
+    patch.history = [...(cat.history || []), cat.status === "begutachtung" ? { at: new Date().toISOString(), by: me() ? personName(me()) : "Koordinierungsstelle", ev: "korrektur-freigegeben", text: `Korrektur vor Prüfungsbeginn direkt freigegeben (Version ${patch.meta.version})` } : { at: new Date().toISOString(), by: me() ? personName(me()) : "Koordinierungsstelle", ev: "inhalt", text: "Inhalt im Editor gespeichert" }];
+  }
   if (!cat.editor_by) patch.editor_by = isAuthor() ? "autor" : me()?.id || "";
   try { await upd("catalog", cat.id, patch); } catch (e) { toast("Nicht gespeichert", e?.response?.message || e?.message || "", "error"); return false; }
   E.dirty = false; E.fromDefault = false; E.updated = byId("catalog", cat.id)?.updated;

@@ -1,14 +1,15 @@
 // Prüfling: Wartebereich, Prüfungsmodus (Dashboard, Aufgaben, Abgaben), Endbildschirm, Kursvorschau
-import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.8";
-import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=8.8";
-import { EXAM, ALL_SUBTASKS, subtask, taskOf, ALL_TOOLS, INLINE_TYPES } from "../scenario.js?v=8.8";
-import { navigate, session, render, directHelp } from "../app.js?v=8.8";
-import * as W from "./dock.js?v=8.8";
-import { einsichtView } from "./results.js?v=8.8";
-import { einsichtFor } from "../access.js?v=8.8";
-import { materialsOf, catalogOfParticipant } from "../content.js?v=8.8";
-import { markable, bindMarkables } from "../highlight.js?v=8.8";
-import { ruleMatches, evalState, runAction } from "../rules.js?v=8.8";
+import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=8.9";
+import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=8.9";
+import { EXAM, ALL_SUBTASKS, subtask, taskOf, ALL_TOOLS, INLINE_TYPES } from "../scenario.js?v=8.9";
+import { navigate, session, render, directHelp } from "../app.js?v=8.9";
+import * as W from "./dock.js?v=8.9";
+import { einsichtView } from "./results.js?v=8.9";
+import { einsichtFor } from "../access.js?v=8.9";
+import { materialsOf, catalogOfParticipant } from "../content.js?v=8.9";
+import * as CR from "./creation.js?v=8.9";
+import { markable, bindMarkables } from "../highlight.js?v=8.9";
+import { ruleMatches, evalState, runAction } from "../rules.js?v=8.9";
 // Punktebadge: grün, sobald für die (Teil-)Aufgabe eine Abgabe markiert ist, sonst grau
 const ptsBadge = (done, label, title = "") => `<span class="badge ${done ? "lime" : "gray"}" title="${title || (done ? "Abgabe markiert" : "noch nicht bearbeitet")}">${label}</span>`;
 const taskDone = (items, t) => t.subtasks.filter((s) => items.some((i) => i.submission === s.no)).length;
@@ -101,6 +102,9 @@ export function route(sub, q) {
 }
 
 export function preview(courseId, sub) {
+  const cat = byId("catalog", courseId);
+  if (cat?.status && !CR.canViewContent(cat)) return { shell: "staff", rail: "kurse", title: "Kein Zugriff", render: () => `<div class="empty">${icon("lock")}<h2>Inhalt nicht einsehbar</h2><p>${esc(CR.contentInfo(cat)?.text || "")}. Den Inhalt sehen nur die dafür berechtigten Personen${cat.status === "gesperrt" ? " – die Prüfung ist verschlüsselt und weggesperrt" : ""}.</p><a class="btn" href="javascript:history.back()">Zurück</a></div>` };
+  if (cat?.status === "begutachtung") CR.noteReview(cat);
   const ctx = makeCtx(true, courseId);
   CTX = ctx; W.setCtx(ctx);
   const tm = (sub || "").match(/^aufgabe\/(\d)/);
@@ -340,7 +344,7 @@ function waitView(ctx) {
       el.querySelectorAll("[data-pgstep]").forEach((b) => (b.onclick = () => { ui.pdfPage = Math.max(1, Math.min(3, ui.pdfPage + +b.dataset.pgstep)); render(false); }));
       const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
       const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
-      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.8").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
+      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=8.9").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
       // Prüfung läuft bereits, Bestätigung fehlt
       if (room.state === "RUNNING" && !confirmedBoth && !document.querySelector(".backdrop") && !store.get("bo." + p.id)) {
         store.set("bo." + p.id, 1);
@@ -740,7 +744,7 @@ function bindPage(el, ctx, sub) {
   el.querySelectorAll("[data-swapatt]").forEach((b) => (b.onclick = () => swapAttachment(ctx, b, ...b.dataset.swapatt.split("|"))));
   el.querySelectorAll("[data-openmail]").forEach((b) => (b.onclick = () => W.open("mail", { mailId: b.dataset.openmail, subtask: sub.split("/")[2] })));
   const fin = el.querySelector("[data-finish]"); if (fin) fin.onclick = () => finishExam(ctx);
-  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.8").then((m) => m.copyCourse(ctx.course));
+  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=8.9").then((m) => m.copyCourse(ctx.course));
   const bm = el.querySelector("[data-bookmark]");
   if (bm) bm.onclick = () => {
     const parts = sub.split("/"); const key = parts[2] || parts[1];

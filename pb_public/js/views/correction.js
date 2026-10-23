@@ -1,12 +1,13 @@
 // Korrekturworkflow: Korrekturübersicht, Korrekturmodus, Vergleich, Erwartungshorizont
-import { D, byId, upd, create, setting, setSetting } from "../data.js?v=8.8";
-import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=8.8";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.8";
-import { contentScope } from "../content.js?v=8.8";
-import { navigate, redraw, session } from "../app.js?v=8.8";
-import { me, courseOf, correctorStages, canCorrect, correctionOver, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses, STAGE_LABEL } from "../access.js?v=8.8";
-import { linearGrade, fmtNote, approvalState, approvalText } from "../grades.js?v=8.8";
-export { mode } from "./kmode.js?v=8.8";
+import { D, byId, upd, create, setting, setSetting } from "../data.js?v=8.9";
+import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=8.9";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=8.9";
+import { contentScope } from "../content.js?v=8.9";
+import * as CRk from "./creation.js?v=8.9";
+import { navigate, redraw, session } from "../app.js?v=8.9";
+import { me, courseOf, correctorStages, canCorrect, correctionOver, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses, STAGE_LABEL } from "../access.js?v=8.9";
+import { linearGrade, fmtNote, approvalState, approvalText } from "../grades.js?v=8.9";
+export { mode } from "./kmode.js?v=8.9";
 
 const S = { view: "aufgaben", collapsed: {} };
 // Lehrkraft (Unterrichtsebene): genau eine Korrektur; Korrektor:in (Prüfungsebene): Erst-, Zweit-, Drittkorrektur
@@ -110,7 +111,10 @@ export function overview(q) {
       const mine = lesson ? visibleCourses(pe).filter((x) => x.kind === "unterricht" && lessonCorrector(x) === pe?.id) : [];
       const elsewhere = lesson ? visibleCourses(pe).filter((x) => x.kind === "unterricht" && lessonCorrector(x) && lessonCorrector(x) !== pe?.id) : [];
       const sub = lesson ? (mine.length ? mine.map((x) => esc(x.title)).join(" · ") : "Keine Unterrichtskurse in Ihrer Korrektur") : `${esc(EXAM.name)} · ${esc(CORRECTORS[c].label)} · Prüflinge, deren Korrektorengruppe Sie angehören`;
-      return `<div class="pagehead"><div><h1>Korrekturübersicht</h1><div class="sub">${sub}</div></div>
+      // Prüfungsbegutachtung vor Prüfungsstart (Task 48): Prüfungen im Begutachtungszeitraum, in denen das Konto korrigiert
+      const rev = D.catalog.filter((x) => x.status === "begutachtung" && CRk.schoolReviewer(x, pe0));
+      const revHtml = rev.map((x) => `<div class="notice info mb">${icon("eye")}<span><b>Prüfungsbegutachtung vor Prüfungsstart:</b> „${esc(x.title)}“ ist bis ${fmtDateTime(CRk.startAt(x))} Uhr zur Begutachtung freigeschaltet. Fehler melden Sie bitte außerhalb des Portals an die Koordinierungsstelle bzw. Prüfungskommission.</span><a class="btn sm" href="#/app/vorschau/${x.id}/dashboard">${icon("eye")} Prüfung begutachten</a></div>`).join("");
+      return revHtml + `<div class="pagehead"><div><h1>Korrekturübersicht</h1><div class="sub">${sub}</div></div>
         <div class="row wrap">${CS.select}${lesson ? `<button class="btn" data-handoff ${mine.length ? "" : "disabled"} title="Korrektur an eine andere Lehrkraft des Kurses weitergeben">${icon("forward")} Korrektur weitergeben</button>` : `${myStages().length > 1 ? `<select class="select" style="width:auto" data-corr aria-label="Korrekturstufe">${myStages().map((k) => `<option value="${k}" ${c === k ? "selected" : ""}>${CORRECTORS[k].label}</option>`).join("")}</select>` : `<span class="badge" style="background:${CORRECTORS[c].color};color:#fff">${esc(CORRECTORS[c].label)}</span>`}`}
         <button class="btn primary" data-start ${ps.length ? "" : "disabled"}>${icon("play")} Korrektur starten</button></div></div>
       <div class="row between wrap"><nav class="tabs" style="flex:1"><button data-view="aufgaben" class="${S.view === "aufgaben" ? "active" : ""}">Aufgabenweise</button><button data-view="personen" class="${S.view === "personen" ? "active" : ""}">Personenweise</button></nav>

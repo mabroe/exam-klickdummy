@@ -4,7 +4,7 @@
 // Alle Personennamen sind zufällig erzeugte Fantasienamen – Ähnlichkeiten mit realen Personen sind nicht beabsichtigt.
 (function (root) {
   // Stand der Demodaten. Erhöhen, wenn sich die Demodaten ändern – ältere Datenbestände werden beim Start automatisch neu aufgebaut.
-  var SEED_VERSION = 15;
+  var SEED_VERSION = 16;
   var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings"];
 
   // Bewertungskriterien je Teilaufgabe (Maximalpunkte) – muss zu js/scenario.js passen
@@ -52,7 +52,9 @@
     T["Dähne"] = P("Dähne", "Niklas", bts, "lehrkraft", "ND");
 
     // ---------- Katalog ----------
+    // Katalog nur für den Unterricht: Prüfungsähnliche Inhalte dienen als Übung/Prüfungsvorbereitung
     var C = function (title, beruf, fach, jahr, kind, image, description) {
+      if (kind === "Prüfung") kind = "Lernerfolgskontrolle";
       return add("catalog", {
         title: title, beruf: beruf, fach: fach, jahr: jahr, kind: kind, image: image, description: description, duration: kind === "Prüfung" ? "90 Minuten" : "45 Minuten", creator: "IBBW",
         tags: [kind === "Prüfung" ? "Prüfungen" : "Lernerfolgskontrolle", "Teil " + (1 + (image % 2))],
@@ -61,7 +63,12 @@
       });
     };
     C("Prüfung XY", "Fachinformatiker Systemintegration", "IT-Systeme", "2023", "Prüfung", 0, "Dieser Kurs vermittelt fortgeschrittene Excel-Funktionen wie Pivot-Tabellen, SVERWEIS, komplexe Formeln und Datenanalyse.");
+    // Prüfung FA230: Inhalt der Prüfung (kein Katalogeintrag – im Erstellungsprozess veröffentlicht)
     var catFA = C("FA230 - Musterprüfung", "Kaufmann/-frau für Büromanagement", "Geschäftsprozesse", "2024", "Prüfung", 1, "Musterprüfung mit Angebotsvergleich, Kalkulation und Netzwerkkonfiguration am Bildschirmarbeitsplatz.");
+    catFA.kind = "Prüfung"; catFA.tags = ["Prüfungen"]; catFA.status = "veroeffentlicht"; catFA.editor_by = "prozess";
+    catFA.meta = { titel: "FA230 - Musterprüfung", art: "Musterprüfung", beruf: "Kaufmann/-frau für Büromanagement", bereich: "Geschäftsprozesse", code: "FA230", termin: iso(planned).slice(0, 16).replace(" ", "T"), dauer: 90, einsicht_h: 24, orgs: [afs.id, bts.id] };
+    catFA.team = {}; catFA.history = [{ at: iso(new Date(now.getTime() - 86400000 * 40)), by: "Koordinierungsstelle", ev: "angelegt", text: "Prüfung angelegt", to: "vorbereitung" }, { at: iso(new Date(now.getTime() - 86400000)), by: "Koordinierungsstelle", ev: "begutachtung", text: "Begutachtung durch die Schulen freigeschaltet (24 h vor Prüfungsstart)", from: "gesperrt", to: "begutachtung" }, { at: iso(new Date(now.getTime() - 3600000)), by: "System", ev: "veroeffentlicht", text: "Prüfungsstart erreicht – Inhalt für die Durchführung freigegeben", from: "begutachtung", to: "veroeffentlicht" }];
+    C("FA230 - Musterprüfung (Übung für den Unterricht)", "Kaufmann/-frau für Büromanagement", "Geschäftsprozesse", "2024", "Lernerfolgskontrolle", 1, "Übungsfassung der Musterprüfung FA230 für den Unterricht: Angebotsvergleich, Kalkulation und Netzwerkkonfiguration am Bildschirmarbeitsplatz.");
     C("Grundlagen Tabellenkalkulation", "Kaufmann/-frau für Büromanagement", "Informationsverarbeitung", "2022", "Lernerfolgskontrolle", 2, "Zellbezüge, kopierfähige Formeln und die WENN-Funktion sicher anwenden.");
     C("Netzwerktechnik kompakt", "Fachinformatiker Systemintegration", "Vernetzte Systeme", "2024", "Lernerfolgskontrolle", 3, "IPv4-Subnetting, VLANs und Firewall-Grundregeln an einem Praxisfall.");
     C("Datenbanken und SQL", "Fachinformatiker Anwendungsentwicklung", "Datenbanken", "2023", "Prüfung", 0, "Relationale Modellierung, SELECT-Abfragen mit JOIN und Aggregatfunktionen.");
@@ -326,10 +333,13 @@
     var gWG = GR("WG12a", afs, "klasse", wg.map(pid));
     GR("Informatik J1", afs, "kurs", wg.slice(0, 5).map(pid).concat(j1extra.map(pid)));
     GR("WG12b", afs, "klasse", j1extra.map(pid));
+    // Prüfungskommissionen (Gruppen der Koordinierungsstelle) mit festem Vorsitz
+    add("groups", { name: "Prüfungskommission Büromanagement", org: "", kind: "kommission", source: "koordinierungsstelle", course: "", members: [T.Ohm.id, T.Ebeling.id, T.Steinhoff.id], chair: T.Steinhoff.id });
+    add("groups", { name: "Prüfungskommission IT-Berufe", org: "", kind: "kommission", source: "koordinierungsstelle", course: "", members: [T.Gaspari.id, T.Morawetz.id, T["Dähne"].id], chair: T.Gaspari.id });
     var btsGroups = Object.keys(groupMembers).filter(function (k) { return groupMembers[k].org === bts; }).map(function (k) { return GR(k, bts, "klasse", groupMembers[k].ids); });
     // Mitglieder der Prüfung (pflegt die Schuladministration der jeweiligen Schule) und des Unterrichts (pflegt die Lehrkraft)
     pr1.groups = [{ group: gFA.id, role: "teilnehmer" }].concat(btsGroups.map(function (g) { return { group: g.id, role: "teilnehmer" }; }));
-    pr1.members = [{ person: T["Riedmüller"].id, role: "raumaufsicht" }, { person: T.Voigt.id, role: "raumaufsicht" }, { person: T.Hinrichs.id, role: "pruefungseinsicht" }, { person: T.Gaspari.id, role: "raumaufsicht" }, { person: T["Dähne"].id, role: "raumaufsicht" }, { person: T.Morawetz.id, role: "raumaufsicht" }, { person: T["Riedmüller"].id, role: "pruefungseinsicht" }, { person: T["Dähne"].id, role: "pruefungseinsicht" }];
+    pr1.members = [{ person: T["Riedmüller"].id, role: "raumaufsicht" }, { person: T.Voigt.id, role: "raumaufsicht" }, { person: T.Hinrichs.id, role: "pruefungseinsicht" }, { person: T.Gaspari.id, role: "raumaufsicht" }, { person: T["Dähne"].id, role: "raumaufsicht" }, { person: T.Morawetz.id, role: "raumaufsicht" }, { person: T["Riedmüller"].id, role: "pruefungseinsicht" }, { person: T["Dähne"].id, role: "pruefungseinsicht" }, { person: T.Hinrichs.id, role: "schuladmin" }, { person: T.Ammermann.id, role: "schuladmin" }];
     // Korrektorengruppen je Korrekturstufe (Zuweisung für die Klasse FA230a bzw. die Klassen der BTS); Endbeurteilung nur auf Anforderung
     var K = function (stage, group, correctors, org) { return { id: rid(), stage: stage, kind: "group", target: group.id, correctors: correctors.map(function (x) { return x.id; }), org: org.id }; };
     pr1.corrections = [K(1, gFA, [T.Ohm, T.Voigt], afs), K(2, gFA, [T.Steinhoff], afs), K(3, gFA, [T.Ebeling], afs)]

@@ -134,9 +134,9 @@ export const taskOf = (no) => EXAM.tasks.find((t) => t.no === String(no));
 // Punkte, Nummerierung und Standardwerte aus dem Inhalt ableiten
 export function normalizeContent(c) {
   c.tasks = (c.tasks || []).map((t, i) => {
-    t.no = String(i + 1); t.tools = t.tools || ALL_TOOLS.map((x) => x[0]); t.materials = t.materials || [];
+    t.no = String(i + 1); t.title = t.title || ""; t.situation = t.situation || ""; t.tools = t.tools || ALL_TOOLS.map((x) => x[0]); t.materials = t.materials || [];
     t.subtasks = (t.subtasks || []).map((s, j) => {
-      s.no = `${t.no}.${j + 1}`; s.type = s.type || (s.tool === "upload" ? "upload" : "app");
+      s.no = `${t.no}.${j + 1}`; s.title = s.title || ""; s.text = s.text || ""; s.type = s.type || (s.tool === "upload" ? "upload" : "app");
       if (s.type === "upload") s.tool = "upload"; else if (s.type !== "app") s.tool = s.type; else if (!APP_TOOLS[s.tool]) s.tool = "files";
       s.criteria = (s.criteria || []).map((k) => [k[0] || "", Math.max(0, +k[1] || 0), k[2] || ""]);
       s.points = s.criteria.reduce((a, k) => a + k[1], 0);
@@ -146,6 +146,7 @@ export function normalizeContent(c) {
     t.points = t.subtasks.reduce((a, s) => a + s.points, 0);
     return t;
   });
+  c.ausgangssituation = c.ausgangssituation || ""; c.name = c.name || "";
   c.gradingKey = c.gradingKey || { type: "linear" }; c.categories = c.categories || { system: "none", list: [] };
   c.company = { name: "", allgemein: "", adresse: "", rechtliches: "", kontakt: "", vorlagen: "", ...(c.company || {}) };
   c.info = c.info || { title: "Prüfungsinformationen", items: [] }; c.faq = c.faq || DEFAULT_CONTENT.faq; c.signatures = c.signatures || {};

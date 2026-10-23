@@ -1,11 +1,14 @@
 // Aktiven Prüfungs-/Kursinhalt bestimmen: Katalogeintrag (Vorschau, Editor), Teilnahme (Prüfling, Korrektur, Einsicht) oder Kurs
-import { D, byId } from "./data.js?v=8.8";
-import { useContent, defaultContent } from "./scenario.js?v=8.8";
+import { D, byId } from "./data.js?v=8.9";
+import { useContent, defaultContent } from "./scenario.js?v=8.9";
 
 export const hasOwnContent = (cat) => !!(cat?.content && Array.isArray(cat.content.tasks) && cat.content.tasks.length);
 export const catalogOfCourse = (c) => byId("catalog", c?.catalog);
 export const catalogOfParticipant = (p) => catalogOfCourse(byId("courses", byId("rooms", p?.room)?.course));
+// Verschlüsselte Prüfung: kein Inhalt verfügbar (Platzhalter statt Rückfall auf die Musterprüfung)
+const SEALED = { name: "Inhalt verschlüsselt", tasks: [{ title: "Inhalt verschlüsselt", situation: "", tools: [], materials: [], subtasks: [] }] };
 export function useCatalog(cat) {
+  if (cat?.content?.sealed || cat?.status === "gesperrt") return useContent(SEALED, `sealed:${cat.id}`);
   if (hasOwnContent(cat)) return useContent(cat.content, `${cat.id}@${cat.updated || ""}`);
   return useContent(null, "default");
 }
@@ -16,6 +19,7 @@ export const useCourse = (c) => useCatalog(catalogOfCourse(c));
 //  - eigener Inhalt: content.tasks[].materials
 //  - Musterprüfung: globale Elemente (participant = "")
 export function materialsOf(cat) {
+  if (cat?.status && !["veroeffentlicht", "begutachtung"].includes(cat.status) && cat.editor_by === "prozess") return []; // Inhalt (noch) nicht freigegeben
   if (!hasOwnContent(cat)) return D.items.filter((i) => i.participant === "").map((i) => ({ kind: i.kind, folder: i.folder, data: { ...i.data } }));
   const out = [];
   for (const t of cat.content.tasks || []) {

@@ -1,26 +1,29 @@
 // Erstellungsprozess einer Prüfung (Instanz OPE) – Tasks 2–6, 8, 12, 14–18, 46, 47
-//  Status: Vorbereitung (Aufgabenerstellung) → Kommission/Review → Lektorat und Prüflösen → Review → final freigegeben (gesperrt bis
-//  Prüfungsstart) → veröffentlicht. Die Koordinierungsstelle legt die Prüfung an, setzt die Rahmendaten und weist die Personen zu;
+//  Status: Vorbereitung (Aufgabenerstellung) → Kommission/Review → Lektorat und Prüflösen → Review → final freigegeben (verschlüsselt und
+//  weggesperrt) → Begutachtung durch die Schulen (konfigurierbarer Vorlauf vor Prüfungsstart, Fehlerbehebung mit direkter Freigabe) →
+//  Prüfungsstart (Inhalt für die Durchführung freigegeben). Die Organisation an den Schulen beginnt unabhängig davon schon vor der Freigabe. Die Koordinierungsstelle legt die Prüfung an, setzt die Rahmendaten und weist die Personen zu;
 //  danach erledigen Aufgabenerstellung, Kommission, Kommissionsvorsitz, Beratung, Lektorat und Prüflösung ihre Aufgaben.
-import { D, byId, upd, create } from "../data.js?v=8.8";
-import { icon, esc, toast, confirmBox, modal, store, fmtDateTime, parseDate } from "../ui.js?v=8.8";
-import { navigate, redraw, session } from "../app.js?v=8.8";
-import { me, personName, orgShort, orgsLabel } from "../access.js?v=8.8";
-import { blankContent, validate as validateContent } from "./editor.js?v=8.8";
-import { normalizeContent } from "../scenario.js?v=8.8";
+import { D, byId, upd, create } from "../data.js?v=8.9";
+import { icon, esc, toast, confirmBox, modal, store, fmtDateTime, parseDate } from "../ui.js?v=8.9";
+import { navigate, redraw, session } from "../app.js?v=8.9";
+import { me, personName, orgShort, orgsLabel } from "../access.js?v=8.9";
+import { blankContent, validate as validateContent } from "./editor.js?v=8.9";
+import { normalizeContent } from "../scenario.js?v=8.9";
+import { seal, unseal, fingerprint } from "../vault.js?v=8.9";
 
 // ---------- Modell ----------
 export const ESTATUS = {
   vorbereitung: { label: "Vorbereitung", long: "Vorbereitung – Aufgabenerstellung", color: "gray", nr: 1 },
   review: { label: "Kommission / Review", long: "Kommission / Review", color: "cyan", nr: 2 },
   lektorat: { label: "Lektorat und Prüflösen", long: "Lektorat und Prüflösen", color: "purple", nr: 3 },
-  gesperrt: { label: "Gesperrt", long: "Final freigegeben – gesperrt bis zum Prüfungsstart", color: "yellowb", nr: 4 },
-  veroeffentlicht: { label: "Veröffentlicht", long: "Veröffentlicht (zum Prüfungstermin)", color: "green", nr: 5 },
+  gesperrt: { label: "Verschlüsselt", long: "Final freigegeben – verschlüsselt und weggesperrt", color: "yellowb", nr: 4 },
+  begutachtung: { label: "Begutachtung", long: "Begutachtung durch die Schulen vor Prüfungsstart", color: "orange", nr: 5 },
+  veroeffentlicht: { label: "Prüfungsstart", long: "Prüfungsstart erreicht – Inhalt für die Durchführung freigegeben", color: "green", nr: 6 },
 };
 export const EROLES = {
   aufgabenerstellung: { label: "Aufgabenerstellung", req: true, hint: "erstellt die Aufgaben im Editor (Task 46)" },
-  kommission: { label: "Kommission", req: true, hint: "arbeitet Aufgabenentwürfe ein, legt den Unternehmenspool fest (Tasks 14, 15)" },
-  vorsitz: { label: "Kommissionsvorsitz", req: true, single: true, hint: "gibt die Prüfung final frei (Task 12)" },
+  kommission: { label: "Kommission", req: true, hint: "arbeitet Aufgabenentwürfe ein, legt den Unternehmenspool fest (Tasks 14, 15)", group: true },
+  vorsitz: { label: "Kommissionsvorsitz", req: true, single: true, hint: "gibt die Prüfung final frei (Task 12)", group: true },
   beratung: { label: "Beratung", hint: "sieht die Aufgabenentwürfe ein (Task 16)" },
   lektorat: { label: "Lektorat", hint: "lektoriert die Prüfung (Task 17)" },
   pruefloesung: { label: "Prüflösung", hint: "löst die Prüfung im Teilnahmemodus (Task 18)" },
@@ -30,6 +33,7 @@ export const META = [
   ["titel", "Prüfungstitel", "text", true], ["art", "Prüfungsart", "select:Abschlussprüfung Teil 1|Abschlussprüfung Teil 2|Zwischenprüfung|Musterprüfung", true],
   ["beruf", "Ausbildungsberuf", "text", true], ["bereich", "Prüfungsbereich / Fach", "text", true], ["code", "Prüfungskennung", "text", true],
   ["termin", "Prüfungstermin (Start Prüfungszeitraum)", "datetime-local", true], ["dauer", "Bearbeitungszeit (Minuten)", "number", true],
+  ["einsicht_h", "Begutachtung durch die Schulen ab … vor Prüfungsstart", "select:2 Stunden|12 Stunden|24 Stunden|48 Stunden|72 Stunden", true],
   ["erstellung_von", "Start Erstellungszeitraum", "date", true], ["erstellung_bis", "Ende Erstellungszeitraum", "date", true],
   ["kommission_bis", "Ende Kommissionszeitraum", "date", true], ["lektorat_bis", "Ende Lektorat", "date", false], ["pruefloesung_bis", "Ende Prüflösung", "date", false],
   ["hilfsmittel", "Zugelassene Hilfsmittel", "text", false], ["hinweise", "Hinweise für den Erstellungsprozess", "textarea", false],
@@ -42,6 +46,34 @@ export const POOL = [
 ];
 
 export const inProcess = (cat) => !!cat?.status;
+// ---------- Zeitsteuerung (Prüfungsrumpf) ----------
+export const startAt = (c) => new Date(c?.meta?.start_override || c?.meta?.termin || 0);
+export const reviewHours = (c) => parseInt(c?.meta?.einsicht_h) || 24;
+export const unlockAt = (c) => (c?.meta?.unlock_override ? new Date(c.meta.unlock_override) : new Date(startAt(c).getTime() - reviewHours(c) * 3600000));
+export const examCourse = (c) => byId("courses", c?.meta?.course) || D.courses.find((x) => x.kind === "pruefung" && x.catalog === c?.id);
+export const isSealed = (c) => c?.status === "gesperrt";
+// Wer darf den Inhalt sehen? Entwurf: Personen im Erstellungsprozess; verschlüsselt: niemand; Begutachtung: Koordinierungsstelle,
+// Kommission, Vorsitz sowie Schuladministration und Korrektor:innen der teilnehmenden Schulen; ab Prüfungsstart: wie bisher
+export function schoolReviewer(c, p = me()) {
+  const course = examCourse(c); if (!course || !p) return false;
+  if (p.kind === "schuladmin") return (course.orgs || []).includes(p.org);
+  return (course.corrections || []).some((a) => (a.correctors || []).includes(p.id));
+}
+export function canViewContent(c, p = me()) {
+  if (!c?.status) return true;
+  const r = rolesOf(c, p);
+  if (["vorbereitung", "review", "lektorat"].includes(c.status)) return r.length > 0;
+  if (c.status === "gesperrt") return false;
+  if (c.status === "begutachtung") return r.includes("koordination") || r.includes("kommission") || r.includes("vorsitz") || schoolReviewer(c, p);
+  return true;
+}
+export function contentInfo(c) {
+  if (!c?.status) return null;
+  if (c.status === "veroeffentlicht") return { key: "frei", text: "Inhalt für die Durchführung freigegeben", badge: "green" };
+  if (c.status === "begutachtung") return { key: "begutachtung", text: `Begutachtung durch die Schulen bis Prüfungsstart ${fmtDateTime(startAt(c))} Uhr`, badge: "orange" };
+  if (c.status === "gesperrt") return { key: "versiegelt", text: `Inhalt verschlüsselt – Begutachtung ab ${fmtDateTime(unlockAt(c))} Uhr`, badge: "yellowb" };
+  return { key: "entwurf", text: "Inhalt in Erstellung – für Schulen nicht einsehbar", badge: "gray" };
+}
 export const isKS = (p = me()) => p?.kind === "koordination";
 export const team = (cat) => ({ aufgabenerstellung: [], kommission: [], vorsitz: [], beratung: [], lektorat: [], pruefloesung: [], ...(cat?.team || {}) });
 export function rolesOf(cat, p = me()) {
@@ -49,7 +81,7 @@ export function rolesOf(cat, p = me()) {
   const t = team(cat); const r = Object.keys(EROLES).filter((k) => (t[k] || []).includes(p.id));
   return isKS(p) ? ["koordination", ...r] : r;
 }
-export const canEditContent = (cat, p = me()) => { const r = rolesOf(cat, p); return (cat.status === "vorbereitung" && r.includes("aufgabenerstellung")) || (cat.status === "review" && (r.includes("kommission") || r.includes("vorsitz"))); };
+export const canEditContent = (cat, p = me()) => { const r = rolesOf(cat, p); return (cat.status === "vorbereitung" && r.includes("aufgabenerstellung")) || (cat.status === "review" && (r.includes("kommission") || r.includes("vorsitz"))) || (cat.status === "begutachtung" && startAt(cat) > Date.now() && (r.includes("koordination") || r.includes("kommission") || r.includes("vorsitz"))); };
 export const metaMissing = (cat) => META.filter(([k, , , req]) => req && !String(cat?.meta?.[k] ?? "").trim()).map(([, l]) => l);
 export const teamMissing = (cat) => Object.entries(EROLES).filter(([k, d]) => d.req && !(team(cat)[k] || []).length).map(([, d]) => d.label);
 const optionalAssigned = (cat) => ["lektorat", "pruefloesung"].filter((k) => (team(cat)[k] || []).length);
@@ -79,7 +111,7 @@ export async function newExamDialog() {
   if (!v) return;
   const p = me();
   const rec = await create("catalog", { title: v.titel, kind: "Prüfung", beruf: v.beruf, fach: "", jahr: String(new Date().getFullYear() + 1), description: "", duration: "90 Minuten", creator: "Koordinierungsstelle (IBBW)", tags: ["Prüfungen", "Erstellungsprozess"], contents: [], mine: false, copied_from: "", image: Math.floor(Math.random() * 4),
-    content: blankContent(v.titel, 90), rules: [], editor_by: "prozess", status: "vorbereitung", meta: { titel: v.titel, beruf: v.beruf, art: "Abschlussprüfung Teil 1", dauer: 90 }, team: { koordination: p ? [p.id] : [] }, history: [{ at: new Date().toISOString(), by: myName(), ev: "angelegt", text: "Neue Prüfung angelegt (Status Vorbereitung)", to: "vorbereitung" }], feedback: [], reviews: {} });
+    content: blankContent(v.titel, 90), rules: [], editor_by: "prozess", status: "vorbereitung", meta: { titel: v.titel, beruf: v.beruf, art: "Abschlussprüfung Teil 1", dauer: 90, einsicht_h: "24 Stunden", orgs: [], version: 1 }, team: { koordination: p ? [p.id] : [] }, history: [{ at: new Date().toISOString(), by: myName(), ev: "angelegt", text: "Neue Prüfung angelegt (Status Vorbereitung)", to: "vorbereitung" }], feedback: [], reviews: {} });
   for (let i = 0; i < 40 && !byId("catalog", rec.id); i++) await new Promise((r) => setTimeout(r, 50));
   toast("Prüfung angelegt", v.titel); navigate(`#/app/erstellung/${rec.id}/rahmendaten`);
 }
@@ -93,7 +125,7 @@ export function list() {
       const all = D.catalog.filter(inProcess).filter((c) => isKS(p) || rolesOf(c, p).length).sort((a, b) => String(b.created).localeCompare(String(a.created)));
       return `<div class="pagehead"><div><h1>Prüfungserstellung</h1><div class="sub">${esc(myName())}${isKS(p) ? " · Koordinierungsstelle" : " · Prüfungen, an deren Erstellung Sie beteiligt sind"}</div></div>
         ${isKS(p) ? `<div class="actions-bar"><button class="btn primary" data-newexam>${icon("plus")} Neue Prüfung anlegen</button></div>` : ""}</div>
-      <div class="notice info small mb">${icon("info")}<span>Ablauf: <b>Vorbereitung</b> (Rahmendaten, Personen, Aufgabenerstellung) → <b>Kommission/Review</b> → <b>Lektorat und Prüflösen</b> (optional) → Review → <b>final freigegeben</b> (gesperrt bis zum Prüfungsstart) → <b>veröffentlicht</b>.</span></div>
+      <div class="notice info small mb">${icon("info")}<span>Ablauf: <b>Vorbereitung</b> (Rahmendaten, Organisationen, Personen, Aufgabenerstellung) → <b>Kommission/Review</b> → <b>Lektorat und Prüflösen</b> (optional) → Review → <b>final freigegeben</b>: verschlüsselt und weggesperrt → <b>Begutachtung</b> durch die Schulen (Vorlauf laut Prüfungsrumpf) → <b>Prüfungsstart</b>. Die Schulen organisieren die Prüfung (Teilnehmende, Raumaufsichten) schon vorher – ohne Einsicht in den Inhalt.</span></div>
       <div class="tablewrap"><table class="tbl"><thead><tr><th>Prüfung</th><th>Status</th><th>Ihre Rollen</th><th>Prüfungstermin</th><th>Offene Aufgabe</th></tr></thead><tbody>${all.length ? all.map((c) => { const t = myTasks(c, p).find((x) => !x.done); return `<tr class="rowlink" data-href="#/app/erstellung/${c.id}/uebersicht" tabindex="0"><td><b>${esc(c.title)}</b><div class="xs muted">${esc(c.meta?.code || "")} ${esc(c.meta?.art || "")}</div></td><td>${statusBadge(c)}</td><td class="small">${rolesOf(c, p).map(roleName).join(", ") || "–"}</td><td class="small">${fmtD(c.meta?.termin)}</td><td class="small">${t ? `<b>${esc(t.title)}</b>${t.due ? `<div class="xs muted">fällig ${esc(t.due)}</div>` : ""}` : `<span class="muted">keine</span>`}</td></tr>`; }).join("")
         : `<tr><td colspan="5"><div class="empty small">${isKS(p) ? "Noch keine Prüfung im Erstellungsprozess. Legen Sie eine neue Prüfung an." : "Sie sind derzeit keiner Prüfung im Erstellungsprozess zugewiesen."}</div></td></tr>`}</tbody></table></div>`;
     },
@@ -110,8 +142,10 @@ export function myTasks(c, p = me()) {
   const rv = c.reviews || {};
   if (r.includes("koordination")) {
     add(2, "Prüfungsmetadaten (Rahmendaten) setzen", !metaMissing(c).length, [["go", "rahmendaten", "Rahmendaten öffnen"]], fmtD(c.meta?.erstellung_von));
+    add(47, "Organisationen der Prüfung zuordnen", !!(c.meta?.orgs || []).length, s !== "veroeffentlicht" ? [["go", "organisationen", "Organisationen"]] : []);
     add(4, "Personen im Erstellungsprozess zuweisen", !teamMissing(c).length, [["go", "personen", "Personen zuweisen"]], fmtD(c.meta?.erstellung_von));
-    if (s === "gesperrt") { add(8, "Prüfungsfreigabe aufheben (bei Bedarf)", false, [["unlock", "", "Freigabe aufheben"]]); add(47, "Zum Prüfungstermin veröffentlichen und Schulen zuordnen", false, [["publish", "", "Veröffentlichen"]], fmtD(c.meta?.termin)); }
+    if (s === "gesperrt") { add(8, "Prüfungsfreigabe aufheben (bei Bedarf)", false, [["unlock", "", "Freigabe aufheben"]]); add("–", `Warten auf Begutachtungszeitraum (ab ${fmtDateTime(unlockAt(c))} Uhr)`, false, [["demounlock", "", "Demo: Begutachtungszeitraum jetzt beginnen"]]); }
+    if (s === "begutachtung") add("–", `Prüfungsstart ${fmtDateTime(startAt(c))} Uhr`, false, [["demostart", "", "Demo: Prüfungsstart jetzt"]]);
     if (s !== "vorbereitung") add(6, "Erstellungsprozess einsehen", true, [["go", "verlauf", "Verlauf öffnen"]]);
   }
   if (r.includes("kommission") || r.includes("vorsitz")) {
@@ -121,7 +155,8 @@ export function myTasks(c, p = me()) {
       add(15, "Aufgabenentwürfe einarbeiten und weiterreichen", false, [["editor", "", "Im Editor einarbeiten"], ["preview", "", "Vorschau"], ...(fb ? [["go", "anmerkungen", `Anmerkungen (${fb} offen)`]] : []), ...(opt.length && !hasEvent(c, "lektorat-ende") ? [["tolektorat", "", "An Lektorat und Prüflösung übergeben"]] : []), ["back", "", "Zurück an die Aufgabenerstellung"]], fmtD(c.meta?.kommission_bis));
     }
   }
-  if (r.includes("vorsitz") && s === "review") add(12, "Prüfung final freigeben", false, [["release", "", "Final freigeben (sperren)"]], fmtD(c.meta?.kommission_bis));
+  if (r.includes("vorsitz") && s === "review") add(12, "Prüfung final freigeben", false, [["release", "", "Final freigeben (verschlüsseln)"]], fmtD(c.meta?.kommission_bis));
+  if (s === "begutachtung" && (r.includes("koordination") || r.includes("kommission") || r.includes("vorsitz"))) add(r.includes("koordination") ? 50 : 49, "Gemeldete Fehler vor Prüfungsbeginn beheben (direkte Freigabe)", hasEvent(c, "korrektur-freigegeben"), startAt(c) > Date.now() ? [["editor", "", "Im Editor korrigieren"], ["preview", "", "Vorschau"]] : [], fmtDateTime(startAt(c)));
   if (r.includes("aufgabenerstellung")) add(46, "Aufgaben erstellen", s !== "vorbereitung", s === "vorbereitung" ? [["editor", "", "Aufgaben im Editor erstellen"], ["preview", "", "Vorschau"], ["toreview", "", "An die Kommission übergeben"]] : [], fmtD(c.meta?.erstellung_bis));
   if (r.includes("beratung")) add(16, "Aufgabenentwürfe einsehen", hasEvent(c, "beratung-eingesehen"), ["vorbereitung", "review"].includes(s) ? [["consult", "", "Aufgabenentwürfe einsehen"], ["go", "anmerkungen", "Hinweis an die Kommission"]] : []);
   if (r.includes("lektorat")) add(17, "Prüfung lektorieren", !!rv.lektorat?.done || (s !== "lektorat" && hasEvent(c, "lektorat-abgeschlossen")), s === "lektorat" && !rv.lektorat?.done ? [["preview", "", "Prüfung ansehen"], ["go", "anmerkungen", "Anmerkungen erfassen"], ["donelek", "", "Lektorat abschließen"]] : [], fmtD(c.meta?.lektorat_bis));
@@ -130,7 +165,7 @@ export function myTasks(c, p = me()) {
 }
 
 // ---------- Detailseite ----------
-const TABS = [["uebersicht", "Übersicht"], ["rahmendaten", "Rahmendaten"], ["personen", "Personen"], ["unternehmen", "Unternehmenspool"], ["anmerkungen", "Anmerkungen"], ["verlauf", "Verlauf"]];
+const TABS = [["uebersicht", "Übersicht"], ["rahmendaten", "Rahmendaten und Prüfungsrumpf"], ["organisationen", "Organisationen"], ["personen", "Personen"], ["unternehmen", "Unternehmenspool"], ["anmerkungen", "Anmerkungen"], ["verlauf", "Verlauf"]];
 export function detail(id, tab = "uebersicht") {
   const c0 = byId("catalog", id);
   if (!c0 || !inProcess(c0)) return { redirect: "#/app/erstellung" };
@@ -142,13 +177,13 @@ export function detail(id, tab = "uebersicht") {
       const c = byId("catalog", id); const r = rolesOf(c);
       const cont = normalizeContent(JSON.parse(JSON.stringify(c.content || { tasks: [] })));
       const pts = cont.tasks.reduce((a, t) => a + t.points, 0); const subs = cont.tasks.reduce((a, t) => a + t.subtasks.length, 0);
-      const order = ["vorbereitung", "review", "lektorat", "gesperrt", "veroeffentlicht"];
+      const order = ["vorbereitung", "review", "lektorat", "gesperrt", "begutachtung", "veroeffentlicht"];
       return `<div class="breadcrumb"><a href="#/app/erstellung">Prüfungserstellung</a>${icon("chevron-right")}<b>${esc(c.title)}</b></div>
-      <div class="pagehead"><div><h1>${esc(c.title)}</h1><div class="row mt-s small wrap">${statusBadge(c)}<span>${esc(c.meta?.code || "")} · Prüfungstermin <b>${fmtD(c.meta?.termin)}</b> · ${cont.tasks.length} Aufgaben, ${subs} Teilaufgaben, ${pts} Punkte</span><span class="badge gray">Ihre Rollen: ${r.map(roleName).join(", ") || "–"}</span></div></div>
-        <div class="actions-bar">${(r.length || isKS()) ? `<button class="btn" data-act="preview">${icon("eye")} Vorschau</button>` : ""}${canEditContent(c) ? `<button class="btn primary" data-act="editor">${icon("pencil")} Im Editor bearbeiten</button>` : ""}</div></div>
+      <div class="pagehead"><div><h1>${esc(c.title)}</h1><div class="row mt-s small wrap">${statusBadge(c)}<span>${esc(c.meta?.code || "")} · Prüfungstermin <b>${fmtD(c.meta?.termin)}</b> · ${isSealed(c) ? `Inhalt verschlüsselt (${esc(c.sealed?.alg || "")}, Fingerabdruck ${esc(fingerprint(c.sealed))})` : `${cont.tasks.length} Aufgaben, ${subs} Teilaufgaben, ${pts} Punkte`}</span><span class="badge gray">Ihre Rollen: ${r.map(roleName).join(", ") || "–"}</span></div></div>
+        <div class="actions-bar">${canViewContent(c) ? `<button class="btn" data-act="preview">${icon("eye")} Vorschau</button>` : isSealed(c) ? `<span class="badge yellowb">${icon("lock")} verschlüsselt</span>` : ""}${canEditContent(c) ? `<button class="btn primary" data-act="editor">${icon("pencil")} Im Editor bearbeiten</button>` : ""}</div></div>
       <ol class="estepper">${order.map((k, i) => { const cur = order.indexOf(c.status); return `<li class="${i < cur ? "done" : i === cur ? "cur" : ""}"><span class="dot">${i < cur ? icon("check") : i + 1}</span><span>${ESTATUS[k].label}</span></li>`; }).join("")}</ol>
       <nav class="tabs">${TABS.map(([k, l]) => `<a href="#/app/erstellung/${id}/${k}" class="${k === tab ? "active" : ""}">${l}${k === "anmerkungen" && openFeedback(c).length ? ` <span class="badge yellowb">${openFeedback(c).length}</span>` : ""}</a>`).join("")}</nav>
-      ${{ uebersicht: tabOverview, rahmendaten: tabMeta, personen: tabTeam, unternehmen: tabPool, anmerkungen: tabFeedback, verlauf: tabHistory }[tab](c, r, cont)}`;
+      ${{ uebersicht: tabOverview, rahmendaten: tabMeta, organisationen: tabOrgs, personen: tabTeam, unternehmen: tabPool, anmerkungen: tabFeedback, verlauf: tabHistory }[tab](c, r, cont)}`;
     },
     mount(el) { if (tab === "verlauf") store.lset("erstVerlauf." + id, true); bindDetail(el, id, tab); },
   };
@@ -158,20 +193,22 @@ function tabOverview(c, r, cont) {
   const t = team(c);
   const issues = validateContent({ cat: { title: c.title }, content: cont, rules: c.rules || [] }).filter((x) => x.lvl === "error").length;
   return `<div class="edgrid2"><section class="card pad"><h3>${icon("list-checks")} Ihre Aufgaben</h3>
-    ${tasks.length ? tasks.map((x) => `<div class="etask ${x.done ? "done" : ""}"><div class="row between"><b>${x.done ? icon("circle-check") : icon("circle")} Task ${x.t}: ${esc(x.title)}</b>${x.due && x.due !== "–" ? `<span class="xs muted">fällig ${esc(x.due)}</span>` : ""}</div>
-      ${x.acts.length ? `<div class="row wrap mt-s" style="gap:6px">${x.acts.map(([a, arg, l]) => `<button class="btn sm ${["toreview", "tolektorat", "release", "donelek", "donepl", "publish"].includes(a) ? "primary" : ""}" data-act="${a}" data-arg="${arg}">${esc(l)}</button>`).join("")}</div>` : ""}</div>`).join("") : `<p class="small muted">In diesem Status haben Sie keine Aufgaben.</p>`}
+    ${tasks.length ? tasks.map((x) => `<div class="etask ${x.done ? "done" : ""}"><div class="row between"><b>${x.done ? icon("circle-check") : icon("circle")} ${typeof x.t === "number" ? `Task ${x.t}: ` : ""}${esc(x.title)}</b>${x.due && x.due !== "–" ? `<span class="xs muted">fällig ${esc(x.due)}</span>` : ""}</div>
+      ${x.acts.length ? `<div class="row wrap mt-s" style="gap:6px">${x.acts.map(([a, arg, l]) => `<button class="btn sm ${["toreview", "tolektorat", "release", "donelek", "donepl", "publish"].includes(a) ? "primary" : a.startsWith("demo") ? "ghost" : ""}" data-act="${a}" data-arg="${arg}">${esc(l)}</button>`).join("")}</div>` : ""}</div>`).join("") : `<p class="small muted">In diesem Status haben Sie keine Aufgaben.</p>`}
     ${c.status === "lektorat" ? `<div class="notice info small mt">${icon("clock")}<span>Warten auf Abschluss von ${["lektorat", "pruefloesung"].filter((k) => t[k].length && !(c.reviews || {})[k]?.done).map((k) => EROLES[k].label).join(" und ") || "–"}. Danach geht die Prüfung automatisch zurück an die Kommission.</span></div>` : ""}
-    ${c.status === "gesperrt" ? `<div class="notice warn small mt">${icon("lock")}<span>Die Prüfung ist final freigegeben und bis zum Prüfungsstart (${fmtD(c.meta?.termin)}) <b>gesperrt</b>. Inhalte können nicht mehr bearbeitet werden; nur die Koordinierungsstelle kann die Freigabe aufheben.</span></div>` : ""}</section>
+    ${c.status === "gesperrt" ? `<div class="notice warn small mt">${icon("lock")}<span>Die Prüfung ist final freigegeben, <b>verschlüsselt</b> (${esc(c.sealed?.alg || "")}) und sicher weggesperrt. Niemand kann den Inhalt einsehen. Laut Prüfungsrumpf wird sie <b>${reviewHours(c)} Stunden vor Prüfungsstart</b> (${fmtDateTime(unlockAt(c))} Uhr) automatisch entschlüsselt und den Schulen zur Begutachtung bereitgestellt.</span></div>` : ""}
+    ${c.status === "begutachtung" ? `<div class="notice info small mt">${icon("eye")}<span><b>Begutachtung bis zum Prüfungsstart</b> (${fmtDateTime(startAt(c))} Uhr): Schuladministration und Korrektor:innen der teilnehmenden Schulen sehen die Prüfung ein und melden Fehler außerhalb des Portals an die Koordinierungsstelle bzw. Prüfungskommission. Korrekturen im Editor werden direkt freigegeben (ohne erneuten Freigabeprozess)${c.meta?.version > 1 ? ` – aktuell Version ${c.meta.version}` : ""}.</span></div>` : ""}</section>
   <section class="card pad"><h3>${icon("users")} Stand des Erstellungsprozesses</h3>
     ${Object.entries(EROLES).map(([k, d]) => { const ps = t[k] || []; const done = { aufgabenerstellung: hasEvent(c, "review-start"), beratung: hasEvent(c, "beratung-eingesehen"), lektorat: hasEvent(c, "lektorat-abgeschlossen"), pruefloesung: hasEvent(c, "pruefloesung-abgeschlossen"), vorsitz: ["gesperrt", "veroeffentlicht"].includes(c.status), kommission: hasEvent(c, "lektorat-start") || ["gesperrt", "veroeffentlicht"].includes(c.status) }[k];
       return `<div class="kv">${icon(ROLE_ICON[k])}<div class="grow"><div class="small">${d.label}${d.req ? "" : " (optional)"}</div><span class="v">${ps.length ? ps.map((id) => esc(personName(byId("persons", id)))).join(", ") : `<span class="muted">nicht zugewiesen</span>`}</span></div>${ps.length ? (done ? `<span class="badge green">${icon("check")} erledigt</span>` : `<span class="badge gray">offen</span>`) : ""}</div>`; }).join("")}
-    <div class="kv">${icon("file-text")}<div><div class="small">Inhalt</div><span class="v">${cont.tasks.length} Aufgaben · ${cont.tasks.reduce((a, x) => a + x.subtasks.length, 0)} Teilaufgaben${issues ? ` · <span class="badge red">${issues} offene Fehler im Editor</span>` : ""}</span></div></div>
+    <div class="kv">${icon("file-text")}<div><div class="small">Inhalt</div><span class="v">${isSealed(c) ? `verschlüsselt · ${Math.round((c.sealed?.bytes || 0) / 1024)} KB` : `${cont.tasks.length} Aufgaben · ${cont.tasks.reduce((a, x) => a + x.subtasks.length, 0)} Teilaufgaben${issues ? ` · <span class="badge red">${issues} offene Fehler im Editor</span>` : ""}`}</span></div></div>
+    <div class="kv">${icon("school")}<div><div class="small">Organisationen</div><span class="v">${(c.meta?.orgs || []).length ? (c.meta.orgs || []).map((o) => esc(orgShort(o))).join(", ") : `<span class="muted">noch nicht zugeordnet</span>`}</span></div></div>
     <div class="kv">${icon("building-2")}<div><div class="small">Unternehmen</div><span class="v">${esc(POOL.find((x) => x.id === c.meta?.pool)?.name || "noch nicht festgelegt")}</span></div></div>
     <div class="kv">${icon("message-square-warning")}<div><div class="small">Anmerkungen</div><span class="v">${(c.feedback || []).filter((f) => f.kind !== "pruefloesung-ergebnis").length} gesamt · ${openFeedback(c).length} offen</span></div></div></section></div>`;
 }
 const metaField = (c, [k, l, type, req], ro) => {
   const v = c.meta?.[k] ?? ""; const dis = ro ? "disabled" : "";
-  if (type.startsWith("select:")) return `<div class="field"><label class="lbl">${l}${req ? " *" : ""}</label><select class="select" data-meta="${k}" ${dis}>${type.slice(7).split("|").map((o) => `<option ${o === v ? "selected" : ""}>${o}</option>`).join("")}</select></div>`;
+  if (type.startsWith("select:")) return `<div class="field"><label class="lbl">${l}${req ? " *" : ""}</label><select class="select" data-meta="${k}" ${dis}>${type.slice(7).split("|").map((o) => `<option ${o === v || (k === "einsicht_h" && parseInt(o) === parseInt(v)) ? "selected" : ""}>${o}</option>`).join("")}</select></div>`;
   if (type === "textarea") return `<div class="field" style="grid-column:1/-1"><label class="lbl">${l}</label><textarea class="input" rows="3" data-meta="${k}" ${dis}>${esc(v)}</textarea></div>`;
   return `<div class="field"><label class="lbl">${l}${req ? " *" : ""}</label><input class="input" type="${type}" data-meta="${k}" value="${esc(v)}" ${dis}></div>`;
 };
@@ -179,13 +216,33 @@ function tabMeta(c, r) {
   const ro = !r.includes("koordination") || ["gesperrt", "veroeffentlicht"].includes(c.status); const miss = metaMissing(c);
   return `<section class="card pad" style="max-width:980px"><div class="row between"><h3>Rahmendaten (Prüfungsmetadaten, Task 2/3)</h3>${miss.length ? `<span class="badge yellowb">${miss.length} Pflichtfelder offen</span>` : `<span class="badge green">${icon("check")} vollständig</span>`}</div>
     ${ro ? `<p class="xs muted">Die Rahmendaten pflegt die Koordinierungsstelle${["gesperrt", "veroeffentlicht"].includes(c.status) ? "; nach der finalen Freigabe sind sie schreibgeschützt" : ""}.</p>` : `<p class="xs muted">Pflichtfelder (*) müssen vor der Übergabe an die Kommission befüllt sein. Fristen erscheinen als Fälligkeit bei den beteiligten Rollen.</p>`}
-    <div class="metagrid">${META.map((m) => metaField(c, m, ro)).join("")}</div>
-    ${ro ? "" : `<div class="row end mt"><button class="btn primary" data-act="savemeta">${icon("save")} Rahmendaten speichern</button></div>`}</section>`;
+    <h4 class="mt">Prüfungsrumpf und Durchführungskonfiguration</h4><p class="xs muted">Prüfungstermin, Bearbeitungszeit und der Vorlauf für die Begutachtung steuern, wann der verschlüsselte Inhalt automatisch für die Schulen zur Begutachtung bereitsteht (z. B. 24 Stunden vor Prüfungsstart) und wann er für die Durchführung freigegeben wird.</p>
+    <div class="metagrid">${META.filter(([k]) => ["termin", "dauer", "einsicht_h", "hilfsmittel"].includes(k)).map((m) => metaField(c, m, ro && !(r.includes("koordination") && c.status === "gesperrt" && ["termin", "einsicht_h"].includes(m[0])))).join("")}</div>
+    <h4 class="mt">Prüfungsmetadaten und Fristen im Erstellungsprozess</h4>
+    <div class="metagrid">${META.filter(([k]) => !["termin", "dauer", "einsicht_h", "hilfsmittel"].includes(k)).map((m) => metaField(c, m, ro)).join("")}</div>
+    ${c.status === "gesperrt" && r.includes("koordination") ? `<p class="xs muted mt-s">Prüfungstermin und Vorlauf der Begutachtung können auch im verschlüsselten Zustand angepasst werden.</p>` : ""}
+    ${ro && !(r.includes("koordination") && c.status === "gesperrt") ? "" : `<div class="row end mt"><button class="btn primary" data-act="savemeta">${icon("save")} Rahmendaten speichern</button></div>`}</section>`;
+}
+function tabOrgs(c, r) {
+  const can = r.includes("koordination") && c.status !== "veroeffentlicht"; const sel = c.meta?.orgs || []; const course = examCourse(c);
+  return `<div class="notice info small mb">${icon("info")}<span><b>Organisationen der Prüfung (Task 47):</b> Die Koordinierungsstelle wählt die teilnehmenden Schulen aus – in der Regel ca. <b>2 Monate vor der Prüfungsdurchführung</b>. Die Schuladministrationen werden automatisch der Prüfung hinzugefügt und organisieren sie an der Schule (Teilnehmende, Raumaufsichten, Korrektoren). Den Inhalt sehen sie erst im Begutachtungszeitraum.</span></div>
+    <section class="card pad" style="max-width:820px"><h3>Teilnehmende Schulen</h3>
+    ${D.orgs.map((o) => { const admins = D.persons.filter((p) => p.kind === "schuladmin" && p.org === o.id); return `<label class="checkbox" style="display:flex;gap:8px;align-items:flex-start;margin:8px 0"><input type="checkbox" data-org="${o.id}" ${sel.includes(o.id) ? "checked" : ""} ${can ? "" : "disabled"}><span><b>${esc(o.name)}</b> (${esc(o.short)})<br><span class="xs muted">Schuladministration: ${admins.map((a) => esc(personName(a))).join(", ") || "–"}</span></span></label>`; }).join("")}
+    ${can ? `<div class="row end mt"><button class="btn primary" data-act="saveorgs">${icon("save")} Organisationen zuordnen</button></div>` : ""}
+    ${course ? `<p class="small mt">${icon("check")} Prüfung an den Schulen angelegt: <b>${esc(course.title)}</b> · ${(course.members || []).filter((m) => m.role === "schuladmin").map((m) => esc(personName(byId("persons", m.person)))).join(", ")} · ${(course.members || []).filter((m) => m.role === "teilnehmer").length + (course.groups || []).length} Teilnehmenden-Zuordnungen · ${D.rooms.filter((x) => x.course === course.id).length} Raumaufsichten</p>` : ""}</section>`;
+}
+function commissionCard(c, ro) {
+  const t = team(c); const gs = D.groups.filter((g) => g.kind === "kommission"); const g = byId("groups", t.kommission_group);
+  return `<section class="card pad" style="grid-column:1/-1"><div class="row between wrap"><h3>${icon("users")} Kommission und Kommissionsvorsitz <span class="badge ${t.vorsitz.length ? "green" : "yellowb"}">Pflicht</span></h3></div>
+    <p class="xs muted">Es wird genau <b>eine Kommission</b> (Gruppe) ausgewählt. Ihr Vorsitz wird automatisch als Kommissionsvorsitz eingetragen.</p>
+    <div class="row wrap" style="gap:10px;align-items:flex-end"><div class="field" style="margin:0;min-width:320px"><label class="lbl" for="kgsel">Kommission</label><select id="kgsel" class="select" data-kgroup ${ro ? "disabled" : ""}><option value="">Kommission wählen</option>${gs.map((x) => `<option value="${x.id}" ${x.id === t.kommission_group ? "selected" : ""}>${esc(x.name)} (${(x.members || []).length} Mitglieder)</option>`).join("")}</select></div></div>
+    ${g ? `<div class="edgrid2 mt-s"><div><div class="small">Kommissionsvorsitz</div><ul class="plist"><li>${icon("user")} <span class="grow">${esc(personName(byId("persons", g.chair)))} <span class="xs muted">${esc(orgsLabel(byId("persons", g.chair)))}</span></span><span class="badge cyan">Vorsitz</span></li></ul></div>
+      <div><div class="small">Kommission</div><ul class="plist">${(g.members || []).filter((id) => id !== g.chair).map((id) => `<li>${icon("user")} <span class="grow">${esc(personName(byId("persons", id)))} <span class="xs muted">${esc(orgsLabel(byId("persons", id)))}</span></span></li>`).join("")}</ul></div></div>` : `<p class="small muted mt-s">Noch keine Kommission ausgewählt.</p>`}</section>`;
 }
 function tabTeam(c, r) {
   const ro = !r.includes("koordination") || ["gesperrt", "veroeffentlicht"].includes(c.status); const t = team(c);
-  return `<div class="notice info small mb">${icon("info")}<span>Pflichtrollen: <b>Aufgabenerstellung</b>, <b>Kommission</b> und <b>Kommissionsvorsitz</b>. Beratung, Lektorat und Prüflösung sind optional. Personen können mehrere Rollen haben; der Kommissionsvorsitz ist eine Person.</span></div>
-    <div class="edgrid2">${Object.entries(EROLES).map(([k, d]) => `<section class="card pad"><div class="row between"><h3>${icon(ROLE_ICON[k])} ${d.label} ${d.req ? `<span class="badge ${t[k].length ? "green" : "yellowb"}">Pflicht</span>` : `<span class="badge gray">optional</span>`}</h3>${ro ? "" : `<button class="btn sm" data-addrole="${k}">${icon("user-round-plus")} Person zuweisen</button>`}</div><p class="xs muted">${esc(d.hint)}</p>
+  return `<div class="notice info small mb">${icon("info")}<span>Pflichtrollen: <b>Aufgabenerstellung</b> und eine <b>Kommission</b> (mit Vorsitz). Beratung, Lektorat und Prüflösung sind optional. Personen können mehrere Rollen haben.</span></div>
+    <div class="edgrid2">${commissionCard(c, ro)}${Object.entries(EROLES).filter(([, d]) => !d.group).map(([k, d]) => `<section class="card pad"><div class="row between"><h3>${icon(ROLE_ICON[k])} ${d.label} ${d.req ? `<span class="badge ${t[k].length ? "green" : "yellowb"}">Pflicht</span>` : `<span class="badge gray">optional</span>`}</h3>${ro ? "" : `<button class="btn sm" data-addrole="${k}">${icon("user-round-plus")} Person zuweisen</button>`}</div><p class="xs muted">${esc(d.hint)}</p>
       ${t[k].length ? `<ul class="plist">${t[k].map((pid) => { const pe = byId("persons", pid); return `<li>${icon("user")} <span class="grow">${esc(personName(pe))} <span class="xs muted">${esc(pe?.org ? orgsLabel(pe) : "IBBW")}</span></span>${ro ? "" : `<button class="iconbtn" data-rmrole="${k}" data-pid="${pid}" aria-label="Zuweisung entfernen">${icon("x")}</button>`}</li>`; }).join("")}</ul>` : `<p class="small muted">Niemand zugewiesen.</p>`}</section>`).join("")}</div>`;
 }
 function tabPool(c, r) {
@@ -231,6 +288,47 @@ async function pickPerson(c, role) {
   await upd("catalog", c.id, { team: nt, history: [...hist(c), entry("team", `${EROLES[role].label}: ${v.map((id) => personName(byId("persons", id))).join(", ")} zugewiesen`)] });
   toast("Person zugewiesen", EROLES[role].label);
 }
+// Organisationen zuordnen (Task 47): Prüfung an den Schulen anlegen bzw. aktualisieren, Schuladministrationen automatisch hinzufügen
+async function saveOrgs(c, orgs) {
+  const admins = D.persons.filter((p) => p.kind === "schuladmin" && orgs.includes(p.org)).map((p) => p.id);
+  let course = examCourse(c);
+  if (course) {
+    const keep = (course.members || []).filter((m) => m.role !== "schuladmin");
+    await upd("courses", course.id, { orgs, title: c.title, members: [...keep, ...admins.map((pid) => ({ person: pid, role: "schuladmin" }))] });
+  } else {
+    course = await create("courses", { title: c.title, kind: "pruefung", catalog: c.id, org: "", orgs, owner: "", members: admins.map((pid) => ({ person: pid, role: "schuladmin" })), groups: [], status: "in Vorbereitung", exam_code: c.meta?.code || "", description: `Prüfung der Koordinierungsstelle · ${c.meta?.art || ""} · Prüfungstermin ${fmtD(c.meta?.termin)}`, corrections: [], third: {}, korr_end: "", dk_threshold: 1 });
+  }
+  await upd("catalog", c.id, { meta: { ...(c.meta || {}), orgs, course: course.id }, history: [...hist(c), entry("orgs", `Organisationen zugeordnet: ${orgs.map(orgShort).join(", ") || "keine"} – Schuladministration automatisch hinzugefügt (Task 47)`)] });
+  toast("Organisationen zugeordnet", `${orgs.length} Schule(n), ${admins.length} Schuladministration(en) hinzugefügt`);
+}
+
+// ---------- Zeitgesteuerte Statuswechsel ----------
+// Begutachtungszeitraum erreicht → entschlüsseln und für die Schulen bereitstellen; Prüfungsstart erreicht → für die Durchführung freigeben
+const busy = new Set();
+export async function autoAdvance(force = false) {
+  const now = Date.now();
+  for (const c of D.catalog.filter((x) => x.status === "gesperrt" || x.status === "begutachtung")) {
+    if (busy.has(c.id)) continue;
+    try {
+      if (c.status === "gesperrt" && unlockAt(c).getTime() <= now && c.sealed && c.vault) {
+        busy.add(c.id); const box = await unseal(c.sealed, c.vault);
+        await upd("catalog", c.id, { status: "begutachtung", content: box.content, rules: box.rules || [], sealed: null, vault: null, history: [...hist(c), { at: new Date().toISOString(), by: "System (Zeitsteuerung)", ev: "begutachtung", text: `Begutachtungszeitraum erreicht (${reviewHours(c)} h vor Prüfungsstart) – Prüfung entschlüsselt und für die Schulen zur Begutachtung bereitgestellt`, from: "gesperrt", to: "begutachtung" }] });
+        if (force) toast("Begutachtung freigeschaltet", "Die Prüfung ist entschlüsselt und für die Schulen einsehbar.");
+      } else if (c.status === "begutachtung" && startAt(c).getTime() <= now) {
+        busy.add(c.id);
+        await upd("catalog", c.id, { status: "veroeffentlicht", history: [...hist(c), { at: new Date().toISOString(), by: "System (Zeitsteuerung)", ev: "veroeffentlicht", text: "Prüfungsstart erreicht – Inhalt für die Durchführung freigegeben", from: "begutachtung", to: "veroeffentlicht" }] });
+        const course = examCourse(c); if (course) await upd("courses", course.id, { status: "veröffentlicht" });
+        if (force) toast("Prüfungsstart", "Der Inhalt ist für die Durchführung freigegeben.");
+      }
+    } catch (e) { console.warn("[Zeitsteuerung]", e); } finally { busy.delete(c.id); }
+  }
+}
+// Begutachtung durch Schulleitung/Korrektor:innen im Verlauf festhalten (einmal je Person)
+export async function noteReview(c, p = me()) {
+  if (c?.status !== "begutachtung" || !p || !schoolReviewer(c, p)) return;
+  if (hist(c).some((h) => h.ev === "begutachtet" && h.pid === p.id)) return;
+  await upd("catalog", c.id, { history: [...hist(c), { at: new Date().toISOString(), by: personName(p), pid: p.id, ev: "begutachtet", text: `Prüfung begutachtet (${p.kind === "schuladmin" ? "Schuladministration " + orgShort(p.org) : "Korrektor:in"}) – Fehler werden außerhalb des Portals an die Koordinierungsstelle gemeldet` }] });
+}
 async function publishDialog(c) {
   const orgs = D.orgs;
   const v = await modal({ title: "Prüfung zum Prüfungstermin veröffentlichen", size: "narrow",
@@ -255,7 +353,7 @@ function bindDetail(el, id, tab) {
       const content = { ...(c.content || {}), name: meta.titel || c.title, duration_min: +meta.dauer || c.content?.duration_min || 90 };
       if (meta.hilfsmittel) content.info = { title: "Prüfungsinformationen", items: [["Bearbeitungszeit", `${meta.dauer || 90} Minuten zzgl. individueller Zusatzzeit`], ["Zugelassene Hilfsmittel", meta.hilfsmittel], ...((content.info?.items || []).filter((x) => !["Bearbeitungszeit", "Zugelassene Hilfsmittel"].includes(x[0])))] };
       const first = !metaMissing({ meta }).length && metaMissing(c).length;
-      await upd("catalog", id, { meta, title: meta.titel || c.title, beruf: meta.beruf || c.beruf, fach: meta.bereich || c.fach, duration: `${meta.dauer || 90} Minuten`, jahr: meta.termin ? String(new Date(meta.termin).getFullYear()) : c.jahr, content, history: first ? [...hist(c), entry("metadaten", "Prüfungsmetadaten vollständig gesetzt (Task 2)")] : hist(c) });
+      await upd("catalog", id, { meta, title: meta.titel || c.title, beruf: meta.beruf || c.beruf, fach: meta.bereich || c.fach, duration: `${meta.dauer || 90} Minuten`, jahr: meta.termin ? String(new Date(meta.termin).getFullYear()) : c.jahr, ...(isSealed(c) ? {} : { content }), history: first ? [...hist(c), entry("metadaten", "Prüfungsmetadaten vollständig gesetzt (Task 2)")] : hist(c) });
       return toast("Rahmendaten gespeichert", metaMissing({ meta }).length ? `Noch offen: ${metaMissing({ meta }).join(", ")}` : "Alle Pflichtfelder sind befüllt.");
     }
     if (a === "toreview") {
@@ -280,10 +378,15 @@ function bindDetail(el, id, tab) {
       const opt = optionalAssigned(c); const open = openFeedback(c).length;
       if (opt.length && !hasEvent(c, "lektorat-ende")) return toast("Freigabe noch nicht möglich", `${opt.map((k) => EROLES[k].label).join(" und ")} ${opt.length > 1 ? "sind" : "ist"} zugewiesen – übergeben Sie die Prüfung zuerst an Lektorat und Prüflösung.`, "error");
       if (!(await confirmBox("Prüfung final freigeben", `<p>Die Prüfung wird final freigegeben (Statuswechsel Nr. 5 → <b>gesperrt</b>) und ist bis zum Prüfungsstart (${fmtD(c.meta?.termin)}) für Änderungen gesperrt.</p>${open ? `<div class="notice warn small">${icon("triangle-alert")}<span>${open} Anmerkung(en) sind noch nicht als eingearbeitet markiert.</span></div>` : ""}`, "Final freigeben", "Abbrechen", false))) return;
-      return setStatus(c, "gesperrt", "freigegeben", "Prüfung final freigegeben – gesperrt bis zum Prüfungsstart (Task 12)");
+      // Inhalt und Aufgabensteuerung verschlüsseln; im Datensatz verbleibt nur ein Platzhalter
+      const box = await seal({ content: c.content, rules: c.rules || [] });
+      const placeholder = { name: c.title, duration_min: c.content?.duration_min || 90, sealed: true, tasks: [] };
+      return setStatus(c, "gesperrt", "freigegeben", `Prüfung final freigegeben, verschlüsselt (${box.sealed.alg}) und weggesperrt – Fingerabdruck ${fingerprint(box.sealed)} (Task 12)`, { sealed: box.sealed, vault: box.vault, content: placeholder, rules: [] });
     }
-    if (a === "unlock") { if (!(await confirmBox("Prüfungsfreigabe aufheben", "Die Prüfung geht zurück an die Kommission (Review) und kann wieder bearbeitet werden (Task 8).", "Freigabe aufheben", "Abbrechen", false))) return; return setStatus(c, "review", "freigabe-aufgehoben", "Prüfungsfreigabe durch die Koordinierungsstelle aufgehoben (Task 8)"); }
-    if (a === "publish") return publishDialog(c);
+    if (a === "unlock") { if (!(await confirmBox("Prüfungsfreigabe aufheben", "Die Prüfung wird entschlüsselt und geht zurück an die Kommission (Review); sie muss danach erneut final freigegeben werden (Task 8).", "Freigabe aufheben", "Abbrechen", false))) return; const box = await unseal(c.sealed, c.vault); return setStatus(c, "review", "freigabe-aufgehoben", "Prüfungsfreigabe durch die Koordinierungsstelle aufgehoben und entschlüsselt (Task 8)", { content: box.content, rules: box.rules || [], sealed: null, vault: null }); }
+    if (a === "demounlock") { await upd("catalog", id, { meta: { ...(c.meta || {}), unlock_override: new Date().toISOString() } }); await autoAdvance(true); return; }
+    if (a === "demostart") { if (!(await confirmBox("Prüfungsstart simulieren", "Der Prüfungsstart wird für die Demo auf jetzt gesetzt. Der Inhalt wird für die Durchführung freigegeben; danach sind keine Korrekturen am Inhalt mehr möglich.", "Prüfungsstart jetzt", "Abbrechen", false))) return; await upd("catalog", id, { meta: { ...(c.meta || {}), start_override: new Date().toISOString() } }); await autoAdvance(true); return; }
+    if (a === "saveorgs") return saveOrgs(c, [...el.querySelectorAll("[data-org]:checked")].map((x) => x.dataset.org));
     if (a === "addfb") {
       const text = el.querySelector("[data-fbtext]").value.trim(); if (!text) return toast("Anmerkung fehlt", "", "error");
       const f = { id: Math.random().toString(36).slice(2, 10), kind: b.dataset.arg, by: myName(), at: new Date().toISOString(), st: el.querySelector("[data-fbst]").value, text, resolved: false };
@@ -296,6 +399,12 @@ function bindDetail(el, id, tab) {
     }
   }));
   el.querySelectorAll("[data-addrole]").forEach((b) => (b.onclick = () => pickPerson(C(), b.dataset.addrole)));
+  const kg = el.querySelector("[data-kgroup]"); if (kg) kg.onchange = async () => {
+    const c = C(); const g = byId("groups", kg.value); const t = team(c);
+    const nt = { ...t, kommission_group: g?.id || "", kommission: g ? (g.members || []).filter((x) => x !== g.chair) : [], vorsitz: g?.chair ? [g.chair] : [] };
+    await upd("catalog", id, { team: nt, history: [...hist(c), entry("team", g ? `Kommission „${g.name}“ zugewiesen – Vorsitz: ${personName(byId("persons", g.chair))}` : "Kommission entfernt")] });
+    toast(g ? "Kommission zugewiesen" : "Kommission entfernt", g ? `Vorsitz: ${personName(byId("persons", g.chair))}` : "");
+  };
   el.querySelectorAll("[data-rmrole]").forEach((b) => (b.onclick = async () => { const c = C(); const t = team(c); const k = b.dataset.rmrole; await upd("catalog", id, { team: { ...t, [k]: t[k].filter((x) => x !== b.dataset.pid) }, history: [...hist(c), entry("team", `${EROLES[k].label}: ${personName(byId("persons", b.dataset.pid))} entfernt`)] }); }));
   el.querySelectorAll("[data-pool]").forEach((r) => (r.onchange = async () => {
     const c = C(); const u = POOL.find((x) => x.id === r.dataset.pool);
