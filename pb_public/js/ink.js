@@ -5,7 +5,7 @@
 //  3. Wörterbuch-Abgleich: nur die vorgegebenen Korrekturzeichen sind erlaubt; Zuordnung Striche ↔ Buchstaben per dynamischer
 //     Programmierung (auch zusammenhängend geschriebene Buchstaben), Plausibilität der Buchstabenhöhen (z. B. Unterlänge bei „g“)
 //  4. Ganzwort-Vergleich als Rückfallebene sowie persönliche Schriftproben des Korrektors (Einlernen / Lernen aus Korrekturen)
-import { ALL_SIGN_KEYS } from "./scenario.js?v=9.2";
+import { ALL_SIGN_KEYS } from "./scenario.js?v=9.3";
 
 // ---------- Einstrich-Glyphen (Koordinaten: x nach rechts, y nach unten, Grundlinie y=10) ----------
 const G = {

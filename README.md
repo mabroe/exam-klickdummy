@@ -317,8 +317,9 @@ Die Aufgabensteuerung **hängt fest am Inhalt** (`catalog.rules`) und wird im **
 ## Distanzunterricht
 
 Beim Erstellen einer Raumaufsicht im Unterricht wählt die Lehrkraft **Präsenz** oder **Distanz**.
-- **Distanz**: fester **Zeitraum** (von–bis) und Bearbeitungszeit; die Teilnehmenden entscheiden selbst, wann sie beginnen („Einheit jetzt starten“ nach Belehrung und Gesundheitsabfrage). Die Bearbeitungszeit endet spätestens mit dem Zeitraum, danach wird automatisch abgegeben. Es gibt **keine Steuerung durch die Lehrkraft** (kein Starten, Sperren, Pausieren oder Einsammeln) und keinen Sitzplan; die Lehrkraft sieht Status, Start und Durchlauf.
-- Optionen: **mehrfach durchlaufbar** (z. B. zur Prüfungsvorbereitung; ein neuer Durchlauf ersetzt die bisherige Bearbeitung) und **Erwartungshorizont nach Abschluss anzeigen**.
+- **Distanz**: fester **Zeitraum** (von–bis) und Bearbeitungszeit; die Teilnehmenden entscheiden selbst, wann sie beginnen („Einheit jetzt starten“). Die Bearbeitungszeit endet spätestens mit dem Zeitraum, danach wird automatisch abgegeben. Es gibt **keine Steuerung durch die Lehrkraft** (kein Starten, Sperren, Pausieren oder Einsammeln) und keinen Sitzplan; die Lehrkraft sieht Status, Start und Durchlauf.
+- Optionen: **mehrfach durchlaufbar** (z. B. zur Prüfungsvorbereitung; ein neuer Durchlauf ersetzt die bisherige Bearbeitung) und **Erwartungshorizont nach Abschluss anzeigen** – zu jeder Teilaufgabe stehen dann Arbeitsauftrag (bei Auswahlfragen mit Antwortoptionen) und Erwartungshorizont untereinander.
+- **Unterricht ohne Belehrung und Gesundheitsabfrage**: Im Unterricht (Präsenz und Distanz) entfallen die Belehrung zu Täuschungshandlungen und die Gesundheitsabfrage; Teilnehmende sind nach der Anmeldung direkt bereit. Der Demobereich (Klickstrecke durch die Arbeitsumgebung) steht im Wartebereich weiterhin zur Verfügung. In Prüfungen bleiben beide Bestätigungen Pflicht.
 - Demo: „WG12a · Übung zuhause (Distanz)“ (Zeitraum gestern bis in 6 Tagen; Nowak, Marquardt, Thierfelder, Nolting).
 
 ## Vorschau und Markierungen

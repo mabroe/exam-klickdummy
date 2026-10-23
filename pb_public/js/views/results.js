@@ -1,14 +1,14 @@
 // Ergebnisse (Task 28/30/36) und Prüfungseinsicht (Task 37/38)
-import { D, byId, upd, log } from "../data.js?v=9.2";
-import { icon, esc, toast, confirmBox, brand, modal, statusChip, fmtTime, fmtDateTime, parseDate } from "../ui.js?v=9.2";
-import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS, categoryList, CATEGORY_SYSTEMS } from "../scenario.js?v=9.2";
-import { navigate, redraw, session } from "../app.js?v=9.2";
-import { store } from "../ui.js?v=9.2";
-import { grading, stPoints, candidates, fmtP } from "./correction.js?v=9.2";
-import { keyThresholds, gradingKeyLabel, linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=9.2";
-import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, thirdState, orgShort, personName, einsichtCandidates } from "../access.js?v=9.2";
-import { roPaper, fitRoPapers } from "./kmode.js?v=9.2";
-import { contentScope } from "../content.js?v=9.2";
+import { D, byId, upd, log } from "../data.js?v=9.3";
+import { icon, esc, toast, confirmBox, brand, modal, statusChip, fmtTime, fmtDateTime, parseDate } from "../ui.js?v=9.3";
+import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS, categoryList, CATEGORY_SYSTEMS } from "../scenario.js?v=9.3";
+import { navigate, redraw, session } from "../app.js?v=9.3";
+import { store } from "../ui.js?v=9.3";
+import { grading, stPoints, candidates, fmtP } from "./correction.js?v=9.3";
+import { keyThresholds, gradingKeyLabel, linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=9.3";
+import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, thirdState, orgShort, personName, einsichtCandidates } from "../access.js?v=9.3";
+import { roPaper, fitRoPapers } from "./kmode.js?v=9.3";
+import { contentScope } from "../content.js?v=9.3";
 
 // Endpunkte je Teilaufgabe: Endbeurteilung (falls angefordert und erfasst), sonst Mittelwert Erst/Zweit, sonst Erstkorrektur
 export function finalPoints(pid, st) {

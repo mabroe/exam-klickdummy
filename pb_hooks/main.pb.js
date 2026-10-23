@@ -33,10 +33,13 @@ routerAdd("POST", "/api/demo/simulate-login", (e) => {
   const list = e.app.findRecordsByFilter("participants", "room = {:room} && status = 'nicht_eingeloggt'", "seat", 0, 0, { room: body.room || "" });
   let n = 0;
   const now = new Date().toISOString().replace("T", " ");
+  // Unterricht: keine Belehrung/Gesundheitsabfrage – alle Angemeldeten sind direkt bereit
+  let lesson = false;
+  try { const rm = e.app.findRecordById("rooms", body.room || ""); const c = e.app.findRecordById("courses", rm.get("course")); lesson = c.get("kind") === "unterricht"; } catch (_) {}
   list.forEach((p, i) => {
     if (!p || p.id === body.except) return;
     if (i % 7 === 3) return; // eine Person bleibt bewusst „nicht eingeloggt“
-    const confirmed = i % 3 !== 1;
+    const confirmed = lesson || i % 3 !== 1;
     p.set("status", confirmed ? "wartend_bestaetigt" : "wartend");
     p.set("cheat_ack", confirmed);
     p.set("health", confirmed ? "ok" : "");
@@ -57,7 +60,7 @@ routerUse((e) => {
 });
 
 // Version der Server-Seite (muss zu pb_public/js/app.js VERSION passen)
-routerAdd("GET", "/api/demo/version", (e) => e.json(200, { version: "9.2" }));
+routerAdd("GET", "/api/demo/version", (e) => e.json(200, { version: "9.3" }));
 
 // Nachteilsausgleich darf nur vor dem Prüfungsstart (Raumstatus CREATED) geändert werden – auch serverseitig abgesichert
 onRecordUpdateRequest((e) => {

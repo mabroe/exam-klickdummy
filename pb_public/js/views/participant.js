@@ -1,20 +1,20 @@
 // Prüfling: Wartebereich, Prüfungsmodus (Dashboard, Aufgaben, Abgaben), Endbildschirm, Kursvorschau
-import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=9.2";
-import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=9.2";
-import { EXAM, ALL_SUBTASKS, subtask, taskOf, ALL_TOOLS, INLINE_TYPES } from "../scenario.js?v=9.2";
-import { navigate, session, render, directHelp } from "../app.js?v=9.2";
-import * as W from "./dock.js?v=9.2";
-import { einsichtView } from "./results.js?v=9.2";
-import { einsichtFor } from "../access.js?v=9.2";
-import { materialsOf, catalogOfParticipant } from "../content.js?v=9.2";
-import * as CR from "./creation.js?v=9.2";
-import * as ED from "./editor.js?v=9.2";
-import { inCatalog } from "./teacher.js?v=9.2";
-import { canManageCourse } from "../access.js?v=9.2";
-import { markable, bindMarkables } from "../highlight.js?v=9.2";
-import { ruleMatches, evalState, runAction } from "../rules.js?v=9.2";
-import { rulesPanel } from "./rules.js?v=9.2";
-import { portalLink } from "./student.js?v=9.2";
+import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=9.3";
+import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=9.3";
+import { EXAM, ALL_SUBTASKS, subtask, taskOf, ALL_TOOLS, INLINE_TYPES } from "../scenario.js?v=9.3";
+import { navigate, session, render, directHelp } from "../app.js?v=9.3";
+import * as W from "./dock.js?v=9.3";
+import { einsichtView } from "./results.js?v=9.3";
+import { einsichtFor } from "../access.js?v=9.3";
+import { materialsOf, catalogOfParticipant } from "../content.js?v=9.3";
+import * as CR from "./creation.js?v=9.3";
+import * as ED from "./editor.js?v=9.3";
+import { inCatalog } from "./teacher.js?v=9.3";
+import { canManageCourse } from "../access.js?v=9.3";
+import { markable, bindMarkables } from "../highlight.js?v=9.3";
+import { ruleMatches, evalState, runAction } from "../rules.js?v=9.3";
+import { rulesPanel } from "./rules.js?v=9.3";
+import { portalLink } from "./student.js?v=9.3";
 // Punktebadge: grün, sobald für die (Teil-)Aufgabe eine Abgabe markiert ist, sonst grau
 const ptsBadge = (done, label, title = "") => `<span class="badge ${done ? "lime" : "gray"}" title="${title || (done ? "Abgabe markiert" : "noch nicht bearbeitet")}">${label}</span>`;
 const taskDone = (items, t) => t.subtasks.filter((s) => items.some((i) => i.submission === s.no)).length;
@@ -205,8 +205,10 @@ async function ensureLogin(ctx) {
 async function doLogin(ctx) {
   const p = ctx.p;
   if (p.status === "nicht_eingeloggt") {
-    await upd("participants", p.id, { status: "wartend", last_seen: toPb(), simulated: false });
+    await upd("participants", p.id, { status: isLesson(ctx.room) ? (ctx.room.state === "RUNNING" && p.present ? "laeuft" : "wartend_bestaetigt") : "wartend", ...(isLesson(ctx.room) && ctx.room.state === "RUNNING" && p.present ? { started_at: toPb() } : {}), last_seen: toPb(), simulated: false });
     log(p.room, p, "Teilnehmende/r hat sich angemeldet", "", "system");
+  } else if (p.status === "wartend" && isLesson(ctx.room)) {
+    await upd("participants", p.id, { status: ctx.room.state === "RUNNING" && p.present ? "laeuft" : "wartend_bestaetigt", last_seen: toPb() }); // Unterricht: keine Belehrung/Gesundheitsabfrage
   } else if (!isConnected(p)) {
     upd("participants", p.id, { last_seen: toPb() }).catch(() => {});
   }
@@ -241,6 +243,11 @@ export function horizonHtml(st) {
     ${(st.type === "single" || st.type === "multiple") && (st.options || []).length ? `<div class="small">Richtige Antwort${st.type === "multiple" ? "en" : ""}: ${st.options.map((o, i) => (o.correct ? `${String.fromCharCode(65 + i)}) ${esc(o.text)}` : "")).filter(Boolean).join(" · ")}</div>` : ""}
     ${(st.images || []).length ? `<div class="hzimgs">${st.images.map((im) => `<figure><img src="${esc(im.src)}" alt="${esc(im.caption || "Abbildung zum Erwartungshorizont")}"><figcaption class="xs muted">${esc(im.caption || "")}</figcaption></figure>`).join("")}</div>` : ""}
     <div class="xs muted">Bewertungskriterien: ${(st.criteria || []).map(([c, p]) => `${esc(c)} (${p} P)`).join(" · ")}</div></div>`;
+}
+// Aufgabenstellung einer Teilaufgabe (Frage, bei Auswahlfragen mit Antwortoptionen) – über dem Erwartungshorizont
+export function questionHtml(st) {
+  const opts = (st.type === "single" || st.type === "multiple") && (st.options || []).length ? `<ol class="hzopts" type="A">${st.options.map((o) => `<li>${esc(o.text || "")}</li>`).join("")}</ol>` : "";
+  return `<div class="assignment"><h3>${icon("clipboard-list")} Arbeitsauftrag ${esc(st.no)} ${esc(st.title)}</h3><p>${esc(st.text || "")}</p>${opts}</div>`;
 }
 // ---------- Fragetypen direkt in der Aufgabe (Freitext, Kurzantwort, Single/Multiple Choice) ----------
 // Antworten sind Elemente kind "answer" (data: { task, st, type, text, choice }); eine nicht leere Antwort zählt automatisch als Abgabe
@@ -316,7 +323,8 @@ async function ensureMailAttachments(p) {
 // ---------- Wartebereich ----------
 function waitView(ctx) {
   const p = ctx.p, room = ctx.room;
-  const confirmedBoth = p.cheat_ack && p.health === "ok";
+  const lesson = isLesson(room);
+  const confirmedBoth = lesson || (p.cheat_ack && p.health === "ok");
   return {
     reroute: true,
     title: "Wartebereich",
@@ -326,19 +334,19 @@ function waitView(ctx) {
       <div class="tn-page">
         <div class="row between"><h1 class="mb">Wartebereich</h1>${portalLink()}</div>
         <div class="warte">
-          <section class="pdfbox"><h3>Wichtige Informationen zur Prüfung</h3>
+          <section class="pdfbox"><h3>Wichtige Informationen ${lesson ? "zum Unterricht" : "zur Prüfung"}</h3>
             <div class="pdfviewer">
               <div><div class="pdftool"><button class="iconbtn" data-pgstep="-1" ${ui.pdfPage <= 1 ? "disabled" : ""} aria-label="Vorherige Seite">${icon("chevron-left")}</button><span class="input" style="min-height:24px;width:52px;padding:0 6px;display:inline-grid;place-items:center">${ui.pdfPage}</span> von 3<button class="iconbtn" data-pgstep="1" ${ui.pdfPage >= 3 ? "disabled" : ""} aria-label="Nächste Seite">${icon("chevron-right")}</button><span class="grow"></span><span class="xs muted">Wichtige_Informationen.pdf</span></div>
-                <div class="pdfpage"><div class="sheet">${pdfContent(ui.pdfPage, room)}</div></div></div>
-              <div class="thumbs" aria-label="Seitenvorschau">${[1, 2, 3].map((n) => `<button class="thumb ${n === ui.pdfPage ? "active" : ""}" data-pg="${n}" aria-label="Seite ${n} anzeigen" aria-current="${n === ui.pdfPage}"><span class="thumbmini" aria-hidden="true"><span class="sheet">${pdfContent(n, room)}</span></span><span class="thumbno">Seite ${n}</span></button>`).join("")}</div>
+                <div class="pdfpage"><div class="sheet">${pdfContent(ui.pdfPage, room, lesson)}</div></div></div>
+              <div class="thumbs" aria-label="Seitenvorschau">${[1, 2, 3].map((n) => `<button class="thumb ${n === ui.pdfPage ? "active" : ""}" data-pg="${n}" aria-label="Seite ${n} anzeigen" aria-current="${n === ui.pdfPage}"><span class="thumbmini" aria-hidden="true"><span class="sheet">${pdfContent(n, room, lesson)}</span></span><span class="thumbno">Seite ${n}</span></button>`).join("")}</div>
             </div>
           </section>
           <div class="col" style="gap:18px">
-            <div class="wcard countdown"><h3>${room.state === "RUNNING" ? "Die Prüfung läuft" : "Countdown bis zur Prüfung"}</h3><span class="big">${icon("alarm-clock")}<span data-countdown>${room.state === "RUNNING" ? "gestartet" : "–"}</span></span></div>
-            ${card("Belehrung zu Täuschungshandlungen", p.cheat_ack, "Bitte lesen Sie die Belehrung zu Täuschungshandlungen und bestätigen Sie, dass Sie diese zur Kenntnis genommen haben.", "Zur Belehrung", "cheat")}
-            ${card("Gesundheitsabfrage", p.health === "ok", "Bitte bestätigen Sie, dass Sie sich gesundheitlich in der Lage fühlen, die Prüfung abzulegen.", "Zur Gesundheitsabfrage", "health")}
-            <div class="wcard"><h3>Demobereich</h3><p>Lernen Sie den Prüfungsmodus in einer kurzen Klickstrecke kennen: Kopfzeile, Dashboard, Aufgaben, Fenster, Abgaben markieren und Prüfung beenden.</p><div class="row end"><button class="btn primary" data-demo>Demo starten</button></div></div>
-            ${confirmedBoth ? `<div class="notice success">${icon("circle-check")}<div><b>Alles bestätigt.</b> ${room.state === "RUNNING" ? (p.present ? "Die Prüfung startet gleich." : "Die Aufsicht muss noch Ihre Anwesenheit bestätigen.") : "Die Prüfung startet, sobald die Aufsicht sie freigibt."}</div></div>` : ""}
+            <div class="wcard countdown"><h3>${lesson ? (room.state === "RUNNING" ? "Der Unterricht läuft" : "Countdown bis zum Unterricht") : room.state === "RUNNING" ? "Die Prüfung läuft" : "Countdown bis zur Prüfung"}</h3><span class="big">${icon("alarm-clock")}<span data-countdown>${room.state === "RUNNING" ? "gestartet" : "–"}</span></span></div>
+            ${lesson ? "" : card("Belehrung zu Täuschungshandlungen", p.cheat_ack, "Bitte lesen Sie die Belehrung zu Täuschungshandlungen und bestätigen Sie, dass Sie diese zur Kenntnis genommen haben.", "Zur Belehrung", "cheat")}
+            ${lesson ? "" : card("Gesundheitsabfrage", p.health === "ok", "Bitte bestätigen Sie, dass Sie sich gesundheitlich in der Lage fühlen, die Prüfung abzulegen.", "Zur Gesundheitsabfrage", "health")}
+            <div class="wcard"><h3>Demobereich</h3><p>Lernen Sie ${lesson ? "die Arbeitsumgebung" : "den Prüfungsmodus"} in einer kurzen Klickstrecke kennen: Kopfzeile, Dashboard, Aufgaben, Fenster, Abgaben markieren und ${lesson ? "Einheit" : "Prüfung"} beenden.</p><div class="row end"><button class="btn primary" data-demo>Demo starten</button></div></div>
+            ${lesson ? `<div class="notice info">${icon("info")}<div>${room.state === "RUNNING" ? (p.present ? "Der Unterricht startet gleich." : "Die Lehrkraft muss noch Ihre Anwesenheit bestätigen.") : "Der Unterricht startet, sobald die Lehrkraft ihn freigibt."}</div></div>` : confirmedBoth ? `<div class="notice success">${icon("circle-check")}<div><b>Alles bestätigt.</b> ${room.state === "RUNNING" ? (p.present ? "Die Prüfung startet gleich." : "Die Aufsicht muss noch Ihre Anwesenheit bestätigen.") : "Die Prüfung startet, sobald die Aufsicht sie freigibt."}</div></div>` : ""}
           </div>
         </div>
       </div>`;
@@ -351,7 +359,7 @@ function waitView(ctx) {
       el.querySelectorAll("[data-pgstep]").forEach((b) => (b.onclick = () => { ui.pdfPage = Math.max(1, Math.min(3, ui.pdfPage + +b.dataset.pgstep)); render(false); }));
       const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
       const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
-      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=9.2").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
+      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=9.3").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
       // Prüfung läuft bereits, Bestätigung fehlt
       if (room.state === "RUNNING" && !confirmedBoth && !document.querySelector(".backdrop") && !store.get("bo." + p.id)) {
         store.set("bo." + p.id, 1);
@@ -377,7 +385,12 @@ function card(title, ok, text, btn, key) {
   return `<div class="wcard"><div class="top"><h3>${title}</h3>${ok ? `<span class="okflag ok">${icon("circle-check")} Bestätigt</span>` : `<span class="okflag open">${icon("triangle-alert")} Bestätigung offen</span>`}</div>
   <p>${text}</p>${ok ? "" : `<div class="row end"><button class="btn primary" data-${key}>${btn}</button></div>`}</div>`;
 }
-function pdfContent(n, room) {
+function pdfContent(n, room, lesson = false) {
+  if (lesson) {
+    if (n === 1) return `<h3>${esc(room.exam_name)}</h3><p class="mt">Raum: ${esc(room.name)}<br>Bearbeitungszeit: ${room.duration_min} Minuten</p><p>Alle Arbeitsmaterialien stehen in der Arbeitsumgebung zur Verfügung.</p>`;
+    if (n === 2) return `<h3>Ablauf</h3><ol><li>Start durch die Lehrkraft abwarten</li><li>Aufgaben bearbeiten und Ergebnisse als Abgabe markieren</li><li>Einheit beenden</li></ol>`;
+    return `<h3>Hinweise zur Abgabe</h3><p>Markieren Sie Ihre Ergebnisse als Abgabe einer Teilaufgabe. Die Abgabenübersicht zeigt jederzeit, welche Teilaufgaben noch offen sind.</p>`;
+  }
   if (n === 1) return `<h3>${esc(room.exam_name)}</h3><p class="mt">Raum: ${esc(room.name)}<br>Bearbeitungszeit: ${room.duration_min} Minuten</p><p>Die Prüfung besteht aus drei Aufgaben mit insgesamt 85 Punkten. Alle Arbeitsmaterialien stehen in der Prüfungsumgebung zur Verfügung.</p><p>Bitte schalten Sie Mobiltelefone und Smartwatches aus und legen Sie diese an den dafür vorgesehenen Platz.</p>`;
   if (n === 2) return `<h3>Ablauf</h3><ol><li>Belehrung bestätigen</li><li>Gesundheitsabfrage beantworten</li><li>Start durch die Aufsicht abwarten</li><li>Aufgaben bearbeiten und Ergebnisse als Abgabe markieren</li><li>Prüfung beenden</li></ol>`;
   return `<h3>Hinweise zur Abgabe</h3><p>Bewertet werden nur Elemente, die Sie als Abgabe einer Teilaufgabe markiert haben: Dateien, E-Mails, Termine, Notizen, Tickets oder Code-Dateien.</p><p>Die Abgabenübersicht zeigt Ihnen jederzeit, welche Teilaufgaben noch offen sind.</p>`;
@@ -443,6 +456,8 @@ function endView(ctx) {
   };
 }
 const courseOfRoom = (room) => byId("courses", room?.course);
+// Unterricht (Präsenz oder Distanz): keine Belehrung zu Täuschungshandlungen und keine Gesundheitsabfrage
+export const isLesson = (room) => courseOfRoom(room)?.kind === "unterricht";
 
 // ---------- Distanzunterricht ----------
 function distanceWait(ctx) {
@@ -450,7 +465,7 @@ function distanceWait(ctx) {
   return {
     reroute: true, title: "Einheit im Distanzunterricht",
     render: () => {
-      const ws = windowState(room); const ok = p.cheat_ack && p.health === "ok";
+      const ws = windowState(room); const lesson = isLesson(room); const ok = lesson || (p.cheat_ack && p.health === "ok");
       return `<header class="topbar">${brand()}<div class="usermenu"><button data-um>${icon("circle-user", "lg")}<span class="nm">${esc(p.firstname)} ${esc(p.lastname)}</span>${icon("chevron-down")}</button></div></header>
       <div class="tn-page"><h1 class="mb">${esc(room.exam_name || room.name)}</h1>
         <div class="warte"><section class="card pad"><h3>${icon("house")} Distanzunterricht</h3>
@@ -461,9 +476,10 @@ function distanceWait(ctx) {
           <div class="kv">${icon("file-text")}<div><div class="small">Erwartungshorizont</div><b>${room.show_horizon ? "wird nach Abschluss angezeigt" : "wird nicht angezeigt"}</b></div></div></section>
           <div class="col" style="gap:18px">
             <div class="wcard countdown"><h3>${ws === "before" ? "Die Einheit ist ab" : ws === "after" ? "Der Zeitraum ist beendet" : "Die Einheit ist freigeschaltet"}</h3><span class="big">${icon("alarm-clock")}<span data-wcd>${ws === "before" ? fmtDateTime(parseDate(room.window_from)) : ws === "after" ? "abgelaufen" : "jetzt"}</span></span></div>
-            ${card("Belehrung zu Täuschungshandlungen", p.cheat_ack, "Bitte lesen Sie die Belehrung und bestätigen Sie, dass Sie die Einheit selbstständig bearbeiten.", "Zur Belehrung", "cheat")}
-            ${card("Gesundheitsabfrage", p.health === "ok", "Bitte bestätigen Sie, dass Sie sich in der Lage fühlen, die Einheit zu bearbeiten.", "Zur Gesundheitsabfrage", "health")}
-            <div class="wcard"><h3>Einheit starten</h3><p class="small">${ws === "open" ? (ok ? "Alles bestätigt. Mit dem Start beginnt Ihre Bearbeitungszeit." : "Bitte bestätigen Sie zuerst Belehrung und Gesundheitsabfrage.") : ws === "before" ? "Der Start ist erst ab Beginn des Zeitraums möglich." : "Der Zeitraum ist abgelaufen – ein Start ist nicht mehr möglich."}</p><div class="row end"><button class="btn primary" data-dstart ${ws === "open" && ok ? "" : "disabled"}>${icon("play")} Einheit jetzt starten</button></div></div>
+            ${lesson ? "" : card("Belehrung zu Täuschungshandlungen", p.cheat_ack, "Bitte lesen Sie die Belehrung und bestätigen Sie, dass Sie die Einheit selbstständig bearbeiten.", "Zur Belehrung", "cheat")}
+            ${lesson ? "" : card("Gesundheitsabfrage", p.health === "ok", "Bitte bestätigen Sie, dass Sie sich in der Lage fühlen, die Einheit zu bearbeiten.", "Zur Gesundheitsabfrage", "health")}
+            <div class="wcard"><h3>Demobereich</h3><p>Lernen Sie die Arbeitsumgebung in einer kurzen Klickstrecke kennen: Kopfzeile, Dashboard, Aufgaben, Fenster, Abgaben markieren und Einheit beenden.</p><div class="row end"><button class="btn" data-demo>Demo starten</button></div></div>
+            <div class="wcard"><h3>Einheit starten</h3><p class="small">${ws === "open" ? (ok ? (lesson ? "Mit dem Start beginnt Ihre Bearbeitungszeit." : "Alles bestätigt. Mit dem Start beginnt Ihre Bearbeitungszeit.") : "Bitte bestätigen Sie zuerst Belehrung und Gesundheitsabfrage.") : ws === "before" ? "Der Start ist erst ab Beginn des Zeitraums möglich." : "Der Zeitraum ist abgelaufen – ein Start ist nicht mehr möglich."}</p><div class="row end"><button class="btn primary" data-dstart ${ws === "open" && ok ? "" : "disabled"}>${icon("play")} Einheit jetzt starten</button></div></div>
           </div></div></div>`;
     },
     async mount(el) {
@@ -471,13 +487,14 @@ function distanceWait(ctx) {
       el.querySelector("[data-um]").onclick = (e) => popMenu(e.currentTarget, [{ label: "Rolle wechseln", icon: "refresh-cw", run: () => navigate("#/") }]);
       const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
       const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
+      const db = el.querySelector("[data-demo]"); if (db) db.onclick = () => import("./tour.js?v=9.3").then((m) => m.startTour());
       const sb = el.querySelector("[data-dstart]"); if (sb) sb.onclick = async () => {
         if (windowState(room) !== "open") { render(false); return; }
         sb.disabled = true;
         await upd("participants", p.id, { status: "laeuft", started_at: toPb(), present: true, attempt: p.attempt || 1, last_seen: toPb() });
         log(p.room, p, "Einheit selbst gestartet", `Distanzunterricht · Durchlauf ${p.attempt || 1}`, "system");
       };
-      const tick = () => { const before = windowState(room) === "before"; if (!before && el.querySelector("[data-dstart][disabled]") && p.cheat_ack && p.health === "ok" && windowState(room) === "open") render(false); };
+      const tick = () => { const before = windowState(room) === "before"; if (!before && el.querySelector("[data-dstart][disabled]") && (isLesson(room) || (p.cheat_ack && p.health === "ok")) && windowState(room) === "open") render(false); };
       tickTimer = setInterval(tick, 5000);
     },
     unmount: stopTick,
@@ -501,7 +518,7 @@ function horizonPage(ctx) {
     title: "Erwartungshorizont",
     render: () => `<header class="topbar">${brand()}<span class="bold">${esc(p.firstname)} ${esc(p.lastname)}</span></header><div class="tn-page"><div class="breadcrumb"><a href="#/tn">${icon("arrow-left")} Zurück</a></div>
       <div class="pagehead"><div><h1>Erwartungshorizont</h1><div class="sub">${esc(ctx.room.exam_name || "")} · freigegeben durch die Lehrkraft für den Distanzunterricht</div></div></div>
-      ${EXAM.tasks.map((t) => `<h2 class="mt mb">Aufgabe ${t.no} ${esc(t.title)}</h2>${t.subtasks.map((st) => horizonHtml(st)).join("")}`).join("")}</div>`,
+      ${EXAM.tasks.map((t) => `<h2 class="mt mb">Aufgabe ${t.no} ${esc(t.title)}</h2>${t.situation ? `<details class="card pad soft mb-s"><summary class="bold">Ausgangssituation Aufgabe ${t.no}</summary><p class="small">${esc(t.situation)}</p></details>` : ""}${t.subtasks.map((st) => `<div class="hzpair mb">${questionHtml(st)}${horizonHtml(st)}</div>`).join("")}`).join("")}</div>`,
   };
 }
 
@@ -752,7 +769,7 @@ function bindPage(el, ctx, sub) {
   el.querySelectorAll("[data-swapatt]").forEach((b) => (b.onclick = () => swapAttachment(ctx, b, ...b.dataset.swapatt.split("|"))));
   el.querySelectorAll("[data-openmail]").forEach((b) => (b.onclick = () => W.open("mail", { mailId: b.dataset.openmail, subtask: sub.split("/")[2] })));
   const fin = el.querySelector("[data-finish]"); if (fin) fin.onclick = () => finishExam(ctx);
-  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=9.2").then((m) => m.copyCourse(ctx.course));
+  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=9.3").then((m) => m.copyCourse(ctx.course));
   el.querySelectorAll("[data-pvrules]").forEach((b) => (b.onclick = () => modal({ title: "Aufgabensteuerung (Vorschau)", size: "wide", body: `<p class="small">Regeln, die während der Bearbeitung automatisch neue Inhalte bereitstellen. Sie werden im Prüfungseditor konfiguriert und sind kein Bestandteil der Kurs- bzw. Prüfungskonfiguration. In der Vorschau lösen sie wie bei den Teilnehmenden aus.</p>${rulesPanel(ctx.course, RS?.fired || [])}` })));
   const bm = el.querySelector("[data-bookmark]");
   if (bm) bm.onclick = () => {

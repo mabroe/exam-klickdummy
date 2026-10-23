@@ -6,15 +6,15 @@
 //  sich untereinander, ebenso die Kommission (inkl. Vorsitz). Die Aufgabenerstellung sieht keine Rahmendaten und nur den ausgewählten
 //  Unternehmenspool. Anmerkungen sehen Koordinierungsstelle und Kommission/Vorsitz (Beratung, Lektorat, Prüflösung nur die eigenen), den
 //  Verlauf nur die Koordinierungsstelle. Organisationen werden erst nach der finalen Freigabe ausgewählt.
-import { D, byId, upd, create } from "../data.js?v=9.2";
-import { icon, esc, toast, confirmBox, modal, store, fmtDateTime, parseDate } from "../ui.js?v=9.2";
-import { navigate, redraw } from "../app.js?v=9.2";
-import { me, personName, orgShort, orgsLabel } from "../access.js?v=9.2";
-import { blankContent, validate as validateContent } from "./editor.js?v=9.2";
-import { normalizeContent } from "../scenario.js?v=9.2";
-import { seal, unseal, fingerprint } from "../vault.js?v=9.2";
-import { berufPicker, bindBerufPicker, berufMeta, berufById, berufByName, fbName, poolsFor, poolById, savePool, poolForm, readPoolForm } from "../masterdata.js?v=9.2";
-import { lockedBy, acquire, release } from "../locks.js?v=9.2";
+import { D, byId, upd, create } from "../data.js?v=9.3";
+import { icon, esc, toast, confirmBox, modal, store, fmtDateTime, parseDate } from "../ui.js?v=9.3";
+import { navigate, redraw } from "../app.js?v=9.3";
+import { me, personName, orgShort, orgsLabel } from "../access.js?v=9.3";
+import { blankContent, validate as validateContent } from "./editor.js?v=9.3";
+import { normalizeContent } from "../scenario.js?v=9.3";
+import { seal, unseal, fingerprint } from "../vault.js?v=9.3";
+import { berufPicker, bindBerufPicker, berufMeta, berufById, berufByName, fbName, poolsFor, poolById, savePool, poolForm, readPoolForm } from "../masterdata.js?v=9.3";
+import { lockedBy, acquire, release } from "../locks.js?v=9.3";
 
 // ---------- Modell ----------
 export const ESTATUS = {

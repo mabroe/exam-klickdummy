@@ -1,8 +1,8 @@
 // Sitzordnungen und reale Räume
 //  - Unterricht: kein realer Raum. Die Lehrkraft legt Anzahl der Sitzplätze und Anordnung fest.
 //  - Prüfung: realer Raum der Schule (venue); ein Raum kann je Zeitraum nur einmal belegt werden.
-import { D, byId } from "./data.js?v=9.2";
-import { esc, parseDate, fmtDateTime, fmtTime } from "./ui.js?v=9.2";
+import { D, byId } from "./data.js?v=9.3";
+import { esc, parseDate, fmtDateTime, fmtTime } from "./ui.js?v=9.3";
 
 export const LAYOUTS = {
   reihen: { label: "Reihen", hint: "Tischreihen mit Blick zur Tafel" },

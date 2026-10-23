@@ -1,9 +1,9 @@
 // Schüler:in: eigene Teilnahmen (Unterricht und Prüfung) – Teilnahme wählen (z. B. Präsenz- und Distanzeinheit gleichzeitig),
 // freigegebene Korrekturen und Ergebnisse des Unterrichts einsehen
-import { D, byId } from "../data.js?v=9.2";
-import { icon, esc, store, brand, fmtDateTime, parseDate, isFinished, isDistance, windowState } from "../ui.js?v=9.2";
-import { navigate, setRole } from "../app.js?v=9.2";
-import { courseOf, einsichtFor } from "../access.js?v=9.2";
+import { D, byId } from "../data.js?v=9.3";
+import { icon, esc, store, brand, fmtDateTime, parseDate, isFinished, isDistance, windowState } from "../ui.js?v=9.3";
+import { navigate, setRole } from "../app.js?v=9.3";
+import { courseOf, einsichtFor } from "../access.js?v=9.3";
 
 const STATUS = { nicht_eingeloggt: "noch nicht begonnen", wartend: "im Wartebereich", wartend_bestaetigt: "im Wartebereich", laeuft: "in Bearbeitung", pausiert: "pausiert", gesperrt: "gesperrt", zeit_beendet: "Bearbeitungszeit beendet", abgegeben: "abgegeben", eingesammelt: "eingesammelt", beendet: "beendet", nicht_teilnahme: "nicht teilgenommen" };
 export const studentPerson = () => byId("persons", store.get("portal") || store.get("person"));

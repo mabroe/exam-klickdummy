@@ -3,11 +3,11 @@
 //  - Unterricht: Lehrkraft (Tasks 31–36, 34 als Schüler:in)
 //  - Prüfung: Schuladministration (Tasks 52, 24, 21), Raumaufsicht (Task 22/23)
 // Der Fortschritt wird aus den Daten erkannt; der Leitfaden kann jederzeit ein- und ausgeklappt werden.
-import { D, byId, onChange } from "./data.js?v=9.2";
-import { icon, esc, store, toast } from "./ui.js?v=9.2";
-import { members, personName, inOrg } from "./access.js?v=9.2";
-import { navigate, render } from "./app.js?v=9.2";
-import * as CR from "./views/creation.js?v=9.2";
+import { D, byId, onChange } from "./data.js?v=9.3";
+import { icon, esc, store, toast } from "./ui.js?v=9.3";
+import { members, personName, inOrg } from "./access.js?v=9.3";
+import { navigate, render } from "./app.js?v=9.3";
+import * as CR from "./views/creation.js?v=9.3";
 
 const KEY = "guide";
 const st = () => store.lget(KEY, null);
@@ -43,7 +43,7 @@ function lesson(s) {
     { t: 32, title: "Teilnehmende der Raumaufsicht zuordnen", text: "Im Reiter „Teilnehmende“ bzw. „Mein Raum“ die Kursmitglieder zuordnen – es stehen nur Teilnehmende dieses Kurses zur Auswahl.", as: lk, go: room && `#/app/raum/${room.id}/teilnehmende`, done: tns.length > 0 },
     { t: "–", title: "Sichtbarkeit prüfen", text: `Melden Sie sich als Lehrkraft ohne Bezug zum Kurs (${esc(personName(other))}) an: Diese Raumaufsicht erscheint dort nicht.${mitb ? ` Als ${esc(personName(byId("persons", mitb.person)))} (Mitbetreuung) ist sie dagegen sichtbar.` : ""} Danach als Amir Eggert weiter.`, manual: true, as: other ? asPerson(other.username, "lehrkraft") : lk, go: "#/app/raumaufsicht", done: !!s.manual?.vis },
     { t: 33, title: "Raumaufsicht durchführen: Prüfung starten", text: "Als Amir Eggert im Reiter „Mein Raum“ Anwesenheit setzen und „Prüfung starten“.", as: lk, go: room && `#/app/raum/${room.id}/meinraum`, done: !!room && room.state !== "CREATED" },
-    { t: 34, title: "Als Schüler:in teilnehmen", text: `In einem zweiten Browserfenster (oder hier) als ${tns[0] ? esc(tns[0].firstname + " " + tns[0].lastname) : "Schüler:in"} anmelden, Belehrung und Gesundheitsabfrage bestätigen und eine Abgabe markieren.`, as: tns[0] ? { role: "tn", pid: tns[0].id } : null, go: "#/tn", done: tns.some((p) => ["laeuft", "zeit_beendet", "abgegeben", "eingesammelt", "beendet"].includes(p.status)) },
+    { t: 34, title: "Als Schüler:in teilnehmen", text: `In einem zweiten Browserfenster (oder hier) als ${tns[0] ? esc(tns[0].firstname + " " + tns[0].lastname) : "Schüler:in"} anmelden (im Unterricht ohne Belehrung und Gesundheitsabfrage – direkt bereit; im Wartebereich steht die Demo zur Verfügung) und eine Abgabe markieren.`, as: tns[0] ? { role: "tn", pid: tns[0].id } : null, go: "#/tn", done: tns.some((p) => ["laeuft", "zeit_beendet", "abgegeben", "eingesammelt", "beendet"].includes(p.status)) },
     { t: 33, title: "Einsammeln und beenden", text: "Als Amir Eggert „Prüfung einsammeln“ und „Prüfung beenden“. (Im Unterricht gibt es kein Prüfungsprotokoll.)", as: lk, go: room && `#/app/raum/${room.id}/meinraum`, done: room?.state === "TERMINATED" },
     { t: 35, title: "Korrigieren", text: "Im Unterricht gibt es genau eine Korrektur. In der Korrekturübersicht erscheinen nur Arbeiten aus Kursen, die Sie korrigieren. (optional)", optional: true, as: { ...lk, extra: { corrector: 1 } }, go: "#/app/korrektur", done: tns.some((p) => D.gradings.some((g) => g.participant === p.id)) },
     { t: 35, title: "Korrektur weitergeben", text: "„Korrektur weitergeben“ in der Korrekturübersicht: Die Korrektur geht an eine andere Lehrkraft des Kurses (z. B. die Mitbetreuung). Bisherige Bewertungen bleiben erhalten. (optional)", optional: true, as: { ...lk, extra: { corrector: 1 } }, go: "#/app/korrektur", done: !!course?.corrector && course.corrector !== course.owner },
@@ -214,8 +214,9 @@ function studentFlow(s) {
     { t: 34, title: "Meine Teilnahmen: Distanzeinheit wählen", text: "Als Schülerin Helena Nowak „Meine Teilnahmen“ öffnen. Präsenzunterricht und Distanzeinheit stehen gleichzeitig zur Wahl – bei der Distanzeinheit „Teilnehmen“ und die Einheit selbst starten.", as: su, go: "#/schueler", done: !!dist && !["nicht_eingeloggt"].includes(dist.status) },
     { t: 34, title: "Aufgabe bearbeiten und Abgabe markieren", text: "In der Distanzeinheit eine Aufgabe bearbeiten und als Abgabe markieren.", as: dist ? { role: "tn", pid: dist.id } : su, go: "#/tn/dashboard", done: !!dist && D.items.filter((i) => i.participant === dist.id && i.submission).length > (s.base.dsubs || 0) },
     { t: 34, title: "Einheit abschließen", text: "„Einheit beenden“ und abgeben. Ist die Einheit mehrfach durchlaufbar, kann sie im Zeitraum wiederholt werden.", as: dist ? { role: "tn", pid: dist.id } : su, go: "#/tn/abgaben", done: !!dist && ["abgegeben", "beendet"].includes(dist.status) && (dist.status !== s.base.dstatus || (dist.attempt || 1) > (s.base.dattempt || 1)) },
+    { t: 34, title: "Erwartungshorizont mit Aufgabenstellung", text: "Nach Abschluss der Distanzeinheit „Erwartungshorizont ansehen“: zu jeder Teilaufgabe stehen Arbeitsauftrag (bei Auswahlfragen mit Antwortoptionen) und Erwartungshorizont untereinander.", optional: true, manual: "hz", as: dist ? { role: "tn", pid: dist.id } : su, go: "#/tn/erwartung", done: !!s.manual?.hz },
     { t: 36, title: "Korrektur und Ergebnis ansehen", text: "Zurück zu „Meine Teilnahmen“ › „Ergebnisse“: die freigegebene Korrektur des Probelaufs mit Punkten, Note, Begründung und Korrekturzeichen.", as: su, go: "#/schueler", manual: "erg", done: !!s.manual?.erg },
-    { t: 34, title: "Präsenzunterricht: Wartebereich", text: "Am Präsenzunterricht teilnehmen: Belehrung und Gesundheitsabfrage bestätigen und auf den Start durch die Lehrkraft warten. (optional)", optional: true, as: pres ? { role: "tn", pid: pres.id } : su, go: "#/tn", done: !!pres?.cheat_ack },
+    { t: 34, title: "Präsenzunterricht: Wartebereich", text: "Am Präsenzunterricht teilnehmen: Im Unterricht entfallen Belehrung und Gesundheitsabfrage – Sie warten direkt auf den Start durch die Lehrkraft. Die Demo der Arbeitsumgebung lässt sich im Wartebereich starten. (optional)", optional: true, as: pres ? { role: "tn", pid: pres.id } : su, go: "#/tn", done: !!pres && pres.status !== "nicht_eingeloggt" },
   ];
 }
 

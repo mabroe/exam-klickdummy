@@ -1182,3 +1182,9 @@ td.ctr, th.ctr { text-align: center; }
 .guidepick .gbtns { display: flex; flex-wrap: wrap; gap: 8px; }
 .guidepick .ggroup { display: flex; flex-direction: column; gap: 6px; }
 .start .rolegrid.five.six.seven { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+/* Erwartungshorizont mit Aufgabenstellung (Distanzunterricht nach Abschluss) */
+.hzpair .assignment { padding: 12px 14px; border-width: 1px; }
+.hzpair .assignment p { margin: 6px 0 0; }
+.hzopts { margin: 6px 0 0 22px; padding: 0; }
+.hzpair + .hzpair { margin-top: 14px; }
+.tn-page details p { white-space: pre-line; }

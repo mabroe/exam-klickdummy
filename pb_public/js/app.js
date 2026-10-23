@@ -1,26 +1,26 @@
 // Exam Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=9.2";
-import { lock as lockGate } from "./gate.js?v=9.2";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=9.2";
-import * as TN from "./views/participant.js?v=9.2";
-import * as PR from "./views/proctor.js?v=9.2";
-import * as KO from "./views/correction.js?v=9.2";
-import * as LK from "./views/teacher.js?v=9.2";
-import * as RS from "./views/results.js?v=9.2";
-import * as KU from "./views/courses.js?v=9.2";
-import * as GD from "./guide.js?v=9.2";
-import * as ED from "./views/editor.js?v=9.2";
-import * as CR from "./views/creation.js?v=9.2";
-import { CORRECTORS } from "./scenario.js?v=9.2";
-import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=9.2";
-import { seatCount, seatCmp } from "./seats.js?v=9.2";
-import { syncForRoute } from "./content.js?v=9.2";
-import * as SD from "./views/stammdaten.js?v=9.2";
-import * as STU from "./views/student.js?v=9.2";
-import { closeAll as closeWindows } from "./views/dock.js?v=9.2";
-import { applySigns } from "./masterdata.js?v=9.2";
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=9.3";
+import { lock as lockGate } from "./gate.js?v=9.3";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=9.3";
+import * as TN from "./views/participant.js?v=9.3";
+import * as PR from "./views/proctor.js?v=9.3";
+import * as KO from "./views/correction.js?v=9.3";
+import * as LK from "./views/teacher.js?v=9.3";
+import * as RS from "./views/results.js?v=9.3";
+import * as KU from "./views/courses.js?v=9.3";
+import * as GD from "./guide.js?v=9.3";
+import * as ED from "./views/editor.js?v=9.3";
+import * as CR from "./views/creation.js?v=9.3";
+import { CORRECTORS } from "./scenario.js?v=9.3";
+import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=9.3";
+import { seatCount, seatCmp } from "./seats.js?v=9.3";
+import { syncForRoute } from "./content.js?v=9.3";
+import * as SD from "./views/stammdaten.js?v=9.3";
+import * as STU from "./views/student.js?v=9.3";
+import { closeAll as closeWindows } from "./views/dock.js?v=9.3";
+import { applySigns } from "./masterdata.js?v=9.3";
 
-export const VERSION = "9.2";
+export const VERSION = "9.3";
 export const VERSION_LABEL = `Version ${VERSION} · 23.10.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },

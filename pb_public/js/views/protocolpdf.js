@@ -1,8 +1,8 @@
 // Prüfungsprotokoll als PDF (jsPDF + AutoTable, lokal eingebunden)
 // Aufbau: Angaben zur Prüfung · Raumaufsichten mit Aufsichtszeiten und Unterschriftsfeldern · Sitzplan · Protokolleinträge
-import { D } from "../data.js?v=9.2";
-import { toast, parseDate, fmtDateTime, fmtTime, plannedEnd, STATUS } from "../ui.js?v=9.2";
-import { seatMap, validSeat, describe, seatScheme } from "../seats.js?v=9.2";
+import { D } from "../data.js?v=9.3";
+import { toast, parseDate, fmtDateTime, fmtTime, plannedEnd, STATUS } from "../ui.js?v=9.3";
+import { seatMap, validSeat, describe, seatScheme } from "../seats.js?v=9.3";
 
 let loading = null;
 function loadScript(src) { return new Promise((ok, fail) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => fail(new Error("Skript nicht ladbar: " + src)); document.head.appendChild(s); }); }
