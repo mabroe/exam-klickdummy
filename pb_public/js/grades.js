@@ -1,7 +1,7 @@
 // Bewertung: linearer Notenschlüssel, Freigabestatus der Korrektorengruppen, Gesamtnote
-import { D, byId } from "./data.js?v=9.0";
-import { ALL_SUBTASKS, TOTAL_POINTS, EXAM, GRADING_KEYS } from "./scenario.js?v=9.0";
-import { courseOfParticipant, correctorsFor, thirdRequested, approvalStateFor } from "./access.js?v=9.0";
+import { D, byId } from "./data.js?v=9.1";
+import { ALL_SUBTASKS, TOTAL_POINTS, EXAM, GRADING_KEYS } from "./scenario.js?v=9.1";
+import { courseOfParticipant, correctorsFor, thirdRequested, approvalStateFor, setDkRecommend } from "./access.js?v=9.1";
 
 // Linearer Notenschlüssel (entspricht der Tabelle „Notenschlüssel 100 P“ und ihrer Anpassung an die Maximalpunktzahl):
 // Note = 6 − 5 · Punkte / Maximalpunkte, auf eine Nachkommastelle zugunsten des Prüflings abgerundet (100 P → 1,0; 50 P → 3,5; 0 P → 6,0)
@@ -37,6 +37,9 @@ export function approvalState(p, stage) {
   return { ...st, approved: (pid) => ok.includes(pid) };
 }
 export const approvalText = (a) => (a.final ? "final" : a.of ? `${a.n} von ${a.of} freigegeben` : "keine Gruppe zugewiesen");
+// Empfehlung (und damit automatische Anforderung) der Drittkorrektur: Notenabweichung von Erst- und Zweitkorrektur ab Schwelle
+export function dkRecommended(c, p) { const ek = stageResult(p.id, 1), zk = stageResult(p.id, 2); return ek.note !== null && zk.note !== null && Math.abs(ek.note - zk.note) >= dkThreshold(c) - 1e-9; }
+setDkRecommend(dkRecommended);
 // Gesamtnote: Endbeurteilung, falls durchgeführt; sonst Mittelwert der Noten aus Erst- und Zweitkorrektur; Unterricht: die eine Korrektur
 export function overall(p) {
   const c = courseOfParticipant(p);
@@ -47,7 +50,8 @@ export function overall(p) {
   let note = null, src = "";
   if (c?.kind === "unterricht") { note = ek.note; src = "Korrektur"; }
   else if (third && dk.note !== null) { note = dk.note; src = "Endbeurteilung"; }
-  else if (!third && ek.note !== null && zk.note !== null) { note = Math.floor(((ek.note + zk.note) / 2) * 10 + 1e-9) / 10; src = "Ø EK/ZK"; }
+  else if (!third && ek.note !== null && zk.note !== null) { note = Math.floor(((ek.note + zk.note) / 2) * 10 + 1e-9) / 10; src = "Mittel der Noten EK/ZK"; }
+  // Drittkorrektur angefordert, aber noch keine Endbeurteilung: Gesamtnote offen
   return { c, ek, zk, dk, third, diff, recommend, note, src };
 }
 // Wertetabelle des Notenschlüssels (für die Anzeige)

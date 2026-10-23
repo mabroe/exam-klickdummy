@@ -1,8 +1,8 @@
 // Aufgabensteuerung im Kurs: schreibgeschützte Anzeige der Regeln aus dem Inhalt der Prüfung bzw. des Kurses (Katalog).
 // Die Regeln hängen fest an der Prüfung/am Kurs und werden im Prüfungseditor (Rolle Prüfungserstellung bzw. Lehrkraft für eigene Inhalte) konfiguriert.
-import { byId } from "../data.js?v=9.0";
-import { icon, esc } from "../ui.js?v=9.0";
-import { ACTIONS, condText } from "../rules.js?v=9.0";
+import { byId } from "../data.js?v=9.1";
+import { icon, esc } from "../ui.js?v=9.1";
+import { ACTIONS, condText } from "../rules.js?v=9.1";
 
 const actText = (a) => {
   const where = a.task ? `Aufgabe ${esc(a.task)}` : "aktuelle Aufgabe";
@@ -24,3 +24,13 @@ export function tabRules(c) {
     : `<div class="empty">${icon("workflow")}<h3>Keine Aufgabensteuerung</h3><p>Für diesen Inhalt sind im Prüfungseditor keine Regeln hinterlegt.</p></div>`}`;
 }
 export function bindRules() {}
+// Aufgabensteuerung eines Inhalts als einblendbare Übersicht in der Vorschau (mit Status der Regeln in dieser Vorschau)
+export function rulesPanel(cat, fired = []) {
+  const rules = cat?.rules || [];
+  const join = (m) => (m === "any" ? "ODER" : "UND");
+  return rules.length ? rules.map((r) => `<section class="card pad rulecard ${r.active === false ? "off" : ""}" style="margin-bottom:10px">
+    <div class="row between wrap"><h3 style="margin:0">${icon("workflow")} ${esc(r.name)}</h3>${r.active === false ? `<span class="badge gray">inaktiv</span>` : fired.includes(r.id) ? `<span class="badge green">${icon("check")} in dieser Vorschau ausgelöst</span>` : `<span class="badge cyan">wartet</span>`}</div>
+    <div class="rcols"><div><h4>${icon("filter")} Wenn</h4>${(r.groups || []).map((g, gi) => `${gi ? `<div class="rjoin">${join(r.match)}</div>` : ""}<div class="rgroup">${(g.conditions || []).map((x, ci) => `${ci ? `<div class="rjoin s">${join(g.match).toLowerCase()}</div>` : ""}<div class="rcond small">${esc(condText(x, rules))}</div>`).join("")}</div>`).join("")}</div>
+      <div><h4>${icon("zap")} Dann</h4>${(r.actions || []).map((a) => `<div class="ract small">${icon(ACTIONS[a.type]?.icon || "info")} ${actText(a)}</div>`).join("")}</div></div></section>`).join("")
+    : `<div class="empty small">${icon("workflow")}<p>Für diesen Inhalt sind keine Regeln hinterlegt.</p></div>`;
+}

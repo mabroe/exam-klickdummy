@@ -5,17 +5,17 @@
 //    Teilaufgaben mit Fragetyp, Arbeitsauftrag, Bewertungsraster und Erwartungshorizont (auch mit Bildern)
 //  - Aufgabensteuerung: Regeln (Bedingungen mit UND/ODER, Aktionen)
 //  - Prüfen: Vollständigkeit und Übersicht, Speichern, Vorschau
-import { D, byId, upd, create } from "../data.js?v=9.0";
-import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=9.0";
-import { navigate, redraw, session } from "../app.js?v=9.0";
-import { me, personName, isTeacherOf, inOrg, orgShort } from "../access.js?v=9.0";
-import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=9.0";
-import { hasOwnContent, contentFromDefault, FOLDER } from "../content.js?v=9.0";
-import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=9.0";
-import { condText } from "../rules.js?v=9.0";
-import { inProcess, canEditContent, statusBadge, actionBar, runAction, STATUS_ACTS, rolesOf, seesNames } from "./creation.js?v=9.0";
-import { lockedBy, acquire, releaseAll } from "../locks.js?v=9.0";
-import { activeSignSet } from "../masterdata.js?v=9.0";
+import { D, byId, upd, create } from "../data.js?v=9.1";
+import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=9.1";
+import { navigate, redraw, session } from "../app.js?v=9.1";
+import { me, personName, isTeacherOf, inOrg, orgShort, canManageCourse } from "../access.js?v=9.1";
+import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=9.1";
+import { hasOwnContent, contentFromDefault, FOLDER, relLabel } from "../content.js?v=9.1";
+import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=9.1";
+import { condText } from "../rules.js?v=9.1";
+import { inProcess, canEditContent, statusBadge, actionBar, runAction, STATUS_ACTS, rolesOf, seesNames } from "./creation.js?v=9.1";
+import { lockedBy, acquire, releaseAll } from "../locks.js?v=9.1";
+import { activeSignSet } from "../masterdata.js?v=9.1";
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const rid = () => Math.random().toString(36).slice(2, 12);
@@ -89,6 +89,43 @@ export async function newContentDialog() {
   for (let i = 0; i < 40 && !byId("catalog", rec.id); i++) await new Promise((r) => setTimeout(r, 50)); // Realtime-Spiegel abwarten
   if (!author && v.lesson) await lessonFor(rec, v.title);
   toast("Inhalt angelegt", v.title + (!author && v.lesson ? " – Unterricht angelegt" : "")); navigate(`#/app/editor/${rec.id}/allgemein`);
+}
+
+// ---------- Bereichsadministration: durchgeführte Prüfung im Katalog veröffentlichen, Inhalt importieren ----------
+const ROOT_CAT = (x) => ({ beruf: x.meta?.beruf || x.beruf || "", fach: x.meta?.bereich || x.fach || "", jahr: x.meta?.jahr || x.jahr || String(new Date().getFullYear()) });
+export const conductedExams = () => D.catalog.filter((c) => c.status === "veroeffentlicht" && new Date(c.meta?.start_override || c.meta?.termin || 0).getTime() < Date.now());
+export async function publishExamDialog() {
+  const list = conductedExams();
+  const v = await modal({ title: "Durchgeführte Prüfung im Katalog veröffentlichen", size: "wide",
+    body: `<p class="small">Nach der Durchführung kann eine Prüfung als Unterrichtsmaterial (Übung zur Prüfungsvorbereitung) in den Katalog übernommen werden. Übernommen werden nur Inhalt, Materialien, Bewertungsraster, Erwartungshorizont und Aufgabensteuerung – keine Teilnehmenden, Abgaben oder Ergebnisse.</p>
+      ${list.length ? `<div class="tablewrap" style="max-height:320px;overflow:auto"><table class="tbl compact"><thead><tr><th></th><th>Prüfung</th><th>Ausbildungsberuf</th><th>Prüfungstermin</th><th>Bereits im Katalog</th></tr></thead><tbody>${list.map((c, i) => { const has = D.catalog.filter((k) => k.copied_from === c.id && !k.mine).length; return `<tr><td><input type="radio" name="pe" data-pe="${c.id}" ${i === 0 ? "checked" : ""} aria-label="${esc(c.title)}"></td><td><b>${esc(c.title)}</b></td><td class="small">${esc(c.meta?.beruf || c.beruf || "")}</td><td class="small">${esc(new Date(c.meta?.termin || 0).toLocaleDateString("de-DE"))}</td><td class="small">${has ? `${has}×` : "–"}</td></tr>`; }).join("")}</tbody></table></div>
+      <div class="field mt"><label class="lbl" for="pe-t">Titel im Katalog</label><input id="pe-t" class="input" data-pt placeholder="wird aus der Prüfung übernommen"></div>
+      <label class="checkbox"><input type="checkbox" data-pglobal> sofort global freigeben</label>` : `<div class="empty small">Es gibt noch keine durchgeführte Prüfung.</div>`}`,
+    footer: `<button class="btn" data-close>Abbrechen</button>${list.length ? `<button class="btn primary" data-ok>${icon("library")} Im Katalog anlegen</button>` : ""}`,
+    onMount: (m, close) => { const ok = m.querySelector("[data-ok]"); if (ok) ok.onclick = () => close({ id: m.querySelector("[data-pe]:checked")?.dataset.pe, title: m.querySelector("[data-pt]").value.trim(), global: m.querySelector("[data-pglobal]").checked }); } });
+  if (!v?.id) return;
+  const src = byId("catalog", v.id); const p = me();
+  const title = v.title || `${src.title} (Prüfungsvorbereitung)`;
+  const rec = await create("catalog", { title, kind: "Lernerfolgskontrolle", ...ROOT_CAT(src), description: `Durchgeführte Prüfung „${src.title}“ als Übung für den Unterricht.`, duration: src.duration || `${src.meta?.dauer || 90} Minuten`, creator: "Bereichsadministration (IBBW)", tags: ["Prüfungsvorbereitung", "Lernerfolgskontrolle"], contents: [...(src.contents || [])], mine: false, copied_from: src.id, image: src.image || 0, content: src.content?.tasks?.length ? clone(src.content) : null, rules: clone(src.rules || []), editor_by: "autor", release: v.global ? { scope: "global", by: p?.id || "", at: new Date().toISOString() } : null });
+  for (let i = 0; i < 40 && !byId("catalog", rec.id); i++) await new Promise((r) => setTimeout(r, 50));
+  toast("Prüfung im Katalog angelegt", title + (v.global ? " – global freigegeben" : " – Entwurf (noch nicht freigegeben)"));
+  navigate(`#/app/editor/${rec.id}/allgemein`);
+}
+export async function importDialog() {
+  const v = await modal({ title: "Prüfung bzw. Inhalt importieren", size: "narrow",
+    body: `<p class="small">Importiert wird eine Exportdatei (<code>.exam.json</code>) aus dem Editor – z. B. eine Prüfung oder Lernerfolgskontrolle einer anderen Instanz. Der Inhalt wird als Entwurf angelegt und kann vor der Freigabe im Editor geprüft werden.</p>
+      <div class="field"><label class="lbl" for="im-f">Datei</label><input id="im-f" class="input" type="file" accept=".json,application/json" data-imf></div><p class="xs" data-imerr style="color:var(--red)"></p>`,
+    footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>${icon("upload")} Importieren</button>`,
+    onMount: (m, close) => (m.querySelector("[data-ok]").onclick = async () => {
+      const f = m.querySelector("[data-imf]").files?.[0]; const err = m.querySelector("[data-imerr]");
+      if (!f) { err.textContent = "Bitte eine Datei wählen."; return; }
+      try { const d = JSON.parse(await f.text()); if (d.format !== "exam-klickdummy-inhalt" || !d.content?.tasks) throw new Error("kein Exportformat des Klickdummys"); close(d); }
+      catch (e) { err.textContent = "Datei nicht lesbar: " + e.message; }
+    }) });
+  if (!v) return;
+  const rec = await create("catalog", { title: v.title || "Importierter Inhalt", kind: "Lernerfolgskontrolle", beruf: v.beruf || "", fach: v.fach || "", jahr: v.jahr || String(new Date().getFullYear()), description: v.description || "", duration: v.duration || `${v.content?.duration_min || 45} Minuten`, creator: "Bereichsadministration (IBBW) – Import", tags: ["Import", "Lernerfolgskontrolle"], contents: [], mine: false, copied_from: "", image: Math.floor(Math.random() * 4), content: v.content, rules: v.rules || [], editor_by: "autor", release: null });
+  for (let i = 0; i < 40 && !byId("catalog", rec.id); i++) await new Promise((r) => setTimeout(r, 50));
+  toast("Inhalt importiert", `${rec.title} – als Entwurf angelegt`); navigate(`#/app/editor/${rec.id}/allgemein`);
 }
 
 // ---------- Entwurf ----------
@@ -192,10 +229,10 @@ export function editor(id, tab = "allgemein") {
       area = areaOf(E, tab); E.lastArea = area; const lk = area ? lockedBy(id, area) : null; E.locked = lk;
       const others = D.settings.filter((x) => String(x.key).startsWith(`lock:${id}:`) && x.value?.area !== area && Date.now() - new Date(x.value?.at || 0).getTime() < 90000 && x.value?.tab !== undefined && lockedBy(id, x.value.area));
       const rel = releaseOf(c0);
-      return `<div class="edwrap"><div class="breadcrumb">${inProcess(cat) ? `<a href="#/app/erstellung">Prüfungserstellung</a>${icon("chevron-right")}<a href="#/app/erstellung/${id}/uebersicht">${esc(cat.title)}</a>` : `<a href="#/app/katalog">Katalog</a>${icon("chevron-right")}<a href="#/app/katalog/${id}">${esc(cat.title)}</a>`}${icon("chevron-right")}<b>Editor</b></div>
+      return `<div class="edwrap"><div class="breadcrumb">${inProcess(cat) ? `<a href="#/app/erstellung">Prüfungserstellung</a>${icon("chevron-right")}<a href="#/app/erstellung/${id}/uebersicht">${esc(cat.title)}</a>` : (() => { const t = exitTarget(c0); return c0.mine && t.href.startsWith("#/app/kurs/") ? `<a href="#/app/kurse">Mein Unterricht</a>${icon("chevron-right")}<a href="${t.href}">${esc(t.label.replace(/^Zum Unterricht „|“$/g, ""))}</a>` : `<a href="#/app/katalog">Katalog</a>${icon("chevron-right")}<a href="#/app/katalog/${id}">${esc(cat.title)}</a>`; })()}${icon("chevron-right")}<b>Editor</b></div>
       <div class="pagehead"><div><h1>${icon("pencil")} ${esc(E.cat.title || "Ohne Titel")}</h1><div class="row mt-s small wrap"><span class="badge ${E.cat.kind === "Prüfung" ? "purple" : "cyan"}">${esc(E.cat.kind)}</span>${inProcess(cat) ? statusBadge(c0) : rel ? `<span class="badge green">${icon("globe")} ${esc(releaseLabel(c0))}</span>` : `<span class="badge gray">nicht im Katalog freigegeben</span>`}<span>${E.content.tasks.length} Aufgaben · ${E.content.tasks.reduce((a, t) => a + t.subtasks.length, 0)} Teilaufgaben · <b>${pts(total)} Punkte</b> · ${E.content.duration_min} Min.</span>
         ${used ? `<span class="badge yellowb" title="Kurse, die diesen Inhalt nutzen">${icon("users")} in ${used} Kurs${used === 1 ? "" : "en"} verwendet</span>` : ""}${E.dirty ? `<span class="badge yellowb" data-dirty>ungespeicherte Änderungen</span>` : `<span class="badge green" data-dirty>gespeichert</span>`}${nErr ? `<a class="badge red" href="#/app/editor/${id}/pruefen">${nErr} Fehler</a>` : ""}</div></div>
-        <div class="actions-bar">${canPublish(c0) ? `<button class="btn" data-publish="${rel ? 0 : 1}">${icon(rel ? "eye-off" : "globe")} ${rel ? "Freigabe beenden" : isAuthor() ? "Global freigeben" : "Für meine Schule freigeben"}</button>` : ""}<button class="btn" data-preview>${icon("eye")} Vorschau</button><button class="btn primary" data-save>${icon("save")} Speichern</button></div></div>
+        <div class="actions-bar">${canPublish(c0) ? `<button class="btn" data-publish="${rel ? 0 : 1}">${icon(rel ? "eye-off" : "globe")} ${rel ? "Freigabe beenden" : isAuthor() ? "Global freigeben" : "Für meine Schule freigeben"}</button>` : ""}<button class="btn" data-preview>${icon("eye")} Vorschau</button>${inProcess(cat) ? "" : `<button class="btn ghost" data-export title="Inhalt als Datei exportieren">${icon("download")} Exportieren</button>`}<button class="btn primary" data-save>${icon("save")} Speichern</button><button class="btn" data-edexit title="${esc(exitTarget(c0).label)}">${icon("log-out")} Editor beenden</button></div></div>
       ${inProcess(cat) ? actionBar(c0, { inEditor: true }) : ""}
       ${E.fromDefault ? `<div class="notice info small mb">${icon("info")}<span>Dieser Inhalt nutzt bisher die Musterprüfung. Beim Speichern wird er als eigener Inhalt dieses Katalogeintrags abgelegt (inkl. der bereitgestellten Materialien).</span></div>` : ""}
       ${used && !inProcess(cat) && !c0.mine ? `<div class="notice warn small mb">${icon("triangle-alert")}<span>Änderungen wirken auf alle Kurse mit diesem Inhalt. Bereits angemeldete Teilnehmende behalten ihre kopierten Materialien.</span></div>` : ""}
@@ -213,6 +250,30 @@ export function editor(id, tab = "allgemein") {
     },
     unmount() { releaseAll(id, E.dirty ? [...E.touched] : []); },
   };
+}
+// Wohin führt „Editor beenden“? Erstellungsprozess → Prüfung; eigener Inhalt → Unterricht, aus dem der Editor geöffnet wurde; sonst Katalog
+export function exitTarget(cat) {
+  if (inProcess(cat)) return { href: `#/app/erstellung/${cat.id}/uebersicht`, label: "Zur Prüfungserstellung" };
+  const f = store.get("edfrom", null); if (f?.id === cat.id && f.href) return { href: f.href, label: f.label || "Zurück" };
+  const l = lessonsOf(cat).find((c) => canManageCourse(c)); if (l) return { href: `#/app/kurs/${l.id}/mitglieder`, label: `Zum Unterricht „${l.title}“` };
+  return { href: cat.mine ? "#/app/katalog" : `#/app/katalog/${cat.id}`, label: "Zum Katalog" };
+}
+async function exitEditor(E, cat) {
+  const t = exitTarget(byId("catalog", cat.id) || cat);
+  if (E.dirty) {
+    const v = await modal({ title: "Editor beenden", size: "narrow", body: `<p>Es gibt ungespeicherte Änderungen.</p>`, footer: `<button class="btn" data-close>Abbrechen</button><button class="btn" data-value="discard">Verwerfen</button><button class="btn primary" data-value="save">${icon("save")} Speichern und beenden</button>` });
+    if (!v) return;
+    if (v === "save" && !(await save(E, cat))) return;
+    if (v === "discard") DRAFTS.delete(cat.id);
+  }
+  releaseAll(cat.id); store.set("edfrom", null); navigate(t.href);
+}
+// Export des Inhalts als Datei (Import im Katalog durch die Bereichsadministration)
+export function exportContent(cat, E) {
+  const data = { format: "exam-klickdummy-inhalt", version: 1, exported: new Date().toISOString(), title: E?.cat.title || cat.title, kind: "Lernerfolgskontrolle", beruf: E?.cat.beruf ?? cat.beruf, fach: E?.cat.fach ?? cat.fach, jahr: E?.cat.jahr ?? cat.jahr, description: E?.cat.description ?? cat.description ?? "", duration: cat.duration, content: E ? E.content : cat.content, rules: E ? E.rules : cat.rules || [] };
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }));
+  a.download = (data.title || "Inhalt").replace(/[^\wÄÖÜäöüß -]+/g, "").replace(/\s+/g, "_") + ".exam.json"; a.click();
+  toast("Inhalt exportiert", a.download, "info");
 }
 const lockNote = (cat, lk, label) => `<div class="notice warn small mb">${icon("lock")}<span><b>Gesperrt:</b> „${esc(label)}“ wird gerade von ${esc(lockHolder(cat, lk))} bearbeitet. Sie sehen den zuletzt gespeicherten Stand; bearbeiten können Sie, sobald die Sperre aufgehoben ist (spätestens 90 Sekunden nach Verlassen).</span></div>`;
 
@@ -279,15 +340,18 @@ function materialList(E, t, ti) {
   const files = t.materials.filter((m) => m.kind === "file").map((m) => m.data?.name).filter(Boolean);
   const mp = (i, f) => `content.tasks.${ti}.materials.${i}.data.${f}`;
   const f = (i, key, label, v, o = {}) => fld(mp(i, key), label, v, o);
+  // Zeitangabe fest oder relativ zum Prüfungsbeginn
+  const timeMode = (i, d, kind) => `<div class="field"><label class="lbl">${kind === "event" ? "Tag" : "Zeitpunkt"}</label><select class="select" data-ep="${mp(i, "relmode")}"><option value="abs">${kind === "event" ? "fester Wochentag" : "festes Datum und Uhrzeit"}</option><option value="rel" ${d.relmode === "rel" ? "selected" : ""}>relativ zum Prüfungsbeginn</option></select></div>`;
+  const relFields = (i, d) => `<div class="grid3">${f(i, "rel_d", "Tage vorher", d.rel_d ?? 0, { type: "number", num: true })}${f(i, "rel_h", "Stunden vorher", d.rel_h ?? 0, { type: "number", num: true })}${f(i, "rel_m", "Minuten vorher", d.rel_m ?? 0, { type: "number", num: true })}</div><p class="xs muted" style="margin-top:-6px">Das Datum wird beim Start der Bearbeitung berechnet, z. B. „vor 2 Tagen, 3 Stunden und 15 Minuten“.</p>`;
   const row = ({ m, i }) => {
     const d = m.data || {};
-    const head = { file: `${icon("file")} ${esc(d.name || "Datei")}`, mail: `${icon("mail")} ${esc(d.subject || "(ohne Betreff)")} <span class="xs muted">von ${esc(d.from || "")}</span>`, event: `${icon("calendar")} ${esc(d.title || "Termin")} <span class="xs muted">${DAYS[+d.day || 0]}, ${esc(d.start || "")}–${esc(d.end || "")}</span>`, ticket: `${icon("ticket")} #${esc(d.no || "")} ${esc(d.subject || "")}`, code: `${icon("file-code")} ${esc(d.name || "")}`, erp: `${icon(d.type === "konto" || d.type === "beleg" ? "book-text" : "package")} ${esc({ lieferant: "Lieferant", bestellung: "Bestellung", konto: "Konto", beleg: "Beleg" }[d.type] || "Artikel")} ${esc(d.nr || "")} ${esc(d.name || d.partner || "")}` }[m.kind];
+    const head = { file: `${icon(m.folder === "own" ? "folder" : "file")} ${esc(d.name || "Datei")} <span class="xs muted">${m.folder === "own" ? "Eigene Dateien" : "Bereitgestellte Dateien"}</span>`, mail: `${icon("mail")} ${esc(d.subject || "(ohne Betreff)")} <span class="xs muted">von ${esc(d.from || "")} · ${esc(relLabel("mail", d) || d.date || "")}</span>`, event: `${icon("calendar")} ${esc(d.title || "Termin")} <span class="xs muted">${esc(relLabel("event", d) || DAYS[+d.day || 0])}, ${esc(d.start || "")}–${esc(d.end || "")}</span>`, ticket: `${icon("ticket")} #${esc(d.no || "")} ${esc(d.subject || "")}${relLabel("ticket", d) ? ` <span class="xs muted">${esc(relLabel("ticket", d))}</span>` : ""}`, code: `${icon("file-code")} ${esc(d.name || "")}`, erp: `${icon(d.type === "konto" || d.type === "beleg" ? "book-text" : "package")} ${esc({ lieferant: "Lieferant", bestellung: "Bestellung", konto: "Konto", beleg: "Beleg" }[d.type] || "Artikel")} ${esc(d.nr || "")} ${esc(d.name || d.partner || "")}` }[m.kind];
     let body = "";
-    if (m.kind === "file") body = `<div class="grid2">${f(i, "name", "Dateiname", d.name)}${f(i, "path", "Ordner", d.path || "Bereitgestellte Dateien")}</div><div class="row wrap" style="gap:10px"><label class="btn sm">${icon("upload")} Datei ${d.url ? "ersetzen" : "hochladen"}<input type="file" hidden data-ea="fileUp" data-arg="${ti}.${i}"></label><span class="xs muted">${d.url ? `${esc(d.format || "")} · ${esc(d.size || "")}${String(d.url).startsWith("data:") ? " · im Inhalt gespeichert" : ` · ${esc(d.url)}`}` : "Noch keine Datei – nur Platzhalter (Dateiname)."}</span></div>`;
-    if (m.kind === "mail") body = `<div class="grid2">${f(i, "from", "Absender (Name)", d.from)}${f(i, "from_mail", "Absender (E-Mail)", d.from_mail)}</div><div class="grid2">${f(i, "to", "An", d.to)}${f(i, "date", "Datum", d.date, { ph: "13.10.2025 09:22" })}</div>${f(i, "subject", "Betreff", d.subject)}${f(i, "body", "Text", d.body, { area: 6 })}
+    if (m.kind === "file") body = `<div class="grid3">${f(i, "name", "Dateiname", d.name)}<div class="field"><label class="lbl">Ablage bei den Teilnehmenden</label><select class="select" data-ea="filefolder" data-arg="${ti}.${i}"><option value="provided" ${m.folder !== "own" ? "selected" : ""}>Bereitgestellte Dateien</option><option value="own" ${m.folder === "own" ? "selected" : ""}>Eigene Dateien</option></select></div>${f(i, "path", "Unterordner", d.path || (m.folder === "own" ? "" : "Bereitgestellte Dateien"))}</div><div class="row wrap" style="gap:10px"><label class="btn sm">${icon("upload")} Datei ${d.url ? "ersetzen" : "hochladen"}<input type="file" hidden data-ea="fileUp" data-arg="${ti}.${i}"></label><span class="xs muted">${d.url ? `${esc(d.format || "")} · ${esc(d.size || "")}${String(d.url).startsWith("data:") ? " · im Inhalt gespeichert" : ` · ${esc(d.url)}`}` : "Noch keine Datei – nur Platzhalter (Dateiname)."}</span></div>`;
+    if (m.kind === "mail") body = `<div class="grid2">${f(i, "from", "Absender (Name)", d.from)}${f(i, "from_mail", "Absender (E-Mail)", d.from_mail)}</div><div class="grid2">${f(i, "to", "An", d.to)}${timeMode(i, d, "mail")}</div>${d.relmode === "rel" ? relFields(i, d) : f(i, "date", "Datum", d.date, { ph: "13.10.2025 09:22" })}${f(i, "subject", "Betreff", d.subject)}${f(i, "body", "Text", d.body, { area: 6 })}
       <div class="field"><span class="lbl">Anhänge (Dateien dieser Aufgabe)</span><div class="chips">${files.length ? files.map((n) => `<label class="chipcheck ${(d.attachments || []).includes(n) ? "on" : ""}"><input type="checkbox" data-ea="att" data-arg="${ti}.${i}" value="${esc(n)}" ${(d.attachments || []).includes(n) ? "checked" : ""}>${icon("paperclip")} ${esc(n)}</label>`).join("") : `<span class="xs muted">Legen Sie zuerst Dateien an.</span>`}</div></div>`;
-    if (m.kind === "event") body = `${f(i, "title", "Titel", d.title)}<div class="grid3"><div class="field"><label class="lbl">Tag</label><select class="select" data-ep="${mp(i, "day")}" data-enum>${DAYS.map((x, k2) => `<option value="${k2}" ${+d.day === k2 ? "selected" : ""}>${x}</option>`).join("")}</select></div>${f(i, "start", "Beginn", d.start, { type: "time" })}${f(i, "end", "Ende", d.end, { type: "time" })}</div><div class="grid2">${f(i, "location", "Ort", d.location)}${f(i, "desc", "Beschreibung", d.desc)}</div>`;
-    if (m.kind === "ticket") body = `<div class="grid3">${f(i, "no", "Nummer", d.no)}${f(i, "requester", "Anfordernde Stelle", d.requester)}<div class="field"><label class="lbl">Priorität</label><select class="select" data-ep="${mp(i, "prio")}">${["niedrig", "mittel", "hoch"].map((x) => `<option ${d.prio === x ? "selected" : ""}>${x}</option>`).join("")}</select></div></div><div class="grid2">${f(i, "subject", "Betreff", d.subject)}<div class="field"><label class="lbl">Status</label><select class="select" data-ep="${mp(i, "status")}">${["offen", "in Bearbeitung", "geschlossen"].map((x) => `<option ${d.status === x ? "selected" : ""}>${x}</option>`).join("")}</select></div></div>${f(i, "desc", "Beschreibung", d.desc, { area: 4 })}`;
+    if (m.kind === "event") body = `${f(i, "title", "Titel", d.title)}${timeMode(i, d, "event")}<div class="grid3">${d.relmode === "rel" ? f(i, "rel_d", "Tage nach Prüfungsbeginn (0 = Prüfungstag)", d.rel_d ?? 0, { type: "number", num: true }) : `<div class="field"><label class="lbl">Tag</label><select class="select" data-ep="${mp(i, "day")}" data-enum>${DAYS.map((x, k2) => `<option value="${k2}" ${+d.day === k2 ? "selected" : ""}>${x}</option>`).join("")}</select></div>`}${f(i, "start", "Beginn", d.start, { type: "time" })}${f(i, "end", "Ende", d.end, { type: "time" })}</div><div class="grid2">${f(i, "location", "Ort", d.location)}${f(i, "desc", "Beschreibung", d.desc)}</div>`;
+    if (m.kind === "ticket") body = `<div class="grid3">${f(i, "no", "Nummer", d.no)}${f(i, "requester", "Anfordernde Stelle", d.requester)}<div class="field"><label class="lbl">Priorität</label><select class="select" data-ep="${mp(i, "prio")}">${["niedrig", "mittel", "hoch"].map((x) => `<option ${d.prio === x ? "selected" : ""}>${x}</option>`).join("")}</select></div></div><div class="grid2">${timeMode(i, d, "ticket")}${d.relmode === "rel" ? "<div></div>" : f(i, "created", "Erstellt am", d.created, { ph: "13.10.2025, 09:22" })}</div>${d.relmode === "rel" ? relFields(i, d) : ""}<div class="grid2">${f(i, "subject", "Betreff", d.subject)}<div class="field"><label class="lbl">Status</label><select class="select" data-ep="${mp(i, "status")}">${["offen", "in Bearbeitung", "geschlossen"].map((x) => `<option ${d.status === x ? "selected" : ""}>${x}</option>`).join("")}</select></div></div>${f(i, "desc", "Beschreibung", d.desc, { area: 4 })}`;
     if (m.kind === "code") body = `<div class="grid2">${f(i, "name", "Dateiname", d.name)}<div class="field"><label class="lbl">Sprache</label><select class="select" data-ep="${mp(i, "lang")}">${[["python", "Python"], ["javascript", "JavaScript"], ["text", "Text"]].map(([v, l]) => `<option value="${v}" ${d.lang === v ? "selected" : ""}>${l}</option>`).join("")}</select></div></div><div class="field"><label class="lbl">Code-Vorlage</label><textarea class="input mono" rows="8" data-ep="${mp(i, "code")}">${esc(d.code || "")}</textarea></div>`;
     if (m.kind === "erp") body = d.type === "konto" ? `<div class="grid3">${f(i, "nr", "Kontonummer", d.nr)}${f(i, "name", "Bezeichnung", d.name)}<div class="field"><label class="lbl">Kontenart</label><select class="select" data-ep="${mp(i, "art")}">${["Aktiv", "Passiv", "Aufwand", "Ertrag"].map((x) => `<option ${d.art === x ? "selected" : ""}>${x}</option>`).join("")}</select></div></div>`
       : d.type === "beleg" ? `<div class="grid3">${f(i, "nr", "Belegnummer", d.nr)}<div class="field"><label class="lbl">Belegart</label><select class="select" data-ep="${mp(i, "art")}">${["Eingangsrechnung", "Ausgangsrechnung", "Kassenbeleg", "Kontoauszug"].map((x) => `<option ${d.art === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>${f(i, "datum", "Datum", d.datum)}</div><div class="grid2">${f(i, "partner", "Geschäftspartner", d.partner)}${f(i, "text", "Text", d.text)}</div><div class="grid2">${f(i, "netto", "Nettobetrag (€)", d.netto, { type: "number", num: true })}${f(i, "ust", "Umsatzsteuer (%)", d.ust, { type: "number", num: true })}</div>`
@@ -405,6 +469,7 @@ function bindEditor(el, E, cat, tab) {
         toast("Datei übernommen", files.map((f) => f.name).join(", "));
         break;
       }
+      case "filefolder": { const m = T(x).materials[y]; m.folder = b.value; m.data.path = b.value === "own" ? "" : "Bereitgestellte Dateien"; break; }
       case "qtype": { const s = T(x).subtasks[y]; s.type = b.value; s.tool = s.type === "app" ? (T(x).tools.find((k) => APP_TOOLS[k]) || "files") : s.type; if ((s.type === "single" || s.type === "multiple") && s.options.length < 2) s.options = [{ text: "", correct: true }, { text: "", correct: false }]; if (s.type === "single" && s.options.filter((o) => o.correct).length !== 1) s.options.forEach((o, i) => (o.correct = i === 0)); break; }
       case "optAdd": T(x).subtasks[y].options.push({ text: "", correct: false }); break;
       case "optDel": T(x).subtasks[y].options.splice(z, 1); break;
@@ -426,6 +491,8 @@ function bindEditor(el, E, cat, tab) {
   });
   if (tab === "steuerung") bindRulesEditor(el, E.rules, rr, markDirty);
   el.querySelectorAll("[data-save]").forEach((b) => (b.onclick = () => save(E, cat)));
+  el.querySelectorAll("[data-edexit]").forEach((b) => (b.onclick = () => exitEditor(E, cat)));
+  el.querySelectorAll("[data-export]").forEach((b) => (b.onclick = () => exportContent(byId("catalog", cat.id) || cat, E)));
   // Statuswechsel direkt im Editor (z. B. „An die Kommission übergeben“, „Final freigeben“) – vorher speichern
   el.querySelectorAll("[data-pact]").forEach((b) => (b.onclick = async () => {
     const a = b.dataset.pact; const before = byId("catalog", id)?.status;

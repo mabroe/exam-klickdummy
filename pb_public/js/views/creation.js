@@ -6,15 +6,15 @@
 //  sich untereinander, ebenso die Kommission (inkl. Vorsitz). Die Aufgabenerstellung sieht keine Rahmendaten und nur den ausgewählten
 //  Unternehmenspool. Anmerkungen sehen Koordinierungsstelle und Kommission/Vorsitz (Beratung, Lektorat, Prüflösung nur die eigenen), den
 //  Verlauf nur die Koordinierungsstelle. Organisationen werden erst nach der finalen Freigabe ausgewählt.
-import { D, byId, upd, create } from "../data.js?v=9.0";
-import { icon, esc, toast, confirmBox, modal, store, fmtDateTime, parseDate } from "../ui.js?v=9.0";
-import { navigate, redraw } from "../app.js?v=9.0";
-import { me, personName, orgShort, orgsLabel } from "../access.js?v=9.0";
-import { blankContent, validate as validateContent } from "./editor.js?v=9.0";
-import { normalizeContent } from "../scenario.js?v=9.0";
-import { seal, unseal, fingerprint } from "../vault.js?v=9.0";
-import { berufPicker, bindBerufPicker, berufMeta, berufById, berufByName, fbName, poolsFor, poolById, savePool, poolForm, readPoolForm } from "../masterdata.js?v=9.0";
-import { lockedBy, acquire, release } from "../locks.js?v=9.0";
+import { D, byId, upd, create } from "../data.js?v=9.1";
+import { icon, esc, toast, confirmBox, modal, store, fmtDateTime, parseDate } from "../ui.js?v=9.1";
+import { navigate, redraw } from "../app.js?v=9.1";
+import { me, personName, orgShort, orgsLabel } from "../access.js?v=9.1";
+import { blankContent, validate as validateContent } from "./editor.js?v=9.1";
+import { normalizeContent } from "../scenario.js?v=9.1";
+import { seal, unseal, fingerprint } from "../vault.js?v=9.1";
+import { berufPicker, bindBerufPicker, berufMeta, berufById, berufByName, fbName, poolsFor, poolById, savePool, poolForm, readPoolForm } from "../masterdata.js?v=9.1";
+import { lockedBy, acquire, release } from "../locks.js?v=9.1";
 
 // ---------- Modell ----------
 export const ESTATUS = {
@@ -78,7 +78,13 @@ export function contentInfo(c) {
   return { key: "entwurf", text: "Inhalt in Erstellung – für Schulen nicht einsehbar", badge: "gray" };
 }
 export const isKS = (p = me()) => p?.kind === "koordination";
-export const team = (cat) => ({ aufgabenerstellung: [], kommission: [], vorsitz: [], beratung: [], lektorat: [], pruefloesung: [], ...(cat?.team || {}) });
+// Kommission und Vorsitz ergeben sich live aus der gewählten Kommissionsgruppe (Änderungen der Gruppe wirken sofort)
+export const team = (cat) => {
+  const t = { aufgabenerstellung: [], kommission: [], vorsitz: [], beratung: [], lektorat: [], pruefloesung: [], ...(cat?.team || {}) };
+  const g = t.kommission_group && byId("groups", t.kommission_group);
+  if (g) { t.kommission = (g.members || []).filter((x) => x !== g.chair); t.vorsitz = g.chair ? [g.chair] : []; }
+  return t;
+};
 export function rolesOf(cat, p = me()) {
   if (!p || !cat) return [];
   const t = team(cat); const r = Object.keys(EROLES).filter((k) => (t[k] || []).includes(p.id));
@@ -228,7 +234,7 @@ const MD = new Map(); // ungespeicherte Rahmendaten je Prüfung { meta, base }
 export function detail(id, tab = "uebersicht") {
   const c0 = byId("catalog", id);
   if (!c0 || !inProcess(c0)) return { redirect: "#/app/erstellung" };
-  if (!isKS() && !rolesOf(c0).length) return { shell: "staff", rail: "erstellung", title: "Kein Zugriff", render: () => `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Sie sind dieser Prüfung im Erstellungsprozess nicht zugewiesen.</p><a class="btn" href="#/app/erstellung">Zur Übersicht</a></div>` };
+  if (!isKS() && !rolesOf(c0).length) return { shell: "staff", rail: "erstellung", title: "Kein Zugriff", render: () => `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Sie sind dieser Prüfung im Erstellungsprozess nicht zugewiesen. Die Koordinierungsstelle weist die Personen im Reiter „Personen“ zu.</p><div class="row" style="gap:8px;justify-content:center"><a class="btn" href="#/app/erstellung">Zur Übersicht</a><a class="btn" href="#/">Rolle wechseln</a></div></div>` };
   if (!TABS.some(([k]) => k === tab) || !canSeeTab(c0, tab)) tab = "uebersicht";
   return {
     shell: "staff", rail: "erstellung", title: c0.title,

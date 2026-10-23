@@ -44,6 +44,8 @@ Im Browser-Modus gelten dieselben Fachregeln wie auf dem Server (Nachteilsausgle
 | **Raumaufsicht** | Übersicht Raumaufsicht, Tabs Prüfung · Mein Raum · Teilnehmende · Aufsichtspersonen · Prüfungsprotokoll, Starten/Pausieren/Einsammeln/Beenden, Teilnehmerdetails (Pause, Sperre, Zusatzzeit, NTA, Versetzung), besondere Vorkommnisse, Symbolhilfe | Exam-Raumaufsicht, Task 21 / 22 / 33 |
 | **Korrektor:in** (Erst-, Zweit-, Drittkorrektur) | Korrekturübersicht (aufgaben-/personenweise, einklappbare Summen), Korrekturmodus mit Randkorrektur je Rolle, Unterstreichungen, Stifteingabe mit Zeichenerkennung, Tablet-Ansicht, Favoriten, einklappbare Bewertung, Kommentare, Erwartungshorizont und Vergleich mit anderem Prüfling (jeweils neuer Tab), finale Freigabe | Exam-Korrektor, Task 10 / 11 / 20 / 27 |
 | **Lehrkraft** (Unterrichtsebene) | Meine Aufgaben, Katalog, Inhalt als Unterricht kopieren (eigene, im Editor bearbeitbare Kopie), eigene Inhalte erstellen und für die eigene Schule freigeben, **Mein Unterricht** mit Mitglieder- und Gruppenverwaltung (Schüler:innen einzeln, Klassen/Kurse der Schulverwaltung, eigene Gruppen, weitere Lehrkräfte als Mitbetreuung), Raumaufsicht planen und durchführen, Korrektur | Exam-Lehrkraft, Task 31 / 32 / 33 / 35 / 36 |
+| **Koordinierungsstelle** (Lisette Brandauer, Malin Tessendorf) | eigene Rolle auf der Startseite: Prüfungserstellung, Stammdaten (Berufe, Schulen, **Kommissionen**, Pools, Korrekturzeichensätze) | OPE |
+| **Schüler:in** | **Meine Teilnahmen**: wählen, woran man teilnimmt (z. B. Präsenzunterricht und Distanzeinheit gleichzeitig), freigegebene Korrektur und Ergebnisse des Unterrichts | Task 34 / 36 |
 | **Bereichsadministration** (Wenke Hollerbach) | **Katalog** für den Unterricht pflegen: Inhalte im Editor anlegen und bearbeiten, **global freigeben** und Freigabe beenden (Reiter „Nicht freigegeben“ für Entwürfe) | Katalog, Unterricht (OPU) |
 | **Schuladministration** (Prüfungsebene) | **Prüfungen** der eigenen Schule: Teilnehmende (Personen/Klassen), Raumaufsichten, Korrektor:innen (Erst/Zweit/Dritt), Prüfungseinsicht – jeweils nur Personen der eigenen Schule; Raumaufsichten der Schule organisieren | Exam-Schuladministration, Task 52 / 24 / 21 / 23 / 28 |
 
@@ -226,8 +228,8 @@ Das Prüfungsprotokoll gibt es **nur bei Prüfungen** (nicht im Unterricht). Der
 
 - **Ergebnisübersicht** (Navigation „Ergebnisse“, rechtebasiert): je Prüfling Name, Vorname, Anmeldename, **Punkte und Note der Erstkorrektur, Zweitkorrektur und Endbeurteilung** sowie die **Gesamtnote**; dazu Kennzahlen, Notenspiegel, Aufgabenstatistik und **CSV-Export**. Die Schuladministration sieht alle Prüflinge ihrer Schule mit allen drei Korrekturstufen, Korrektor:innen nur die Prüflinge ihrer Korrektorengruppen, Lehrkräfte die Teilnehmenden ihres Unterrichts. Änderungen der Korrektur erscheinen sofort.
 - **Noten**: linearer Notenschlüssel bezogen auf die Maximalpunktzahl – Note = 6 − 5 · Punkte / Maximalpunkte, auf eine Nachkommastelle zugunsten des Prüflings abgerundet. Bei 100 Punkten entspricht das exakt der Tabelle „Notenschlüssel 100 P“ (geprüft gegen alle Werte der Vorlage, auch für 60 bzw. 50 Punkte); „Notenschlüssel“ zeigt die Tabelle für eine wählbare Maximalpunktzahl.
-- **Gesamtnote**: Mittelwert der Noten aus Erst- und Zweitkorrektur (auf eine Nachkommastelle abgerundet). Ist eine Endbeurteilung angefordert, gilt deren Note. Im Unterricht gibt es nur eine Korrektur.
-- **Drittkorrektur**: Weichen die Noten aus Erst- und Zweitkorrektur um mindestens die eingestellte Schwelle ab (Standard 1,0 Notenstufen, im Reiter „Korrektoren“ einstellbar), wird die Zeile hervorgehoben und „Drittkorrektur empfohlen“ angezeigt. Die **Entscheidung trifft die Schuladministration** („anfordern“ bzw. „zurücknehmen“); erst dann erhält die Korrektorengruppe der Endbeurteilung Zugriff auf den Prüfling.
+- **Gesamtnote**: **Mittelwert der Noten** aus Erst- und Zweitkorrektur, nicht der Punkte (z. B. EK 1,2 und ZK 1,4 → 1,3; auf eine Nachkommastelle zugunsten des Prüflings abgerundet). Die Einsicht zeigt je Korrekturstufe Punkte und Note statt gemittelter Punkte. Ist eine Endbeurteilung angefordert, gilt deren Note. Im Unterricht gibt es nur eine Korrektur.
+- **Drittkorrektur**: Weichen die Noten aus Erst- und Zweitkorrektur um mindestens die eingestellte Schwelle ab (Standard 1,0 Notenstufen, im Reiter „Korrektoren“ einstellbar), ist die Drittkorrektur **durchzuführen**: Sie gilt automatisch als **angefordert** („Drittkorrektur erforderlich – automatisch angefordert“), die Korrektorengruppe der Endbeurteilung erhält sofort Zugriff. Die Schuladministration kann die Anforderung **zurücknehmen** (vermerkt, danach „erneut anfordern“) oder bei geringerer Abweichung eine Drittkorrektur selbst anfordern. Aus der Einsicht führt „Zurück zu den Ergebnissen“ zurück.
 - **Prüfungseinsicht (Prüfung)**: Es gibt **keine Freigabe** und **keinen eigenständigen Zugriff** für Prüflinge – auch nicht per Direktaufruf. Die Einsicht findet **immer in Präsenz** statt: Eine Person mit der Rolle **„Prüfungseinsicht“** (Kursmitglied der Prüfung, Prüfungen › Mitglieder) meldet sich an (Startseite › Prüfungseinsicht), wählt einen Prüfling ihrer Schule mit abgeschlossener Prüfung und beginnt die Einsicht nach einer Bestätigung (Prüfling anwesend, Begleitung während der gesamten Einsicht). Gezeigt werden **nur die Endnote und die Abgabe inkl. Korrekturzeichen** – keine Punkte je Teilaufgabe, Begründungen, Bemerkungen, Kommentare oder Erwartungshorizont. Eine Leiste zeigt die begleitende Person; Beginn und Ende werden im Prüfungsprotokoll festgehalten. Demo: Thea Riedmüller (AFS), Niklas Dähne (BTS). Lehrkräfte und Schuladministration sehen weiterhin die vollständige Einsicht in den Ergebnissen.
 - **Korrektur und Ergebnis (Unterricht)**: Die Lehrkraft gibt die Korrektur **je Durchführung** frei (Ergebnisse › „Freigabe der Korrektur für die Schüler:innen“, `rooms.released`). Schüler:innen sehen anschließend **nur ihre eigenen** Ergebnisse: Punkte je Teilaufgabe, Note, Begründung und Korrekturzeichen. Demo: „Klassenarbeit HTML · Probelauf“ (Brockmann, Reinholz, Thamm) ist korrigiert und freigegeben.
 
@@ -270,6 +272,12 @@ Prüfungen entstehen ausschließlich im Erstellungsprozess (Navigation **„Erst
 - **Fehlerbehebung**: Im Begutachtungszeitraum können Koordinierungsstelle, Kommission und Vorsitz bis zum Prüfungsstart im Editor korrigieren. Die Korrektur wird beim Speichern **direkt freigegeben** (Version 2, 3 …), ohne erneuten Freigabeprozess.
 - **Klickstrecke „Prüfungserstellung bis Prüfungsstart“** auf der Startseite: alle Schritte mit automatischem Personenwechsel.
 
+## Gruppen in Kursen und Prüfungen
+
+- Beim Hinzufügen einer Klasse bzw. Gruppe zählt ihr **Stand zu diesem Zeitpunkt**. Spätere Änderungen in der Schulverwaltung werden nicht automatisch übernommen.
+- Ändert sich die Gruppe, erscheint „**Aktuellerer Stand der Gruppe (+n / −n)**“. Ein Klick zeigt neue und ausgeschiedene Mitglieder; die Änderungen lassen sich **übernehmen** oder **ignorieren** (der Hinweis erscheint erst bei weiteren Änderungen wieder). Testfall: Unterricht „Zentrale Klassenarbeit HTML“ (Klasse WG12a).
+- Teilnehmende, die über eine Gruppe zugeordnet sind, können **einzeln entfernt** werden; die Gruppe selbst bleibt unverändert.
+
 ## Stammdaten (Koordinierungsstelle)
 
 Navigation **„Stammdaten“** (nur Koordinierungsstelle):
@@ -277,12 +285,15 @@ Navigation **„Stammdaten“** (nur Koordinierungsstelle):
 - **Schulen**: Matrix Schule × Ausbildungsberuf – Grundlage für die Auswahl der Organisationen einer Prüfung. Im Klickdummy sind zehn fiktive Schulen angelegt.
 - **Unternehmenspools** je Fachbereich anlegen und bearbeiten.
 - **Korrekturzeichensätze**: Zeichensätze anlegen, duplizieren, bearbeiten (Gruppen, Kürzel, Bedeutung) und einen als **verbindlich** festlegen. Er gilt sofort **einheitlich in allen Instanzen** – Erstellung, Prüfung (Erst-, Zweit-, Drittkorrektur) und Unterricht; Favoriten der Korrektor:innen werden daraus gewählt. Kürzel aus Buchstaben mit Schreibvorlage werden per Stift erkannt, andere stehen über die Auswahl zur Verfügung.
+- **Kommissionen**: Bezeichnung, Fachbereich, Mitglieder und Vorsitz pflegen oder neue Kommissionen anlegen. Änderungen wirken **sofort** in allen Prüfungen, denen die Kommission zugewiesen ist.
 - **Fachbereiche** (Kaufmännische Berufe, IT-Berufe, Gewerblich-technische Berufe).
 
 ## Katalog und Unterricht
 
 - **Globale Freigabe**: Die Bereichsadministration pflegt die Katalogeinträge (Editor) und gibt sie **global** frei; Entwürfe sind für Lehrkräfte unsichtbar. Die Freigabe kann wieder beendet werden.
 - **Eigene Inhalte der Lehrkraft**: „Neuen Inhalt erstellen“ legt ein eigenes Unterrichtsmaterial an (wahlweise gleich mit Unterricht). Beim **Kopieren** aus dem Katalog entsteht eine **eigene Kopie** des Inhalts, die im Editor bearbeitet werden kann („Inhalt bearbeiten“ im Unterricht, Reiter „Eigene Inhalte“ im Katalog); der Katalogeintrag bleibt unverändert. Die **Mitbetreuung** eines Unterrichts kann den Inhalt ebenfalls bearbeiten.
+- **Durchgeführte Prüfung veröffentlichen** (Bereichsadministration): Nach dem Prüfungstermin wird eine Prüfung als Übung zur Prüfungsvorbereitung in den Katalog übernommen – nur Inhalt, Materialien, Bewertung und Aufgabensteuerung, keine Teilnehmenden, Abgaben oder Ergebnisse; wahlweise sofort global freigegeben.
+- **Prüfung importieren** (Bereichsadministration): Import einer Exportdatei (`.exam.json`, im Editor über „Exportieren“) als Entwurf.
 - **Freigabe für die eigene Schule**: Eine Lehrkraft kann eigenes Material in den Katalog stellen – sichtbar nur für Lehrkräfte ihrer Organisation (Reiter „Meine Schule“). Nur der Einsteller kann die Freigabe beenden. Für andere Schulen sind solche Inhalte weder im Katalog noch per Direktaufruf (Vorschau, Editor) erreichbar.
 
 ## Testdaten
@@ -299,11 +310,14 @@ Prüfungen und Unterrichtsinhalte (Lernerfolgskontrollen) werden im **Editor** e
 - **Aufgabensteuerung**: Regeln mit Bedingungen (UND/ODER) und Aktionen, siehe unten.
 - **Prüfen und speichern**: Vollständigkeitsprüfung (z. B. fehlender Arbeitsauftrag, Raster ohne Punkte, Horizont-Punkte ≠ Raster, nicht freigeschaltete Anwendung, Single Choice ohne genau eine richtige Antwort, Regeln mit ungültigen Bezügen) mit Sprung zur Stelle, Übersicht aller Aufgaben; **Vorschau** aus dem Editor (zurück mit „Zurück zum Editor“).
 - **Durchführung**: Materialien werden beim ersten Login je Teilnahme bereitgestellt; Antworten zu Freitext/Kurzantwort/Choice werden in der Aufgabe erfasst, automatisch gespeichert und gelten als Abgabe. In der Korrektur erscheint die Antwort auf dem Korrekturpapier, bei Choice-Fragen mit automatischer Auswertung als Hinweis; der Erwartungshorizont zeigt Lösung und Bilder. Korrektur- und Ergebnisübersicht bieten bei mehreren Inhalten eine Auswahl „Inhalt“.
+- **Zeitangaben** von E-Mails, Tickets und Terminen: fest oder **relativ zum Prüfungsbeginn** (z. B. E-Mail „vor 2 Tagen, 3 Stunden und 15 Minuten“, Termin „2 Tage nach Prüfungsbeginn“). Das Datum wird beim Start der Bearbeitung (erster Login bzw. Vorschau) berechnet.
+- **Dateien** werden wahlweise unter „Bereitgestellte Dateien“ oder unter „**Eigene Dateien**“ der Teilnehmenden abgelegt.
+- **Editor beenden** führt zurück, woher der Editor geöffnet wurde (Unterricht, Katalog, Prüfungserstellung); bei ungespeicherten Änderungen: speichern, verwerfen oder abbrechen. **Exportieren** speichert den Inhalt als Datei.
 - Die **Musterprüfung FA230** lässt sich ebenfalls im Editor öffnen; beim ersten Speichern wird sie mit ihren Materialien als eigener Inhalt abgelegt.
 
 ## Aufgabensteuerung
 
-Die Aufgabensteuerung **hängt fest an der Prüfung bzw. am Kurs** (Inhalt im Katalog, `catalog.rules`) und wird im **Prüfungseditor** (Reiter „Aufgabensteuerung“, mit Vorlagen) konfiguriert. Im Kurs zeigt der Reiter **„Aufgabensteuerung“** die Regeln nur schreibgeschützt.
+Die Aufgabensteuerung **hängt fest am Inhalt** (`catalog.rules`) und wird im **Prüfungseditor** (Reiter „Aufgabensteuerung“, mit Vorlagen) konfiguriert. Sie ist kein Bestandteil der Kurs- bzw. Prüfungskonfiguration; in der **Vorschau** lässt sie sich über „Aufgabensteuerung“ einblenden (mit Status, welche Regeln in der Vorschau ausgelöst haben). Im Kurs zeigt der Reiter **„Aufgabensteuerung“** die Regeln nur schreibgeschützt.
 - **Bedingungen** – *Aktion ausgeführt*: Aufgabe/Teilaufgabe geöffnet, Abgabe markiert, E-Mail gesendet, Termin/Ticket angelegt, Datei hochgeladen, Bestellung im ERP-System; *zeitliche Faktoren*: Minuten seit Bearbeitungsbeginn, keine Aktivität seit n Minuten, Minuten in einer Aufgabe, Restzeit ≤ n Minuten; *Bearbeitungsstand*: Fortschritt in Prozent, noch keine Abgabe zu einer Teilaufgabe, andere Regel ausgelöst.
 - **Verknüpfung**: Bedingungen einer Gruppe mit **UND** bzw. **ODER**, Gruppen untereinander ebenfalls mit UND bzw. ODER.
 - **Aktionen**: neue E-Mail, neuer Kalendertermin, neues Ticket (in einer gewählten oder der aktuellen Aufgabe) oder ein eingeblendeter Hinweis.
@@ -365,6 +379,7 @@ pb_public/       Frontend (ohne Build-Schritt) – wird auf GitHub Pages veröff
   js/views/stammdaten.js Stammdaten der Koordinierungsstelle
   js/masterdata.js Ausbildungsberufe, Fachbereiche, Unternehmenspools, Korrekturzeichensätze
   js/locks.js    Bearbeitungssperren bei gleichzeitiger Bearbeitung
+  js/views/student.js Schüler:in: eigene Teilnahmen und Ergebnisse
   js/highlight.js Textmarkierungen in Arbeitsauftrag und Ausgangssituation
   samples/       Beispieldateien (Materialien, E-Mail-Anlagen, Beispielabgaben)
   css/app.css    Designsystem nach Figma (Gelb-Header, Rail, Tabs, Modals, Toasts, Status-Chips …)

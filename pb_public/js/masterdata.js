@@ -1,10 +1,10 @@
 // Stammdaten der Koordinierungsstelle: Fachbereiche, Ausbildungsberufe (mit Berufsnummer und Prüfungstiteln), Unternehmenspools,
 // Korrekturzeichensätze. Gespeichert in der Collection „settings“ (berufe, fachbereiche, signsets; Unternehmenspools je Datensatz „pool:<id>“).
 // Die Berufsnummern sind Demowerte.
-import { D, setting, setSetting, create, upd } from "./data.js?v=9.0";
-import { SIGNS, ALL_SIGN_KEYS } from "./scenario.js?v=9.0";
-import { esc, icon } from "./ui.js?v=9.0";
-import { resetInk, INK_CHARS } from "./ink.js?v=9.0";
+import { D, setting, setSetting, create, upd } from "./data.js?v=9.1";
+import { SIGNS, ALL_SIGN_KEYS } from "./scenario.js?v=9.1";
+import { esc, icon } from "./ui.js?v=9.1";
+import { resetInk, INK_CHARS } from "./ink.js?v=9.1";
 
 export const DEFAULT_FB = [{ id: "kfm", name: "Kaufmännische Berufe" }, { id: "it", name: "IT-Berufe" }, { id: "tech", name: "Gewerblich-technische Berufe" }];
 export const fachbereiche = () => setting("fachbereiche", DEFAULT_FB) || DEFAULT_FB;

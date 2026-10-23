@@ -57,7 +57,7 @@ routerUse((e) => {
 });
 
 // Version der Server-Seite (muss zu pb_public/js/app.js VERSION passen)
-routerAdd("GET", "/api/demo/version", (e) => e.json(200, { version: "9.0" }));
+routerAdd("GET", "/api/demo/version", (e) => e.json(200, { version: "9.1" }));
 
 // Nachteilsausgleich darf nur vor dem Prüfungsstart (Raumstatus CREATED) geändert werden – auch serverseitig abgesichert
 onRecordUpdateRequest((e) => {

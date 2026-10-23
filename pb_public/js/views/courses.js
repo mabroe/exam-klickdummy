@@ -2,13 +2,13 @@
 //  - Unterricht (Lehrkraft): Teilnehmende (Personen, vorhandene Gruppen, eigene Gruppen) und weitere Lehrkräfte (Mitbetreuung)
 //  - Prüfung (Schuladministration): Teilnehmende, Raumaufsichten, Korrektor:innen (Erst/Zweit/Dritt), Prüfungseinsicht –
 //    jeweils nur für Personen der eigenen Organisation
-import { D, byId, upd, create, del, log } from "../data.js?v=9.0";
-import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=9.0";
-import { navigate, redraw } from "../app.js?v=9.0";
-import * as RU from "./rules.js?v=9.0";
-import * as CRx from "./creation.js?v=9.0";
-import * as ED from "./editor.js?v=9.0";
-import { assignments, approvalStateFor, orgIds, inOrg, sameOrg, orgsLabel, lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=9.0";
+import { D, byId, upd, create, del, log } from "../data.js?v=9.1";
+import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=9.1";
+import { navigate, redraw } from "../app.js?v=9.1";
+import * as RU from "./rules.js?v=9.1";
+import * as CRx from "./creation.js?v=9.1";
+import * as ED from "./editor.js?v=9.1";
+import { groupDiff, groupSnapshot, assignments, approvalStateFor, orgIds, inOrg, sameOrg, orgsLabel, lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL } from "../access.js?v=9.1";
 
 const ROOM_STATE = { CREATED: ["In Vorbereitung", "gray"], RUNNING: ["Prüfung läuft", "cyan"], PAUSED: ["Prüfung pausiert", "yellowb"], TERMINATED: ["Prüfung beendet", "green"] };
 const UI = { q: "", addQ: "" };
@@ -46,19 +46,19 @@ export function detail(id, tab) {
       const c = byId("courses", id); const p = me();
       if (!c) return `<div class="empty">Kurs nicht gefunden. <a href="#/app/kurse">Zur Übersicht</a></div>`;
       if (!canManageCourse(c, p)) return `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Dieser Kurs gehört nicht zu Ihrem Konto bzw. Ihrer Organisation.</p><a class="btn" href="#/app/kurse">Zur Übersicht</a></div>`;
-      const tabs = [["mitglieder", "Mitglieder und Gruppen"], ...(c.kind === "pruefung" ? [["korrektoren", "Korrektoren"]] : []), ["steuerung", `Aufgabensteuerung${RU.rulesOfCourse(c).length ? ` <span class="badge gray">${RU.rulesOfCourse(c).length}</span>` : ""}`], ["raumaufsichten", "Raumaufsichten"], ["info", "Kursinformationen"]];
+      const tabs = [["mitglieder", "Mitglieder und Gruppen"], ...(c.kind === "pruefung" ? [["korrektoren", "Korrektoren"]] : []), ["raumaufsichten", "Raumaufsichten"], ["info", "Kursinformationen"]];
       const catX = byId("catalog", c.catalog); const ciX = CRx.contentInfo(catX); const hidden = catX?.status && !CRx.canViewContent(catX);
       const lockNote = ciX ? `<div class="notice ${ciX.key === "frei" ? "success" : ciX.key === "begutachtung" ? "info" : "warn"} small mb">${icon(ciX.key === "frei" ? "circle-check" : ciX.key === "begutachtung" ? "eye" : "lock")}<span><b>${esc(ciX.text)}.</b> ${ciX.key === "begutachtung" ? "Schuladministration und Korrektor:innen können die Prüfung jetzt begutachten. Fehler melden Sie bitte außerhalb des Portals an die Koordinierungsstelle bzw. Prüfungskommission." : ciX.key === "frei" ? "" : "Die Organisation an Ihrer Schule (Teilnehmende, Raumaufsichten, Korrektoren) ist bereits möglich; der Inhalt ist bis zum Begutachtungszeitraum nicht einsehbar."}</span></div>` : "";
-      const body = (tab === "steuerung" || (tab === "info" && c.kind !== "pruefung")) && hidden ? `<div class="empty">${icon("lock")}<h3>Inhalt nicht einsehbar</h3><p>${esc(ciX.text)}.</p></div>` : tab === "steuerung" ? RU.tabRules(c) : tab === "raumaufsichten" ? tabRooms(c, p) : tab === "info" ? tabInfo(c) : tab === "korrektoren" && c.kind === "pruefung" ? tabCorrectors(c, p) : c.kind === "pruefung" ? tabMembersExam(c, p) : tabMembersLesson(c, p);
+      const body = (tab === "steuerung" || (tab === "info" && c.kind !== "pruefung")) && hidden ? `<div class="empty">${icon("lock")}<h3>Inhalt nicht einsehbar</h3><p>${esc(ciX.text)}.</p></div>`  : tab === "raumaufsichten" ? tabRooms(c, p) : tab === "info" ? tabInfo(c) : tab === "korrektoren" && c.kind === "pruefung" ? tabCorrectors(c, p) : c.kind === "pruefung" ? tabMembersExam(c, p) : tabMembersLesson(c, p);
       return `<div class="breadcrumb"><a href="#/app/kurse">${p.kind === "schuladmin" ? "Prüfungen" : "Mein Unterricht"}</a>${icon("chevron-right")}<b>${esc(c.title)}</b></div>
       <div class="pagehead"><div><h1>${esc(c.title)}</h1><div class="row mt-s small"><span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span><span>${c.kind === "pruefung" ? "Ihre Schule: " + esc(orgsOwn(c, p)) + (examDate(c) !== "–" ? " · Prüfungstermin " + esc(examDate(c)) : "") : "Besitzer: " + esc(personName(byId("persons", c.owner)))}</span>${c.kind === "unterricht" && catX ? `<span class="badge ${catX.mine ? "cyan" : "gray"}">${catX.mine ? `${icon("copy")} eigene Kopie` : "Katalogeintrag"}${ED.releaseOf(catX) ? " · " + esc(ED.releaseLabel(catX)) : ""}</span>` : ""}</div></div>
-        <div class="actions-bar">${c.kind === "unterricht" && catX && ED.canEdit(catX) ? `<a class="btn" href="#/app/editor/${catX.id}/allgemein">${icon("pencil")} Inhalt bearbeiten</a>` : ""}${c.kind === "unterricht" && catX && ED.canPublish(catX) ? `<button class="btn" data-publish="${ED.releaseOf(catX) ? 0 : 1}">${icon(ED.releaseOf(catX) ? "eye-off" : "globe")} ${ED.releaseOf(catX) ? "Katalogfreigabe beenden" : "Für meine Schule freigeben"}</button>` : ""}${c.catalog && CRx.canViewContent(byId("catalog", c.catalog)) ? `<a class="btn" href="#/app/vorschau/${c.catalog}/dashboard" data-pvfrom="${c.id}">${icon("eye")} ${byId("catalog", c.catalog)?.status === "begutachtung" ? "Prüfung begutachten" : "Vorschau"}</a>` : c.catalog ? `<span class="btn" aria-disabled="true" style="opacity:.6;cursor:not-allowed" title="${esc(CRx.contentInfo(byId("catalog", c.catalog))?.text || "")}">${icon("lock")} Inhalt nicht einsehbar</span>` : ""}<button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button></div></div>
+        <div class="actions-bar">${c.kind === "unterricht" && catX && ED.canEdit(catX) ? `<a class="btn" href="#/app/editor/${catX.id}/allgemein" data-edfrom="#/app/kurs/${c.id}/${tab}" data-edid="${catX.id}" data-edlabel="Zum Unterricht „${esc(c.title)}“">${icon("pencil")} Inhalt bearbeiten</a>` : ""}${c.kind === "unterricht" && catX && ED.canPublish(catX) ? `<button class="btn" data-publish="${ED.releaseOf(catX) ? 0 : 1}">${icon(ED.releaseOf(catX) ? "eye-off" : "globe")} ${ED.releaseOf(catX) ? "Katalogfreigabe beenden" : "Für meine Schule freigeben"}</button>` : ""}${c.catalog && CRx.canViewContent(byId("catalog", c.catalog)) ? `<a class="btn" href="#/app/vorschau/${c.catalog}/dashboard" data-pvfrom="${c.id}">${icon("eye")} ${byId("catalog", c.catalog)?.status === "begutachtung" ? "Prüfung begutachten" : "Vorschau"}</a>` : c.catalog ? `<span class="btn" aria-disabled="true" style="opacity:.6;cursor:not-allowed" title="${esc(CRx.contentInfo(byId("catalog", c.catalog))?.text || "")}">${icon("lock")} Inhalt nicht einsehbar</span>` : ""}<button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button></div></div>
       ${lockNote}<nav class="tabs">${tabs.map(([k, l]) => `<a href="#/app/kurs/${id}/${k}" class="${k === tab ? "active" : ""}">${l}</a>`).join("")}</nav>${body}`;
     },
     mount(el) {
       const c = byId("courses", id); if (!c || !canManageCourse(c)) return;
       const pub = el.querySelector("[data-publish]"); if (pub) pub.onclick = () => ED.publish(byId("catalog", c.catalog), pub.dataset.publish === "1");
-      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=9.0").then((m) => m.newRoomDialog(c.id))));
+      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=9.1").then((m) => m.newRoomDialog(c.id))));
       el.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => addPersons(c, b.dataset.add, b.dataset.stage)));
       el.querySelectorAll("[data-addgroup]").forEach((b) => (b.onclick = () => addGroup(c, b.dataset.addgroup)));
       const ng = el.querySelector("[data-owngroup]"); if (ng) ng.onclick = () => ownGroup(c);
@@ -69,6 +69,7 @@ export function detail(id, tab) {
       el.querySelectorAll("[data-unassign]").forEach((b) => (b.onclick = () => unassign(c, b.dataset.unassign)));
       const ke = el.querySelector("[data-korrend]"); if (ke) ke.onchange = async () => { await upd("courses", c.id, { korr_end: ke.value }); toast("Korrekturzeitraum gespeichert", ke.value ? "Ende: " + ke.value.split("-").reverse().join(".") : "ohne Ende"); };
       const dk = el.querySelector("[data-dkth]"); if (dk) dk.onchange = async () => { await upd("courses", c.id, { dk_threshold: +dk.value }); toast("Schwelle gespeichert", `Drittkorrektur wird ab ${dk.value.replace(".", ",")} Notenstufen Abweichung empfohlen.`); };
+      el.querySelectorAll("[data-gdiff]").forEach((b) => (b.onclick = () => groupDiffDialog(c, b.dataset.gdiff, b.dataset.role)));
       el.querySelectorAll("[data-gopen]").forEach((b) => (b.onclick = () => { UI["g" + b.dataset.gopen] = !UI["g" + b.dataset.gopen]; redraw(); }));
       if (tab === "steuerung") RU.bindRules(el, c);
     },
@@ -78,13 +79,18 @@ export function detail(id, tab) {
 const orgsOwn = (c, p) => (c.orgs || []).filter((o) => inOrg(p, o)).map((o) => orgShort(o)).join(", ") || "–";
 const delBtn = (pid, role, label) => `<button class="iconbtn" data-rmm="${pid}" data-role="${role}" title="Entfernen" aria-label="${esc(label)} entfernen">${icon("trash-2")}</button>`;
 function personRows(list, c, role, extraCol) {
-  return list.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Name</th><th>Anmeldename</th><th>Schule</th>${extraCol ? `<th>${extraCol.head}</th>` : ""}<th>Zugeordnet über</th><th></th></tr></thead><tbody>${list.map((m) => { const pe = byId("persons", m.person); return `<tr><td><b>${esc(personName(pe))}</b></td><td>${esc(pe?.username || "")}</td><td>${esc(c.kind === "pruefung" ? orgIds(pe).filter((o) => inOrg(me(), o)).map(orgShort).join(" · ") || "–" : orgsLabel(pe))}</td>${extraCol ? `<td>${extraCol.cell(m)}</td>` : ""}<td>${m.via ? `<span class="badge gray">${icon("users")} Gruppe ${esc(m.via)}</span>` : "einzeln"}</td><td>${m.via || m.role === "besitzer" ? "" : delBtn(m.person, m.role, personName(pe))}</td></tr>`; }).join("")}</tbody></table></div>` : `<div class="empty small">${icon("users")}<div>Noch niemand zugeordnet</div></div>`;
+  return list.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Name</th><th>Anmeldename</th><th>Schule</th>${extraCol ? `<th>${extraCol.head}</th>` : ""}<th>Zugeordnet über</th><th></th></tr></thead><tbody>${list.map((m) => { const pe = byId("persons", m.person); return `<tr><td><b>${esc(personName(pe))}</b></td><td>${esc(pe?.username || "")}</td><td>${esc(c.kind === "pruefung" ? orgIds(pe).filter((o) => inOrg(me(), o)).map(orgShort).join(" · ") || "–" : orgsLabel(pe))}</td>${extraCol ? `<td>${extraCol.cell(m)}</td>` : ""}<td>${m.via ? `<span class="badge gray">${icon("users")} Gruppe ${esc(m.via)}</span>` : "einzeln"}</td><td>${m.role === "besitzer" ? "" : delBtn(m.person, m.role, personName(pe))}</td></tr>`; }).join("")}</tbody></table></div>` : `<div class="empty small">${icon("users")}<div>Noch niemand zugeordnet</div></div>`;
 }
 function groupRows(c, ownOrgOnly) {
   const p = me();
   const gs = (c.groups || []).map((g) => ({ ...g, gr: byId("groups", g.group) })).filter((g) => g.gr && (!ownOrgOnly || inOrg(p, g.gr.org)));
   if (!gs.length) return `<p class="small muted">Keine Gruppen zugeordnet.</p>`;
-  return `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Gruppe</th><th>Art</th><th>Herkunft</th><th class="num">Mitglieder</th><th></th></tr></thead><tbody>${gs.map((g) => `<tr><td><button class="linkbtn" data-gopen="${g.group}">${icon(UI["g" + g.group] ? "chevron-up" : "chevron-down")} <b>${esc(g.gr.name)}</b></button>${UI["g" + g.group] ? `<div class="xs muted mt-s">${(g.gr.members || []).map((id) => esc(personName(byId("persons", id)))).join(" · ")}</div>` : ""}</td><td>${g.gr.kind === "klasse" ? "Klasse" : g.gr.kind === "kurs" ? "Kurs" : "eigene Gruppe"}</td><td>${g.gr.source === "kurs" ? "im Kurs angelegt" : "Schulverwaltung"}</td><td class="num">${(g.gr.members || []).length}</td><td><button class="iconbtn" data-rmg="${g.group}" title="Gruppe entfernen" aria-label="Gruppe ${esc(g.gr.name)} entfernen">${icon("trash-2")}</button></td></tr>`).join("")}</tbody></table></div>`;
+  const mem = (g) => g.members || g.gr.members || [];
+  return `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Gruppe</th><th>Art</th><th>Herkunft</th><th class="num">Mitglieder im Kurs</th><th>Stand</th><th></th></tr></thead><tbody>${gs.map((g) => { const d = groupDiff(g);
+    return `<tr><td><button class="linkbtn" data-gopen="${g.group}">${icon(UI["g" + g.group] ? "chevron-up" : "chevron-down")} <b>${esc(g.gr.name)}</b></button>${UI["g" + g.group] ? `<div class="xs muted mt-s">${mem(g).map((id) => esc(personName(byId("persons", id)))).join(" · ")}</div>` : ""}</td><td>${g.gr.kind === "klasse" ? "Klasse" : g.gr.kind === "kurs" ? "Kurs" : "eigene Gruppe"}</td><td>${g.gr.source === "kurs" ? "im Kurs angelegt" : "Schulverwaltung"}</td><td class="num">${mem(g).length}</td>
+      <td class="small">${d && !d.ignored ? `<button class="btn xs" data-gdiff="${g.group}" data-role="${g.role}">${icon("refresh-cw")} Aktuellerer Stand der Gruppe (${d.added.length ? "+" + d.added.length : ""}${d.added.length && d.removed.length ? " / " : ""}${d.removed.length ? "−" + d.removed.length : ""})</button>` : d?.ignored ? `<span class="xs muted" title="Änderungen der Gruppe wurden ignoriert">Stand vom ${esc(g.at ? new Date(g.at).toLocaleDateString("de-DE") : "–")} (Änderungen ignoriert)</span>` : `<span class="xs muted">${g.at ? `Stand vom ${esc(new Date(g.at).toLocaleDateString("de-DE"))}` : "aktuell"}</span>`}</td>
+      <td><button class="iconbtn" data-rmg="${g.group}" title="Gruppe entfernen" aria-label="Gruppe ${esc(g.gr.name)} entfernen">${icon("trash-2")}</button></td></tr>`; }).join("")}</tbody></table></div>
+  <p class="xs muted mt-s">Für den Kurs zählt der Stand einer Gruppe beim Hinzufügen. Spätere Änderungen in der Schulverwaltung werden nicht automatisch übernommen – Sie sehen sie als „Aktuellerer Stand“ und entscheiden, ob Sie sie übernehmen. Einzelne Teilnehmende können Sie unabhängig von der Gruppe entfernen.</p>`;
 }
 
 // Unterricht: Lehrkraft verwaltet Teilnehmende und Mitbetreuung
@@ -225,11 +231,11 @@ async function addGroup(c, role) {
   const have = new Set((c.groups || []).map((g) => g.group));
   const cand = D.groups.filter((g) => inOrg(p, g.org) && g.source === "schulverwaltung" && !have.has(g.id)).sort((a, b) => a.name.localeCompare(b.name));
   const v = await modal({ title: "Klasse oder Kurs hinzufügen", size: "narrow",
-    body: `<p class="small">Alle Mitglieder der Gruppe werden als <b>Teilnehmende</b> zugeordnet. Spätere Änderungen der Gruppe in der Schulverwaltung wirken sich automatisch aus.</p>${cand.length ? cand.map((g) => `<label class="checkbox" style="display:flex;margin:8px 0"><input type="checkbox" data-g="${g.id}"> <b>${esc(g.name)}</b>&nbsp;<span class="muted small">(${g.kind === "klasse" ? "Klasse" : "Kurs"}, ${(g.members || []).length} Mitglieder)</span></label>`).join("") : `<div class="empty small">Keine weiteren Gruppen verfügbar</div>`}`,
+    body: `<p class="small">Alle Mitglieder der Gruppe werden mit dem <b>aktuellen Stand</b> als <b>Teilnehmende</b> zugeordnet. Spätere Änderungen der Gruppe werden angezeigt und können übernommen oder ignoriert werden.</p>${cand.length ? cand.map((g) => `<label class="checkbox" style="display:flex;margin:8px 0"><input type="checkbox" data-g="${g.id}"> <b>${esc(g.name)}</b>&nbsp;<span class="muted small">(${g.kind === "klasse" ? "Klasse" : "Kurs"}, ${(g.members || []).length} Mitglieder)</span></label>`).join("") : `<div class="empty small">Keine weiteren Gruppen verfügbar</div>`}`,
     footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Hinzufügen</button>`,
     onMount: (m, close) => (m.querySelector("[data-ok]").onclick = () => close([...m.querySelectorAll("[data-g]:checked")].map((x) => x.dataset.g))) });
   if (!v || !v.length) return;
-  await upd("courses", c.id, { groups: [...(c.groups || []), ...v.map((g) => ({ group: g, role }))] });
+  await upd("courses", c.id, { groups: [...(c.groups || []), ...v.map((g) => groupSnapshot(byId("groups", g), role))] });
   toast("Gruppe hinzugefügt", v.map((g) => byId("groups", g)?.name).join(", "));
 }
 async function ownGroup(c) {
@@ -247,13 +253,36 @@ async function ownGroup(c) {
     } });
   if (!v) return;
   const g = await create("groups", { name: v.n, org: p.org, kind: "eigen", source: "kurs", course: c.id, members: v.ids });
-  await upd("courses", c.id, { groups: [...(c.groups || []), { group: g.id, role: "teilnehmer" }] });
+  await upd("courses", c.id, { groups: [...(c.groups || []), groupSnapshot(g, "teilnehmer")] });
   toast("Eigene Gruppe angelegt", `${v.n} (${v.ids.length} Mitglieder)`);
 }
 async function removeMember(c, pid, role) {
   const pe = byId("persons", pid);
-  if (!(await confirmBox("Mitglied entfernen", `${esc(personName(pe))} wird als ${esc(ROLE_LABEL[role])} aus dem Kurs entfernt.`, "Entfernen"))) return;
-  await upd("courses", c.id, { members: (c.members || []).filter((m) => !(m.person === pid && m.role === role)) });
+  const viaGroups = (c.groups || []).filter((g) => g.role === role && (g.members || byId("groups", g.group)?.members || []).includes(pid));
+  if (!(await confirmBox("Mitglied entfernen", `${esc(personName(pe))} wird als ${esc(ROLE_LABEL[role])} aus dem Kurs entfernt${viaGroups.length ? ` – auch wenn die Person über die Gruppe ${viaGroups.map((g) => esc(byId("groups", g.group)?.name || g.name || "")).join(", ")} zugeordnet ist. Die Gruppe selbst bleibt unverändert` : ""}.`, "Entfernen"))) return;
+  const groups = (c.groups || []).map((g) => (g.role === role ? { ...g, members: (g.members || byId("groups", g.group)?.members || []).filter((x) => x !== pid), base: g.base || [...(byId("groups", g.group)?.members || [])] } : g));
+  await upd("courses", c.id, { members: (c.members || []).filter((m) => !(m.person === pid && m.role === role)), groups });
+  toast("Mitglied entfernt", personName(pe));
+}
+// Aktuelleren Stand einer Gruppe anzeigen: übernehmen oder ignorieren
+async function groupDiffDialog(c, gid, role) {
+  const g = (c.groups || []).find((x) => x.group === gid && x.role === role); const d = groupDiff(g); if (!d) return;
+  const gr = byId("groups", gid); const nm = (id) => esc(personName(byId("persons", id)));
+  const v = await modal({ title: `Gruppe ${esc(gr?.name || "")}: aktuellerer Stand`, size: "narrow",
+    body: `<p class="small">Seit dem Hinzufügen (${g.at ? esc(new Date(g.at).toLocaleString("de-DE")) : "–"}) hat sich die Gruppe geändert:</p>
+      ${d.added.length ? `<h4>${icon("user-round-plus")} Neu in der Gruppe (${d.added.length})</h4><ul class="small">${d.added.map((id) => `<li>${nm(id)}</li>`).join("")}</ul>` : ""}
+      ${d.removed.length ? `<h4>${icon("x")} Nicht mehr in der Gruppe (${d.removed.length})</h4><ul class="small">${d.removed.map((id) => `<li>${nm(id)}</li>`).join("")}</ul>` : ""}
+      <p class="xs muted">Übernehmen: Neue Mitglieder werden Teilnehmende des Kurses, ausgeschiedene werden entfernt. Ignorieren: Der bisherige Stand bleibt; der Hinweis erscheint erst bei weiteren Änderungen wieder.</p>`,
+    footer: `<button class="btn" data-value="ignore">Ignorieren</button><button class="btn primary" data-value="apply">${icon("check")} Änderungen übernehmen</button>` });
+  if (!v) return;
+  const groups = (c.groups || []).map((x) => {
+    if (x !== g) return x;
+    if (v === "ignore") return { ...x, ignored: d.key };
+    const cur = x.members || x.base || [];
+    return { ...x, members: [...new Set([...cur.filter((id) => !d.removed.includes(id)), ...d.added])], base: [...(gr.members || [])], at: new Date().toISOString(), ignored: null };
+  });
+  await upd("courses", c.id, { groups });
+  toast(v === "apply" ? "Änderungen der Gruppe übernommen" : "Änderungen ignoriert", gr?.name || "");
 }
 async function removeGroup(c, gid) {
   const g = byId("groups", gid);

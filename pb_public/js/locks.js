@@ -2,8 +2,8 @@
 //  - je Bereich (z. B. „Allgemein“, eine Aufgabe, Aufgabensteuerung, Rahmendaten) ein Datensatz settings.key = "lock:<Prüfung>:<Bereich>"
 //  - die Sperre gehört dem Browserfenster (Tab) einer Person; sie wird regelmäßig erneuert und verfällt ohne Erneuerung nach 90 Sekunden
 //  - bei gleichzeitigem Anfordern gewinnt der zuerst angelegte Datensatz
-import { D, create, upd, del } from "./data.js?v=9.0";
-import { me, personName } from "./access.js?v=9.0";
+import { D, create, upd, del } from "./data.js?v=9.1";
+import { me, personName } from "./access.js?v=9.1";
 
 const TTL = 90000, BEAT = 20000;
 const TAB = (() => { try { let t = sessionStorage.getItem("cbw.tab"); if (!t) { t = Math.random().toString(36).slice(2, 10); sessionStorage.setItem("cbw.tab", t); } return t; } catch { return Math.random().toString(36).slice(2, 10); } })();

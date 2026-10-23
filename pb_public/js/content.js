@@ -1,6 +1,6 @@
 // Aktiven Prüfungs-/Kursinhalt bestimmen: Katalogeintrag (Vorschau, Editor), Teilnahme (Prüfling, Korrektur, Einsicht) oder Kurs
-import { D, byId } from "./data.js?v=9.0";
-import { useContent, defaultContent } from "./scenario.js?v=9.0";
+import { D, byId } from "./data.js?v=9.1";
+import { useContent, defaultContent } from "./scenario.js?v=9.1";
 
 export const hasOwnContent = (cat) => !!(cat?.content && Array.isArray(cat.content.tasks) && cat.content.tasks.length);
 export const catalogOfCourse = (c) => byId("catalog", c?.catalog);
@@ -18,7 +18,24 @@ export const useCourse = (c) => useCatalog(catalogOfCourse(c));
 // Bereitgestellte Materialien eines Inhalts (werden beim ersten Login je Teilnahme kopiert)
 //  - eigener Inhalt: content.tasks[].materials
 //  - Musterprüfung: globale Elemente (participant = "")
-export function materialsOf(cat) {
+// Relative Zeitangaben (E-Mails, Tickets: „vor n Tagen, Stunden, Minuten“; Termine: „n Tage nach Prüfungsbeginn“) werden beim
+// Bereitstellen in ein Datum umgerechnet – Bezug ist der Beginn der Bearbeitung (erster Login) bzw. der Aufruf der Vorschau
+const p2 = (n) => String(n).padStart(2, "0");
+const fmtDT = (d) => `${p2(d.getDate())}.${p2(d.getMonth() + 1)}.${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+export function resolveTimes(kind, data, base = new Date()) {
+  if (data?.relmode !== "rel") return data;
+  const out = { ...data };
+  if (kind === "event") {
+    const t = new Date(base.getTime() + (+data.rel_d || 0) * 86400000); out.day = Math.min(4, (t.getDay() + 6) % 7); out.date = t.toLocaleDateString("de-DE");
+  } else {
+    const t = new Date(base.getTime() - (((+data.rel_d || 0) * 24 + (+data.rel_h || 0)) * 60 + (+data.rel_m || 0)) * 60000);
+    if (kind === "mail") out.date = fmtDT(t);
+    if (kind === "ticket") out.created = fmtDT(t).replace(" ", ", ");
+  }
+  return out;
+}
+export const relLabel = (kind, d) => (d?.relmode !== "rel" ? "" : kind === "event" ? `${+d.rel_d || 0} Tag(e) nach Prüfungsbeginn` : `vor ${+d.rel_d || 0} T ${+d.rel_h || 0} h ${+d.rel_m || 0} min`);
+export function materialsOf(cat, base = new Date()) {
   if (cat?.status && !["veroeffentlicht", "begutachtung"].includes(cat.status) && cat.editor_by === "prozess") return []; // Inhalt (noch) nicht freigegeben
   if (!hasOwnContent(cat)) return D.items.filter((i) => i.participant === "").map((i) => ({ kind: i.kind, folder: i.folder, data: { ...i.data } }));
   const out = [];
@@ -27,7 +44,7 @@ export function materialsOf(cat) {
     for (const m of t.materials || []) {
       const data = { ...(m.data || {}), task: t.no };
       if (m.kind === "mail") data.attach_urls = Object.fromEntries((data.attachments || []).map((a) => [a, files.find((f) => f.data?.name === a)?.data?.url || ""]));
-      out.push({ kind: m.kind, folder: m.folder || FOLDER[m.kind] || m.kind, data });
+      out.push({ kind: m.kind, folder: m.folder || FOLDER[m.kind] || m.kind, data: resolveTimes(m.kind, data, base) });
     }
   }
   return out;

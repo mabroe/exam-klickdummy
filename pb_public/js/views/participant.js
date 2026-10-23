@@ -1,18 +1,20 @@
 // Prüfling: Wartebereich, Prüfungsmodus (Dashboard, Aufgaben, Abgaben), Endbildschirm, Kursvorschau
-import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=9.0";
-import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=9.0";
-import { EXAM, ALL_SUBTASKS, subtask, taskOf, ALL_TOOLS, INLINE_TYPES } from "../scenario.js?v=9.0";
-import { navigate, session, render, directHelp } from "../app.js?v=9.0";
-import * as W from "./dock.js?v=9.0";
-import { einsichtView } from "./results.js?v=9.0";
-import { einsichtFor } from "../access.js?v=9.0";
-import { materialsOf, catalogOfParticipant } from "../content.js?v=9.0";
-import * as CR from "./creation.js?v=9.0";
-import * as ED from "./editor.js?v=9.0";
-import { inCatalog } from "./teacher.js?v=9.0";
-import { canManageCourse } from "../access.js?v=9.0";
-import { markable, bindMarkables } from "../highlight.js?v=9.0";
-import { ruleMatches, evalState, runAction } from "../rules.js?v=9.0";
+import { D, onChange, byId, upd, create, del, log, online, setting, createWithFile, demoApi } from "../data.js?v=9.1";
+import { icon, esc, store, modal, confirmBox, toast, brand, popMenu, statusChip, endTime, mmss, parseDate, toPb, fmtDateTime, isFinished, isActive, isConnected, isOffline, isDistance, windowState, HB_MS, $, examMark } from "../ui.js?v=9.1";
+import { EXAM, ALL_SUBTASKS, subtask, taskOf, ALL_TOOLS, INLINE_TYPES } from "../scenario.js?v=9.1";
+import { navigate, session, render, directHelp } from "../app.js?v=9.1";
+import * as W from "./dock.js?v=9.1";
+import { einsichtView } from "./results.js?v=9.1";
+import { einsichtFor } from "../access.js?v=9.1";
+import { materialsOf, catalogOfParticipant } from "../content.js?v=9.1";
+import * as CR from "./creation.js?v=9.1";
+import * as ED from "./editor.js?v=9.1";
+import { inCatalog } from "./teacher.js?v=9.1";
+import { canManageCourse } from "../access.js?v=9.1";
+import { markable, bindMarkables } from "../highlight.js?v=9.1";
+import { ruleMatches, evalState, runAction } from "../rules.js?v=9.1";
+import { rulesPanel } from "./rules.js?v=9.1";
+import { portalLink } from "./student.js?v=9.1";
 // Punktebadge: grün, sobald für die (Teil-)Aufgabe eine Abgabe markiert ist, sonst grau
 const ptsBadge = (done, label, title = "") => `<span class="badge ${done ? "lime" : "gray"}" title="${title || (done ? "Abgabe markiert" : "noch nicht bearbeitet")}">${label}</span>`;
 const taskDone = (items, t) => t.subtasks.filter((s) => items.some((i) => i.submission === s.no)).length;
@@ -322,7 +324,7 @@ function waitView(ctx) {
       const ps = parseDate(room.planned_start);
       return `<header class="topbar">${brand()}<div class="usermenu"><button data-um>${icon("circle-user", "lg")}<span class="nm">${esc(p.firstname)} ${esc(p.lastname)}</span>${icon("chevron-down")}</button></div></header>
       <div class="tn-page">
-        <h1 class="mb">Wartebereich</h1>
+        <div class="row between"><h1 class="mb">Wartebereich</h1>${portalLink()}</div>
         <div class="warte">
           <section class="pdfbox"><h3>Wichtige Informationen zur Prüfung</h3>
             <div class="pdfviewer">
@@ -349,7 +351,7 @@ function waitView(ctx) {
       el.querySelectorAll("[data-pgstep]").forEach((b) => (b.onclick = () => { ui.pdfPage = Math.max(1, Math.min(3, ui.pdfPage + +b.dataset.pgstep)); render(false); }));
       const cb = el.querySelector("[data-cheat]"); if (cb) cb.onclick = () => cheatModal(ctx);
       const hb = el.querySelector("[data-health]"); if (hb) hb.onclick = () => healthModal(ctx);
-      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=9.0").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
+      el.querySelector("[data-demo]").onclick = () => import("./tour.js?v=9.1").then((m) => m.startTour()); // nur auf Klick, kein automatischer Start
       // Prüfung läuft bereits, Bestätigung fehlt
       if (room.state === "RUNNING" && !confirmedBoth && !document.querySelector(".backdrop") && !store.get("bo." + p.id)) {
         store.set("bo." + p.id, 1);
@@ -436,7 +438,7 @@ function endView(ctx) {
     ${p.status !== "nicht_teilnahme" ? `<div class="card pad mt" style="text-align:left"><h3>Übermittelte Abgaben (${subs.length})</h3>${ALL_SUBTASKS.map((s) => { const n = subs.filter((i) => i.submission === s.no).length; return `<div class="row between small" style="padding:4px 0;border-bottom:1px solid var(--line-2)"><span>${s.no} ${esc(s.title)}</span>${n ? `<span class="badge green">${n} Abgabe${n > 1 ? "n" : ""}</span>` : `<span class="badge gray">keine Abgabe</span>`}</div>`; }).join("")}</div>` : ""}
     ${dist && (canRepeat || room.show_horizon) ? `<div class="row mt" style="justify-content:center;gap:8px">${room.show_horizon ? `<a class="btn" href="#/tn/erwartung">${icon("file-text")} Erwartungshorizont ansehen</a>` : ""}${canRepeat ? `<button class="btn primary" data-repeat>${icon("rotate-ccw")} Einheit erneut durchlaufen</button>` : ""}</div>${canRepeat ? `<p class="xs muted mt-s">Möglich bis ${fmtDateTime(parseDate(room.window_to))} Uhr. Beim erneuten Durchlauf wird Ihre bisherige Bearbeitung ersetzt.</p>` : ""}` : ""}
     ${p.status !== "nicht_teilnahme" ? (ek ? `<div class="notice success mt" style="justify-content:center">${icon("circle-check")}<span>Ihre Lehrkraft hat die Korrektur freigegeben.</span></div><p class="mt"><a class="btn primary" href="#/tn/einsicht">${icon("eye")} Korrektur und Ergebnis ansehen</a></p>` : `<p class="muted small mt">${courseOfRoom(room)?.kind === "unterricht" ? "Korrektur und Ergebnis sehen Sie, sobald Ihre Lehrkraft sie freigibt." : "Eine Prüfungseinsicht findet ausschließlich in Präsenz statt – gemeinsam mit einer Person Ihrer Schule mit der Rolle „Prüfungseinsicht“."}</p>`) : ""}
-    <p class="mt-l"><a class="btn" href="#/">Zur Rollenwahl</a></p></div>`,
+    <p class="mt-l">${portalLink() || `<a class="btn" href="#/">Zur Rollenwahl</a>`}</p></div>`,
     mount(el) { stopTimers(); const rb = el.querySelector("[data-repeat]"); if (rb) rb.onclick = () => repeatUnit(ctx); },
   };
 }
@@ -621,7 +623,8 @@ function pageBody(ctx, sub) {
   const parts = sub.split("/");
   const grid = (inner) => `<div class="tn-grid ${ui.navCollapsed ? "collapsed" : ""}">${navTree(ctx, sub)}<div>${inner}</div></div>`;
   const pvFrom = store.get("pvfrom", null);
-  const endBtn = ctx.preview ? (pvFrom?.erstellung ? `<a class="btn" href="#/app/erstellung/${pvFrom.erstellung}/uebersicht">${icon("arrow-left")} Zurück zur Prüfungserstellung</a>` : pvFrom?.editor ? `<a class="btn" href="#/app/editor/${pvFrom.editor}/aufgaben">${icon("arrow-left")} Zurück zum Editor</a>` : pvFrom?.course ? `<a class="btn" href="#/app/kurs/${pvFrom.course}/${pvFrom.tab || "info"}">${icon("arrow-left")} Vorschau beenden</a>` : `<a class="btn" href="#/app/katalog/${ctx.course?.id || ""}">${icon("arrow-left")} Vorschau beenden</a><button class="btn primary" data-copy>${icon("copy")} Kurs kopieren</button>`) : `<button class="btn soft" data-finish>Prüfung beenden</button>`;
+  const rulesBtn = ctx.preview && (ctx.course?.rules || []).length ? `<button class="btn ghost sm" data-pvrules title="Regeln der Aufgabensteuerung einblenden">${icon("workflow")} Aufgabensteuerung (${ctx.course.rules.length})</button>` : "";
+  const endBtn = rulesBtn + (ctx.preview ? (pvFrom?.erstellung ? `<a class="btn" href="#/app/erstellung/${pvFrom.erstellung}/uebersicht">${icon("arrow-left")} Zurück zur Prüfungserstellung</a>` : pvFrom?.editor ? `<a class="btn" href="#/app/editor/${pvFrom.editor}/aufgaben">${icon("arrow-left")} Zurück zum Editor</a>` : pvFrom?.course ? `<a class="btn" href="#/app/kurs/${pvFrom.course}/${pvFrom.tab || "info"}">${icon("arrow-left")} Vorschau beenden</a>` : `<a class="btn" href="#/app/katalog/${ctx.course?.id || ""}">${icon("arrow-left")} Vorschau beenden</a><button class="btn primary" data-copy>${icon("copy")} Kurs kopieren</button>`) : `<button class="btn soft" data-finish>Prüfung beenden</button>`);
   const over = timeOver(ctx) ? `<div class="notice warn mb" role="status">${icon("alarm-clock")}<span><b>Die Bearbeitungszeit ist abgelaufen.</b> ${allowedTask(ctx) ? `Sie können Aufgabe ${esc(allowedTask(ctx))} noch abschließen und Abgaben markieren;` : ""} neue Aufgaben können nicht mehr geöffnet werden. Die Prüfung wird durch die Aufsicht eingesammelt.</span></div>` : "";
   const head = (t) => over + `<div class="taskhead"><h1>${t}</h1><div class="row"><button class="helpbtn" data-help aria-label="Hilfe"><span class="q">?</span></button>${endBtn}</div></div>`;
 
@@ -749,7 +752,8 @@ function bindPage(el, ctx, sub) {
   el.querySelectorAll("[data-swapatt]").forEach((b) => (b.onclick = () => swapAttachment(ctx, b, ...b.dataset.swapatt.split("|"))));
   el.querySelectorAll("[data-openmail]").forEach((b) => (b.onclick = () => W.open("mail", { mailId: b.dataset.openmail, subtask: sub.split("/")[2] })));
   const fin = el.querySelector("[data-finish]"); if (fin) fin.onclick = () => finishExam(ctx);
-  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=9.0").then((m) => m.copyCourse(ctx.course));
+  const cp = el.querySelector("[data-copy]"); if (cp) cp.onclick = () => import("./teacher.js?v=9.1").then((m) => m.copyCourse(ctx.course));
+  el.querySelectorAll("[data-pvrules]").forEach((b) => (b.onclick = () => modal({ title: "Aufgabensteuerung (Vorschau)", size: "wide", body: `<p class="small">Regeln, die während der Bearbeitung automatisch neue Inhalte bereitstellen. Sie werden im Prüfungseditor konfiguriert und sind kein Bestandteil der Kurs- bzw. Prüfungskonfiguration. In der Vorschau lösen sie wie bei den Teilnehmenden aus.</p>${rulesPanel(ctx.course, RS?.fired || [])}` })));
   const bm = el.querySelector("[data-bookmark]");
   if (bm) bm.onclick = () => {
     const parts = sub.split("/"); const key = parts[2] || parts[1];

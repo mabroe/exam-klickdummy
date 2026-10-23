@@ -4,7 +4,7 @@
 // Alle Personennamen sind zufällig erzeugte Fantasienamen – Ähnlichkeiten mit realen Personen sind nicht beabsichtigt.
 (function (root) {
   // Stand der Demodaten. Erhöhen, wenn sich die Demodaten ändern – ältere Datenbestände werden beim Start automatisch neu aufgebaut.
-  var SEED_VERSION = 17;
+  var SEED_VERSION = 18;
   var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings"];
 
   // Bewertungskriterien je Teilaufgabe (Maximalpunkte) – muss zu js/scenario.js passen
@@ -365,7 +365,9 @@
     add("groups", { name: "Prüfungskommission IT-Berufe", org: "", kind: "kommission", source: "koordinierungsstelle", course: "", members: [T.Gaspari.id, T.Morawetz.id, T["Dähne"].id], chair: T.Gaspari.id, fachbereich: "it" });
     var btsGroups = Object.keys(groupMembers).filter(function (k) { return groupMembers[k].org === bts; }).map(function (k) { return GR(k, bts, "klasse", groupMembers[k].ids); });
     // Mitglieder der Prüfung (pflegt die Schuladministration der jeweiligen Schule) und des Unterrichts (pflegt die Lehrkraft)
-    pr1.groups = [{ group: gFA.id, role: "teilnehmer" }].concat(btsGroups.map(function (g) { return { group: g.id, role: "teilnehmer" }; }));
+    // Gruppen im Kurs: Stand beim Hinzufügen (members/base); spätere Änderungen der Gruppe werden angezeigt und können übernommen werden
+    var snap = function (g, role) { return { group: g.id, role: role, name: g.name, members: g.members.slice(), base: g.members.slice(), at: iso(new Date(now.getTime() - 86400000 * 5)) }; };
+    pr1.groups = [snap(gFA, "teilnehmer")].concat(btsGroups.map(function (g) { return snap(g, "teilnehmer"); }));
     pr1.members = [{ person: T["Riedmüller"].id, role: "raumaufsicht" }, { person: T.Voigt.id, role: "raumaufsicht" }, { person: T.Hinrichs.id, role: "pruefungseinsicht" }, { person: T.Gaspari.id, role: "raumaufsicht" }, { person: T["Dähne"].id, role: "raumaufsicht" }, { person: T.Morawetz.id, role: "raumaufsicht" }, { person: T["Riedmüller"].id, role: "pruefungseinsicht" }, { person: T["Dähne"].id, role: "pruefungseinsicht" }, { person: T.Hinrichs.id, role: "schuladmin" }, { person: T.Ammermann.id, role: "schuladmin" }];
     // Korrektorengruppen je Korrekturstufe (Zuweisung für die Klasse FA230a bzw. die Klassen der BTS); Endbeurteilung nur auf Anforderung
     var K = function (stage, group, correctors, org) { return { id: rid(), stage: stage, kind: "group", target: group.id, correctors: correctors.map(function (x) { return x.id; }), org: org.id }; };
@@ -389,7 +391,8 @@
     u1.catalog = copyOf(catWeb, T.Eggert, "Webentwicklung HTML/CSS (Kopie Eggert)").id;
     u2.catalog = copyOf(catWeb, T.Morawetz, "Webentwicklung HTML/CSS (Kopie Morawetz)").id;
     u3.catalog = copyOf(catWeb, T.Gaspari, "Webentwicklung HTML/CSS (Kopie Gaspari)").id;
-    u1.groups = [{ group: gWG.id, role: "teilnehmer" }];
+    // Unterricht: Gruppe WG12a beim Hinzufügen ohne die später zugezogene Schülerin (Hinweis „aktuellerer Stand“)
+    u1.groups = [snap(gWG, "teilnehmer")]; u1.groups[0].members = gWG.members.slice(0, -1); u1.groups[0].base = gWG.members.slice(0, -1);
 
     // ---------- Unterricht: Distanzeinheit (fester Zeitraum, Start durch die Schüler:innen, mehrfach durchlaufbar) ----------
     var wFrom = new Date(now.getTime() - 86400000); wFrom.setHours(8, 0, 0, 0);
@@ -400,19 +403,22 @@
     wg.slice(0, 4).forEach(function (per, i) {
       LP(per, dist.id, i === 1 ? { status: "abgegeben", cheat_ack: true, health: "ok", present: true, started_at: iso(new Date(now.getTime() - 3 * 3600000)), finished_at: iso(new Date(now.getTime() - 2.4 * 3600000)) } : {});
     });
+    // Präsenzstunde zur gleichen Zeit wie die Distanzeinheit: Schüler:innen wählen, woran sie teilnehmen
+    var pres = R(Object.assign(V_("WG12a · Präsenzunterricht", 16, "reihen", { cols: 4 }), { exam_name: u1.title, planned_start: iso(new Date(now.getTime() + 30 * 60000)), start_earliest: hm(new Date(now.getTime() + 30 * 60000)), start_latest: hm(new Date(now.getTime() + 60 * 60000)), course: u1.id, org: afs.id, owner: T.Eggert.id, duration_min: 45 }));
+    wg.slice(0, 4).forEach(function (per, i) { LP(per, pres.id, { seat: "1-" + (i + 1) }); });
     add("protocol", { room: dist.id, ts: iso(new Date(now.getTime() - 2.4 * 3600000)), participant: wg[1].lastname + ", " + wg[1].firstname, username: wg[1].username, seat: "–", action: "Einheit beendet und abgegeben", comment: "Distanzunterricht · Durchlauf 1", kind: "system" });
 
     // ---------- Unterricht: abgeschlossene, korrigierte Präsenzeinheit (Korrektur für die Schüler:innen freigegeben) ----------
     var past = R(Object.assign(V_("Klassenarbeit HTML · Probelauf", 12, "reihen", { cols: 4 }), { exam_name: u1.title, planned_start: day(-6), started_at: day(-6), course: u1.id, org: afs.id, owner: T.Eggert.id, state: "TERMINATED", released: true }));
     u1.corrector = T.Eggert.id;
-    wg.slice(4, 7).forEach(function (per, i) {
+    wg.slice(4, 7).concat([wg[0]]).forEach(function (per, i) {
       var lp = LP(per, past.id, { status: "beendet", seat: "1-" + (i + 1), cheat_ack: true, health: "ok", present: true, started_at: day(-6), finished_at: day(-6) });
       add("items", { participant: lp.id, kind: "mail", folder: "sent", submission: "1.1", data: { task: "1", from: per.firstname + " " + per.lastname, from_mail: per.username + "@azubi.funsport-innovations.de", to: "Karim.Baeumler@funsport-innovations.de", subject: "AW: Quantitativer Angebotsvergleich für neue Lithium-Batterie-Packs", date: "13.10.2025 10:1" + i, attachments: [],
         body: "Sehr geehrter Herr Bäumler,\n\nnach meinem Angebotsvergleich ist das Angebot der " + (i % 2 ? "InnovaTech GmbH" : "BatteryWorld GmbH") + " unter Berücksichtigung von Rabatt, Skonto und Bezugskosten günstiger.\n\nMit freundlichen Grüßen\n" + per.firstname + " " + per.lastname } });
       add("items", { participant: lp.id, kind: "note", folder: "notes", submission: "2.1", data: { task: "2", title: "Anfrage", html: "<p>Sehr geehrte Damen und Herren,</p><p>bitte senden Sie uns ein Angebot über 500 Kugellager Typ 608-2RS.</p>" } });
       var pts = {}, notes = {};
       Object.keys(CRITERIA).forEach(function (st) { pts[st] = CRITERIA[st].map(function (m) { return Math.max(0, Math.round(m * (0.5 + rnd() * 0.5) * 2) / 2); }); });
-      notes["1.1"] = ["Vergleich vollständig, Skonto korrekt berücksichtigt.", "Ergebnis richtig, die Begründung der Entscheidung fehlt teilweise.", "Bezugskosten nicht vollständig einbezogen."][i];
+      notes["1.1"] = ["Vergleich vollständig, Skonto korrekt berücksichtigt.", "Ergebnis richtig, die Begründung der Entscheidung fehlt teilweise.", "Bezugskosten nicht vollständig einbezogen.", "Sauber gerechnet, Ergebnis gut begründet."][i];
       notes["2.1"] = "Anfrage formal korrekt, Liefertermin fehlt.";
       add("gradings", { participant: lp.id, corrector: 1, points: pts, not_done: {}, notes: notes, released: true, approvals: [T.Eggert.id],
         marks: { "1.1": [{ id: "lp" + i + "a", type: "sign", sign: i === 2 ? "f" : "r", ax: 420, ay: 300 }, { id: "lp" + i + "b", type: "hline", style: "single", x1: 330, x2: 520, y: 330 }] } });
@@ -452,7 +458,7 @@
     var zpRooms = { afs: R(Object.assign(fromVenue(V["Raum 202"]), { exam_name: pr3.title, exam_code: pr3.exam_code, planned_start: day(-21), started_at: day(-21), course: pr3.id, org: afs.id, owner: T.Hinrichs.id, state: "TERMINATED" })),
       bts: R(Object.assign(fromVenue(V["Raum 110"]), { exam_name: pr3.title, exam_code: pr3.exam_code, planned_start: day(-21), started_at: day(-21), course: pr3.id, org: bts.id, owner: T.Ammermann.id, state: "TERMINATED" })) };
     var btsGrp0 = btsGroups[0];
-    pr3.groups = [{ group: gFA.id, role: "teilnehmer" }, { group: btsGrp0.id, role: "teilnehmer" }];
+    pr3.groups = [snap(gFA, "teilnehmer"), snap(btsGrp0, "teilnehmer")];
     pr3.members = [{ person: T.Hinrichs.id, role: "schuladmin" }, { person: T.Ammermann.id, role: "schuladmin" }, { person: T["Riedmüller"].id, role: "pruefungseinsicht" }, { person: T.Hinrichs.id, role: "pruefungseinsicht" }, { person: T["Dähne"].id, role: "pruefungseinsicht" }, { person: T.Ammermann.id, role: "pruefungseinsicht" }];
     var kA = [T.Ohm], kA2 = [T.Steinhoff], kB = [T.Gaspari], kB2 = [T["Dähne"]];
     pr3.corrections = [K(1, gFA, kA, afs), K(2, gFA, kA2, afs), K(1, btsGrp0, kB, bts), K(2, btsGrp0, kB2, bts)]; pr3.third = {}; pr3.korr_end = dIso(-3); pr3.dk_threshold = 1;

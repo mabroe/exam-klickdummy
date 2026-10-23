@@ -3,8 +3,8 @@
 //    Besitzer/Mitbetreuung des Unterrichtskurses
 //  - Raumaufsicht (Prüfungsebene): sieht nur Raumaufsichten, in denen sie als Aufsichtsperson eingetragen ist
 //  - Schuladministration (Prüfungsebene): sieht die Prüfungs-Raumaufsichten ihrer Organisation
-import { D, byId } from "./data.js?v=9.0";
-import { store, isFinished } from "./ui.js?v=9.0";
+import { D, byId } from "./data.js?v=9.1";
+import { store, isFinished } from "./ui.js?v=9.1";
 
 export const me = () => byId("persons", store.get("person"));
 export const orgOf = (p) => byId("orgs", p?.org);
@@ -25,12 +25,23 @@ export const STAGE_LABEL = { 1: "Erstkorrektur", 2: "Zweitkorrektur", 3: "Drittk
 export function members(c) {
   if (!c) return [];
   const out = (c.members || []).map((m) => ({ ...m, via: "" }));
+  // Gruppen zählen mit dem Stand beim Hinzufügen (g.members); spätere Änderungen der Gruppe werden erst nach Übernahme wirksam
   for (const g of c.groups || []) {
-    const gr = byId("groups", g.group); if (!gr) continue;
-    for (const pid of gr.members || []) if (!out.some((m) => m.person === pid && m.role === g.role)) out.push({ person: pid, role: g.role, via: gr.name });
+    const gr = byId("groups", g.group); if (!gr && !g.members) continue;
+    for (const pid of g.members || gr?.members || []) if (!out.some((m) => m.person === pid && m.role === g.role)) out.push({ person: pid, role: g.role, via: gr?.name || g.name || "Gruppe", group: g.group });
   }
   return out;
 }
+// Abweichung zwischen dem übernommenen Stand einer Kursgruppe und dem aktuellen Stand der Gruppe (Schulverwaltung bzw. eigene Gruppe)
+export function groupDiff(g) {
+  const gr = byId("groups", g?.group); if (!gr || !g.base) return null;
+  const live = gr.members || []; const base = g.base || [];
+  const added = live.filter((x) => !base.includes(x)), removed = base.filter((x) => !live.includes(x));
+  if (!added.length && !removed.length) return null;
+  const key = [...live].sort().join(",");
+  return { added, removed, key, ignored: g.ignored === key };
+}
+export const groupSnapshot = (gr, role) => ({ group: gr.id, role, name: gr.name, members: [...(gr.members || [])], base: [...(gr.members || [])], at: new Date().toISOString() });
 export const rolesIn = (c, pid) => members(c).filter((m) => m.person === pid);
 export const hasRole = (c, pid, ...roles) => rolesIn(c, pid).some((m) => roles.includes(m.role));
 export const isTeacherOf = (c, pid) => c?.kind === "unterricht" && (c.owner === pid || hasRole(c, pid, "besitzer", "mitbetreuung"));
@@ -84,7 +95,12 @@ export function assignmentFor(c, p, stage) {
   const l = assignments(c).filter((a) => +a.stage === +stage);
   return l.find((a) => a.kind === "person" && a.target === p.person) || l.find((a) => a.kind === "group" && (byId("groups", a.target)?.members || []).includes(p.person)) || null;
 }
-export const thirdRequested = (c, p) => !!(c?.third || {})[p?.id]?.requested;
+// Drittkorrektur: ausdrücklich angefordert oder – bei empfohlener Drittkorrektur (Notenabweichung EK/ZK ab Schwelle) – automatisch
+// angefordert, solange die Schuladministration sie nicht zurückgenommen hat (third[p] = { withdrawn: true })
+let recommendFn = null;
+export const setDkRecommend = (fn) => (recommendFn = fn);
+export const thirdState = (c, p) => { const t = (c?.third || {})[p?.id] || {}; const rec = c?.kind === "pruefung" && !!recommendFn?.(c, p); return { explicit: !!t.requested, withdrawn: !!t.withdrawn, recommended: rec, auto: rec && !t.requested && !t.withdrawn }; };
+export const thirdRequested = (c, p) => { const s = thirdState(c, p); return s.explicit || s.auto; };
 export function correctorsFor(c, p, stage) {
   if (!c) return [];
   if (c.kind === "unterricht") return +stage === 1 && lessonCorrector(c) ? [lessonCorrector(c)] : [];

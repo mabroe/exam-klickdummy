@@ -1,10 +1,10 @@
 // Lehrkraft / Schuladministration: Meine Aufgaben, Katalog, Kursdetails, Meine Prüfungen, Demo-Verwaltung
-import { D, byId, upd, create, resetDemo, demoApi } from "../data.js?v=9.0";
-import { icon, esc, modal, toast, popMenu, parseDate, mmss, pager, bindPager, ddHtml, bindDd, statusChip, toPb, isActive } from "../ui.js?v=9.0";
-import { simulateOffline } from "./proctor.js?v=9.0";
-import { navigate, redraw, render, session } from "../app.js?v=9.0";
-import * as ED from "./editor.js?v=9.0";
-import { me, visibleCourses, visibleRooms, inOrg, orgShort } from "../access.js?v=9.0";
+import { D, byId, upd, create, resetDemo, demoApi } from "../data.js?v=9.1";
+import { icon, esc, modal, toast, popMenu, parseDate, mmss, pager, bindPager, ddHtml, bindDd, statusChip, toPb, isActive } from "../ui.js?v=9.1";
+import { simulateOffline } from "./proctor.js?v=9.1";
+import { navigate, redraw, render, session } from "../app.js?v=9.1";
+import * as ED from "./editor.js?v=9.1";
+import { me, visibleCourses, visibleRooms, inOrg, orgShort } from "../access.js?v=9.1";
 
 const S = { tab: "active", sort: "new", q: "", open: {}, cat: { q: "", applied: "", tab: "Alle", beruf: [], fach: [], jahr: [], page: 1, per: 6 } };
 let timer = null;
@@ -101,7 +101,7 @@ export function catalog() {
       return `<section class="hero"><h1>Katalog</h1><div class="sbar"><input data-q placeholder="Suchbegriff eingeben" value="${esc(st.q)}" aria-label="Katalog durchsuchen">${st.q ? `<button class="clr" data-clr aria-label="Suche leeren">${icon("x", "lg")}</button>` : ""}<button class="go" data-go aria-label="Suchen">${icon("search", "lg")}</button>
         ${sugg.length ? `<div class="suggest">${sugg.map((s) => `<button data-sugg="${esc(s)}">${icon("search")} ${esc(s)}</button>`).join("")}</div>` : ""}</div></section>
       <div class="row between wrap"><nav class="tabs" style="min-width:320px">${catTabs().map((t) => `<button data-ctab="${t}" class="${st.tab === t ? "active" : ""}">${t}</button>`).join("")}</nav>
-        <div class="row wrap" style="margin-bottom:24px">${ddHtml("beruf", "Beruf", opts("beruf"), st.beruf, st)}${ddHtml("fach", "Fach", opts("fach"), st.fach, st)}${ddHtml("jahr", "Jahr", opts("jahr"), st.jahr, st)}${ED.canCreate() ? `<button class="btn primary" data-newcontent>${icon("plus")} Neuen Inhalt erstellen</button>` : ""}${session.role === "bereichsadmin" ? "" : `<a class="btn ghost" href="#/app/kurse">${icon("folder")} ${me()?.kind === "schuladmin" ? "Prüfungen" : "Mein Unterricht"} (${visibleCourses().length})</a>`}</div></div>
+        <div class="row wrap" style="margin-bottom:24px">${ddHtml("beruf", "Beruf", opts("beruf"), st.beruf, st)}${ddHtml("fach", "Fach", opts("fach"), st.fach, st)}${ddHtml("jahr", "Jahr", opts("jahr"), st.jahr, st)}${ED.canCreate() ? `<button class="btn primary" data-newcontent>${icon("plus")} ${ED.isAuthor() ? "Unterrichtsinhalt erstellen" : "Neuen Inhalt erstellen"}</button>` : ""}${ED.isAuthor() ? `<button class="btn" data-pubexam>${icon("library")} Durchgeführte Prüfung veröffentlichen</button><button class="btn" data-import>${icon("upload")} Prüfung importieren</button>` : ""}${session.role === "bereichsadmin" ? "" : `<a class="btn ghost" href="#/app/kurse">${icon("folder")} ${me()?.kind === "schuladmin" ? "Prüfungen" : "Mein Unterricht"} (${visibleCourses().length})</a>`}</div></div>
       ${st.applied || st.beruf.length || st.fach.length || st.jahr.length ? `<p class="small mb">${list.length} Ergebnis${list.length === 1 ? "" : "se"}${st.applied ? ` für „<b>${esc(st.applied)}</b>“` : ""} <button class="link" data-reset>Filter zurücksetzen</button></p>` : ""}
       ${st.tab === "Eigene Inhalte" ? `<div class="notice info small mb">${icon("info")}<span>Eigene Unterrichtsmaterialien und Ihre Kopien aus dem Katalog. Sie bearbeiten sie im Editor; die Mitbetreuung Ihres Unterrichts ebenfalls. Über „Für meine Schule freigeben“ stellen Sie ein Material in den Katalog – sichtbar nur für Lehrkräfte Ihrer Schule; die Freigabe können Sie jederzeit beenden.</span></div>` : ""}
       ${list.length ? `<div class="cgrid">${page.map((c) => { const rel = ED.releaseOf(c); return `<article class="ccard">${cover(c)}<div class="cb"><div class="row wrap" style="gap:6px"><span class="badge purple">${esc(c.beruf)}</span><span class="badge cyan">${esc(c.fach)}</span><span class="badge lime">${esc(c.jahr)}</span>${rel ? (rel.scope === "org" ? `<span class="badge orange" title="Nur für Lehrkräfte dieser Schule">${icon("school")} ${esc(orgShort(rel.org))}</span>` : ED.isAuthor() ? `<span class="badge green">${icon("globe")} global</span>` : "") : `<span class="badge gray">nicht freigegeben</span>`}</div><h3>${esc(c.title)}</h3><p>${esc(c.description)}</p></div>
@@ -123,11 +123,13 @@ export function catalog() {
       el.querySelectorAll("[data-copy]").forEach((b) => (b.onclick = () => copyCourse(byId("catalog", b.dataset.copy))));
       el.querySelectorAll("[data-publish]").forEach((b) => (b.onclick = () => ED.publish(byId("catalog", b.dataset.publish), b.dataset.on === "1")));
       const nc = el.querySelector("[data-newcontent]"); if (nc) nc.onclick = () => ED.newContentDialog();
+      const pe = el.querySelector("[data-pubexam]"); if (pe) pe.onclick = () => ED.publishExamDialog();
+      const im = el.querySelector("[data-import]"); if (im) im.onclick = () => ED.importDialog();
     },
   };
 }
 // Kopieren aus dem Katalog: Unterrichtsebene (Lehrkraft) – legt einen eigenen Kurs mit Mitgliederverwaltung an
-export async function copyCourse(c) { if (!c) return; const m = await import("./courses.js?v=9.0"); return m.copyToLesson(c); }
+export async function copyCourse(c) { if (!c) return; const m = await import("./courses.js?v=9.1"); return m.copyToLesson(c); }
 export function course(id) {
   const c = byId("catalog", id);
   if (!c) return { redirect: "#/app/katalog" };
@@ -191,7 +193,7 @@ export function admin() {
       el.querySelector("[data-sim]").onclick = async () => { const room = D.rooms.find((r) => r.name === "Raum 123"); const r = await demoApi.simulateLogin(room.id); toast("Simulation", `${r.count} Teilnehmende angemeldet.`, "info"); };
       const room = D.rooms.find((r) => r.name === "Raum 123");
       const off = el.querySelector("[data-off]"); if (off) off.onclick = () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-offp]").value); if (p) simulateOffline(room, p); };
-      el.querySelectorAll("[data-nta]").forEach((b) => (b.onclick = async () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-ntap]").value); await upd("participants", p.id, { nta: +b.dataset.nta }); const { log } = await import("../data.js?v=9.0"); log(p.room, p, "Nachteilsausgleich geändert", `${b.dataset.nta} Min.`, "aktion"); toast("Nachteilsausgleich gesetzt", `${p.lastname}: ${b.dataset.nta} Min.`); }));
+      el.querySelectorAll("[data-nta]").forEach((b) => (b.onclick = async () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-ntap]").value); await upd("participants", p.id, { nta: +b.dataset.nta }); const { log } = await import("../data.js?v=9.1"); log(p.room, p, "Nachteilsausgleich geändert", `${b.dataset.nta} Min.`, "aktion"); toast("Nachteilsausgleich gesetzt", `${p.lastname}: ${b.dataset.nta} Min.`); }));
       const end = el.querySelector("[data-ending]"); if (end) end.onclick = async () => {
         const start = new Date(Date.now() - ((room.duration_min || 90) + (room.global_extra || 0) - 2) * 60000);
         await upd("rooms", room.id, { state: "RUNNING", started_at: toPb(start), paused_total_s: 0, paused_at: "" });

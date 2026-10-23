@@ -1,12 +1,12 @@
 // Stammdaten der Koordinierungsstelle: Ausbildungsberufe mit Berufsnummer und Prüfungstiteln, Fachbereiche, Schulen und ihre
 // Ausbildungsberufe, Unternehmenspools je Fachbereich, Korrekturzeichensätze (verbindlich für Erstellung, Prüfung und Unterricht)
-import { D, upd, setSetting } from "../data.js?v=9.0";
-import { icon, esc, toast, modal, confirmBox } from "../ui.js?v=9.0";
-import { redraw } from "../app.js?v=9.0";
-import { me, personName } from "../access.js?v=9.0";
-import { berufe, fachbereiche, fbName, berufById, pools, savePool, poolForm, readPoolForm, signsets, saveSignsets, inkSupported, INK_CHARS } from "../masterdata.js?v=9.0";
+import { D, upd, create, byId, setSetting } from "../data.js?v=9.1";
+import { icon, esc, toast, modal, confirmBox } from "../ui.js?v=9.1";
+import { redraw } from "../app.js?v=9.1";
+import { me, personName, orgsLabel } from "../access.js?v=9.1";
+import { berufe, fachbereiche, fbName, berufById, pools, savePool, poolForm, readPoolForm, signsets, saveSignsets, inkSupported, INK_CHARS } from "../masterdata.js?v=9.1";
 
-const TABS = [["berufe", "Ausbildungsberufe"], ["schulen", "Schulen"], ["pools", "Unternehmenspools"], ["zeichen", "Korrekturzeichensätze"], ["fachbereiche", "Fachbereiche"]];
+const TABS = [["berufe", "Ausbildungsberufe"], ["schulen", "Schulen"], ["kommissionen", "Kommissionen"], ["pools", "Unternehmenspools"], ["zeichen", "Korrekturzeichensätze"], ["fachbereiche", "Fachbereiche"]];
 const UI = { q: "", sq: "", set: "", fb: "" };
 const rid = () => Math.random().toString(36).slice(2, 10);
 
@@ -18,7 +18,7 @@ export function view(tab = "berufe") {
       if (me()?.kind !== "koordination") return `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Die Stammdaten pflegt die Koordinierungsstelle.</p></div>`;
       return `<div class="pagehead"><div><h1>Stammdaten</h1><div class="sub">${esc(personName(me()))} · Koordinierungsstelle</div></div></div>
         <nav class="tabs">${TABS.map(([k, l]) => `<a href="#/app/stammdaten/${k}" class="${k === tab ? "active" : ""}">${l}</a>`).join("")}</nav>
-        ${{ berufe: tabBerufe, schulen: tabSchulen, pools: tabPools, zeichen: tabZeichen, fachbereiche: tabFb }[tab]()}`;
+        ${{ berufe: tabBerufe, schulen: tabSchulen, kommissionen: tabKom, pools: tabPools, zeichen: tabZeichen, fachbereiche: tabFb }[tab]()}`;
     },
     mount(el) { bind(el, tab); },
   };
@@ -56,6 +56,38 @@ function tabSchulen() {
   <div class="tablewrap"><table class="tbl compact"><thead><tr><th>Schule</th><th>Ort</th>${bs.map((b) => `<th class="ctr" title="${esc(b.name)}">${esc(b.nr)}</th>`).join("")}</tr></thead><tbody>
     ${list.map((o) => `<tr><td><b>${esc(o.name)}</b> <span class="xs muted">${esc(o.short)}</span></td><td class="small">${esc(o.city || "")}</td>${bs.map((b) => `<td class="ctr"><input type="checkbox" data-ob="${o.id}|${b.id}" ${(o.berufe || []).includes(b.id) ? "checked" : ""} aria-label="${esc(o.short)}: ${esc(b.name)}"></td>`).join("")}</tr>`).join("")}</tbody></table></div>
   <p class="xs muted mt-s">${bs.map((b) => `${esc(b.nr)} = ${esc(b.name)}`).join(" · ")}</p>`;
+}
+
+// ---------- Kommissionen (Gruppen der Koordinierungsstelle) ----------
+// Änderungen wirken sofort: Kommission und Vorsitz einer Prüfung ergeben sich live aus der zugewiesenen Kommissionsgruppe
+function tabKom() {
+  const gs = D.groups.filter((g) => g.kind === "kommission").sort((a, b) => a.name.localeCompare(b.name));
+  return `<div class="row between wrap mb"><p class="small" style="margin:0">Prüfungskommissionen mit Fachbereich, Mitgliedern und Vorsitz. Änderungen werden <b>sofort</b> in alle Prüfungen übernommen, denen die Kommission zugewiesen ist (Kommission und Kommissionsvorsitz).</p><button class="btn primary sm" data-kom="">${icon("plus")} Kommission</button></div>
+  <div class="tablewrap"><table class="tbl"><thead><tr><th>Kommission</th><th>Fachbereich</th><th>Vorsitz</th><th>Mitglieder</th><th class="num">Prüfungen</th><th></th></tr></thead><tbody>
+    ${gs.map((g) => `<tr><td><b>${esc(g.name)}</b></td><td class="small">${esc(fbName(g.fachbereich))}</td><td class="small">${esc(personName(byId("persons", g.chair)))}</td><td class="small">${(g.members || []).filter((x) => x !== g.chair).map((x) => esc(personName(byId("persons", x)))).join("<br>")}</td><td class="num">${D.catalog.filter((c) => c.status && c.team?.kommission_group === g.id).length}</td><td><button class="iconbtn" data-kom="${g.id}" aria-label="${esc(g.name)} bearbeiten">${icon("pencil")}</button></td></tr>`).join("") || `<tr><td colspan="6"><div class="empty small">Keine Kommissionen.</div></td></tr>`}</tbody></table></div>`;
+}
+async function editKom(id) {
+  const g = byId("groups", id) || { name: "", fachbereich: fachbereiche()[0]?.id, members: [], chair: "" };
+  const cand = D.persons.filter((p) => ["lehrkraft", "fachexperte"].includes(p.kind)).sort((a, b) => a.lastname.localeCompare(b.lastname));
+  const v = await modal({ title: id ? "Kommission bearbeiten" : "Kommission anlegen", size: "wide",
+    body: `<div class="grid2"><div class="field"><label class="lbl" for="kg-n">Bezeichnung *</label><input id="kg-n" class="input" data-kn value="${esc(g.name)}" placeholder="Prüfungskommission …"></div><div class="field"><label class="lbl" for="kg-f">Fachbereich</label><select id="kg-f" class="select" data-kf>${fachbereiche().map((f) => `<option value="${f.id}" ${f.id === g.fachbereich ? "selected" : ""}>${esc(f.name)}</option>`).join("")}</select></div></div>
+      <div class="search mb"><input class="input" data-ks placeholder="Person suchen" aria-label="Person suchen">${icon("search")}</div>
+      <div class="tablewrap" style="max-height:340px;overflow:auto"><table class="tbl compact"><thead><tr><th>Mitglied</th><th>Vorsitz</th><th>Name</th><th>Schule</th></tr></thead><tbody>${cand.map((p) => `<tr data-row="${esc((p.lastname + " " + p.firstname).toLowerCase())}"><td><input type="checkbox" data-km="${p.id}" ${(g.members || []).includes(p.id) ? "checked" : ""} aria-label="${esc(personName(p))} Mitglied"></td><td><input type="radio" name="kc" data-kc="${p.id}" ${g.chair === p.id ? "checked" : ""} aria-label="${esc(personName(p))} Vorsitz"></td><td>${esc(personName(p))}</td><td class="xs">${esc(p.org ? orgsLabel(p) : "IBBW")}</td></tr>`).join("")}</tbody></table></div>`,
+    footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Speichern</button>`,
+    onMount: (m, close) => {
+      const s = m.querySelector("[data-ks]"); s.oninput = () => m.querySelectorAll("[data-row]").forEach((tr) => (tr.hidden = !tr.dataset.row.includes(s.value.toLowerCase())));
+      m.querySelectorAll("[data-kc]").forEach((r) => (r.onchange = () => { const cb = m.querySelector(`[data-km="${r.dataset.kc}"]`); if (cb) cb.checked = true; }));
+      m.querySelector("[data-ok]").onclick = () => {
+        const name = m.querySelector("[data-kn]").value.trim(); const members = [...m.querySelectorAll("[data-km]:checked")].map((x) => x.dataset.km); const chair = m.querySelector("[data-kc]:checked")?.dataset.kc || "";
+        if (!name) return toast("Bezeichnung fehlt", "", "error");
+        if (!chair || !members.includes(chair)) return toast("Vorsitz wählen", "Der Vorsitz muss Mitglied der Kommission sein.", "error");
+        close({ name, fachbereich: m.querySelector("[data-kf]").value, members, chair });
+      };
+    } });
+  if (!v) return;
+  if (id) await upd("groups", id, v); else await create("groups", { ...v, org: "", kind: "kommission", source: "koordinierungsstelle", course: "" });
+  const n = D.catalog.filter((c) => c.status && c.team?.kommission_group === id).length;
+  toast("Kommission gespeichert", `${v.name}${n ? ` – sofort wirksam in ${n} Prüfung(en)` : ""}`);
 }
 
 // ---------- Unternehmenspools ----------
@@ -112,6 +144,7 @@ function bind(el, tab) {
   el.querySelectorAll("[data-ob]").forEach((cb) => (cb.onchange = async () => { const [oid, bid] = cb.dataset.ob.split("|"); const o = D.orgs.find((x) => x.id === oid); const set = new Set(o.berufe || []); if (cb.checked) set.add(bid); else set.delete(bid); await upd("orgs", oid, { berufe: [...set] }); toast("Ausbildungsberufe gespeichert", `${o.short}: ${[...set].map((x) => berufById(x)?.nr || x).join(", ") || "keine"}`); }));
   const fb = el.querySelector("[data-fb]"); if (fb) fb.onchange = () => { UI.fb = fb.value; redraw(); };
   el.querySelectorAll("[data-pool]").forEach((b) => (b.onclick = () => editPool(b.dataset.pool)));
+  el.querySelectorAll("[data-kom]").forEach((b) => (b.onclick = () => editKom(b.dataset.kom)));
   // Zeichensätze
   if (tab === "zeichen") {
     el.querySelectorAll("[data-set]").forEach((b) => (b.onclick = () => { UI.set = b.dataset.set; SD = null; redraw(); }));
