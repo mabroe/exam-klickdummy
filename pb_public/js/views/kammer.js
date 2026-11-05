@@ -45,6 +45,11 @@ export function noticesBox(p = me()) {
     <ul class="noticelist">${list.slice(0, 6).map((n) => `<li class="${n.read ? "read" : ""}">${icon(KIND[n.kind] || "info")}<div class="grow"><b>${esc(n.title)}</b><div class="small">${esc(n.body)}</div><div class="xs muted">${esc(n.by || "")}${n.created ? " · " + fmtDateTime(parseDate(n.created)) : ""}</div></div>
       <div class="row" style="gap:6px">${n.link ? `<button class="btn sm" data-nopen="${n.id}">${icon("arrow-right")} Öffnen</button>` : ""}${n.read ? "" : `<button class="iconbtn" data-nread="${n.id}" title="Als gelesen markieren" aria-label="Als gelesen markieren">${icon("check")}</button>`}</div></li>`).join("")}</ul></section>`;
 }
+// kompakt im Kurs: nur ungelesene Benachrichtigungen zu dieser Prüfung
+export function courseNotices(c, p = me()) {
+  const list = myNotices(p).filter((n) => !n.read && n.course === c?.id);
+  return list.map((n) => `<div class="notice warn small mb">${icon("bell")}<span><b>${esc(n.title)}:</b> ${esc(n.body)}</span><button class="iconbtn" data-nread="${n.id}" title="Als gelesen markieren" aria-label="Als gelesen markieren">${icon("check")}</button></div>`).join("");
+}
 export function bindNotices(el) {
   el.querySelectorAll("[data-nopen]").forEach((b) => (b.onclick = async () => { const n = byId("notices", b.dataset.nopen); if (!n) return; if (!n.read) upd("notices", n.id, { read: true }); navigate(n.link); }));
   el.querySelectorAll("[data-nread]").forEach((b) => (b.onclick = () => upd("notices", b.dataset.nread, { read: true })));

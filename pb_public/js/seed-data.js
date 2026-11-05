@@ -79,7 +79,7 @@
     T.Hellmers = KP("Hellmers", "Antje", kb, "kammer", "AH");
     var XP = function (l, f, k, pnr, nta) { var x = KP(l, f, k, "extern", "", { pnr: pnr, nta: nta || 0 }); x.email = ""; return x; };
     var EX = {
-      kraemer: XP("Krämer", "Jonas", km, "MS-26-1001"), lorenz: XP("Lorenz", "Svenja", km, "MS-26-1002", 15), hoffmeister: XP("Hoffmeister", "Can", km, "MS-26-1003"),
+      kraemer: XP("Kesselring", "Jonas", km, "MS-26-1001"), lorenz: XP("Lorenz", "Svenja", km, "MS-26-1002", 15), hoffmeister: XP("Hoffmeister", "Can", km, "MS-26-1003"),
       sander: XP("Sander", "Leonie", km, "MS-26-1004", 10), wegener: XP("Wegener", "Timo", km, "MS-26-1005"), brandt: XP("Brandt", "Elena", km, "MS-26-1006", 20),
       jansen: XP("Jansen", "Marek", km, "MS-26-1007"), engel: XP("Engel", "Paula", km, "MS-26-1008"), roth: XP("Roth", "Fabian", kb, "BL-26-2001"),
     };
