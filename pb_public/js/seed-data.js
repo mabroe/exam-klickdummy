@@ -4,8 +4,8 @@
 // Alle Personennamen sind zufällig erzeugte Fantasienamen – Ähnlichkeiten mit realen Personen sind nicht beabsichtigt.
 (function (root) {
   // Stand der Demodaten. Erhöhen, wenn sich die Demodaten ändern – ältere Datenbestände werden beim Start automatisch neu aufgebaut.
-  var SEED_VERSION = 19;
-  var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings"];
+  var SEED_VERSION = 20;
+  var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings", "notices"];
 
   // Bewertungskriterien je Teilaufgabe (Maximalpunkte) – muss zu js/scenario.js passen
   var CRITERIA = {
@@ -29,8 +29,8 @@
 
     // ---------- Schulen und reale Räume (nur für Prüfungen; verhindern Doppelbelegungen) ----------
     // Ausbildungsberufe je Schule (für die Auswahl der Organisationen einer Prüfung)
-    var afs = add("orgs", { name: "Ahornfeld-Schule Musterstadt", short: "AFS", city: "Musterstadt", berufe: ["bm", "ik", "fisi", "fiae"] });
-    var bts = add("orgs", { name: "Birkental-Schule Musterstadt", short: "BTS", city: "Musterstadt", berufe: ["bm", "eh", "fisi", "fiae"] });
+    var afs = add("orgs", { name: "Ahornfeld-Schule Musterstadt", short: "AFS", city: "Musterstadt", berufe: ["bm", "ik", "fisi", "fiae"], type: "", bezirk: "MUS" });
+    var bts = add("orgs", { name: "Birkental-Schule Musterstadt", short: "BTS", city: "Musterstadt", berufe: ["bm", "eh", "fisi", "fiae"], type: "", bezirk: "MUS" });
     var MORE = [["Christophorus-Schule Neudorf am Hang", "CSN", "Neudorf am Hang", ["ik", "eh", "mech"], ["Kirchhoff", "Bente"]],
       ["Dornbach-Schule Talwiesen", "DST", "Talwiesen", ["bm", "eh"], ["Seidenfaden", "Jörn"]],
       ["Eschenhain-Schule Bergstetten", "EHS", "Bergstetten", ["fisi", "fiae", "mech"], ["Ollendorf", "Pia"]],
@@ -39,9 +39,14 @@
       ["Ilexgrund-Schule Bergstetten", "IGS", "Bergstetten", ["bm", "ik", "eh", "fisi", "fiae"], ["Rautenberg", "Silas"]],
       ["Kastanienallee-Schule Musterstadt", "KAS", "Musterstadt", ["bm", "fiae"], ["Mertensen", "Jule"]],
       ["Lärchenweg-Schule Neudorf am Hang", "LWS", "Neudorf am Hang", ["eh", "ik", "bm"], ["Vosskuhl", "Arne"]]]
-      .map(function (x) { return { org: add("orgs", { name: x[0], short: x[1], city: x[2], berufe: x[3] }), admin: x[4] }; });
+      .map(function (x) { return { org: add("orgs", { name: x[0], short: x[1], city: x[2], berufe: x[3], type: "", bezirk: ["Musterstadt", "Talwiesen"].indexOf(x[2]) >= 0 ? "MUS" : "BER" }), admin: x[4] }; });
+    // Kammern (fiktiv) als eigene Organisationen mit Kammerbezirk; Schulen gehören einem Bezirk an (Überschneidungen möglich)
+    var ALLB = ["bm", "ik", "eh", "fisi", "fiae", "mech"];
+    var km = add("orgs", { name: "IHK Musterstadt", short: "IHK-MS", city: "Musterstadt", berufe: ALLB, type: "kammer", bezirk: "MUS" });
+    var kb = add("orgs", { name: "IHK Bergland", short: "IHK-BL", city: "Bergstetten", berufe: ALLB, type: "kammer", bezirk: "BER" });
     var V = {};
     [[afs, "Raum 123", "Haus A", 3, 5], [afs, "Raum 124", "Haus A", 4, 6], [afs, "Raum 105", "Haus A", 4, 6], [afs, "Raum 202", "Haus B", 4, 6], [afs, "Raum 204", "Haus B", 4, 5], [afs, "Raum 305", "Haus C", 4, 6], [afs, "PC-Pool 2", "Haus B", 4, 6], [afs, "PC-Pool 3", "Haus B", 3, 6],
+     [km, "Prüfungssaal 1", "Haus der Wirtschaft", 3, 5], [km, "Prüfungssaal 2", "Haus der Wirtschaft", 4, 6], [kb, "Saal Bergland", "Kammergebäude", 4, 5],
      [bts, "Raum 201", "Hauptgebäude", 4, 6], [bts, "Aula (Großraum)", "Hauptgebäude", 10, 12], [bts, "Raum 017", "Werkstattgebäude", 4, 5], [bts, "Raum 110", "Hauptgebäude", 5, 6]]
       .forEach(function (v) { V[v[1]] = add("venues", { org: v[0].id, name: v[1], building: v[2], rows: v[3], cols: v[4], capacity: v[3] * v[4], layout: "reihen" }); });
 
@@ -64,6 +69,20 @@
     T.Hollerbach = X("Hollerbach", "Wenke", "bereichsadmin", "WH");
     MORE.forEach(function (m) { P(m.admin[0], m.admin[1], m.org, "schuladmin", m.admin[0][0] + m.admin[1][0]).email = uname(m.admin[0], m.admin[1]) + "@" + m.org.short.toLowerCase() + ".schule.bw"; });
     T["Dähne"] = P("Dähne", "Niklas", bts, "lehrkraft", "ND");
+    // Kammern: Kammeradministration, Personen der Kammer (Raumaufsicht, Korrektur, Prüfungseinsicht) und externe Prüflinge
+    var KP = function (lastname, firstname, org, kind, short, extra) { return add("persons", Object.assign({ lastname: lastname, firstname: firstname, username: uname(lastname, firstname), org: org.id, kind: kind, short: short || "", email: uname(lastname, firstname) + "@" + org.short.toLowerCase() + ".example", pnr: "", nta: 0 }, extra || {})); };
+    T.Lindemann = KP("Lindemann", "Jasper", km, "kammeradmin", "JL");
+    T.Ostrowski = KP("Ostrowski", "Carla", kb, "kammeradmin", "CO");
+    T["Weißgerber"] = KP("Weißgerber", "Hanno", km, "kammer", "HW");
+    T.Fenske = KP("Fenske", "Mira", km, "kammer", "MF");
+    T["Brückner"] = KP("Brückner", "Ole", km, "kammer", "OB");
+    T.Hellmers = KP("Hellmers", "Antje", kb, "kammer", "AH");
+    var XP = function (l, f, k, pnr, nta) { var x = KP(l, f, k, "extern", "", { pnr: pnr, nta: nta || 0 }); x.email = ""; return x; };
+    var EX = {
+      kraemer: XP("Krämer", "Jonas", km, "MS-26-1001"), lorenz: XP("Lorenz", "Svenja", km, "MS-26-1002", 15), hoffmeister: XP("Hoffmeister", "Can", km, "MS-26-1003"),
+      sander: XP("Sander", "Leonie", km, "MS-26-1004", 10), wegener: XP("Wegener", "Timo", km, "MS-26-1005"), brandt: XP("Brandt", "Elena", km, "MS-26-1006", 20),
+      jansen: XP("Jansen", "Marek", km, "MS-26-1007"), engel: XP("Engel", "Paula", km, "MS-26-1008"), roth: XP("Roth", "Fabian", kb, "BL-26-2001"),
+    };
 
     // ---------- Katalog ----------
     // Katalog nur für den Unterricht: Prüfungsähnliche Inhalte dienen als Übung/Prüfungsvorbereitung
@@ -374,6 +393,42 @@
     pr1.corrections = [K(1, gFA, [T.Ohm, T.Voigt], afs), K(2, gFA, [T.Steinhoff], afs), K(3, gFA, [T.Ebeling], afs)]
       .concat(btsGroups.map(function (g) { return K(1, g, [T.Gaspari], bts); }), btsGroups.map(function (g) { return K(2, g, [T["Dähne"], T.Morawetz], bts); }));
     pr1.third = {}; pr1.korr_end = "2026-11-06"; pr1.dk_threshold = 1;
+    // ---------- Kammern in der laufenden Prüfung: externe Prüflinge (Arten 1–4) ----------
+    var gws = MORE[3].org;
+    pr1.orgs = pr1.orgs.concat([km.id, kb.id, gws.id]);
+    var hx = function (days, by, text) { return { at: iso(new Date(now.getTime() + days * 86400000)), by: by, text: text }; };
+    var EXE = function (art, school, status, hist) { return { art: art, school: school ? school.id : "", status: status, at: hist[hist.length - 1].at, by: hist[hist.length - 1].by, hist: hist }; };
+    var LI = "Lindemann, Jasper", OS = "Ostrowski, Carla";
+    pr1.ext = {};
+    pr1.ext[EX.kraemer.id] = EXE(2, afs, "angenommen", [hx(-9, LI, "Art 2 · der AFS vorgeschlagen"), hx(-8, "Hinrichs, Marit", "von der AFS angenommen")]);
+    pr1.ext[EX.lorenz.id] = EXE(2, afs, "vorgeschlagen", [hx(-1, LI, "Art 2 · der AFS vorgeschlagen")]);
+    pr1.ext[EX.hoffmeister.id] = EXE(3, bts, "angenommen", [hx(-9, LI, "Art 3 · der BTS vorgeschlagen"), hx(-7, "Ammermann, Ilka", "von der BTS angenommen")]);
+    pr1.ext[EX.sander.id] = EXE(3, bts, "vorgeschlagen", [hx(-1, LI, "Art 3 · der BTS vorgeschlagen")]);
+    pr1.ext[EX.wegener.id] = EXE(1, null, "kammer", [hx(-9, LI, "Art 1 · Kammer prüft selbst")]);
+    pr1.ext[EX.brandt.id] = EXE(4, null, "kammer", [hx(-9, LI, "Art 4 · Kammer prüft, Korrektur durch Lehrkräfte der Schulen")]);
+    pr1.ext[EX.engel.id] = EXE(2, gws, "abgelehnt", [hx(-6, LI, "Art 2 · der GWS vorgeschlagen (anderer Kammerbezirk)"), hx(-5, "Weidenbach, Torge", "von der GWS abgelehnt – keine freien Plätze")]);
+    pr1.ext[EX.roth.id] = EXE(2, afs, "vorgeschlagen", [hx(-2, OS, "Art 2 · der AFS vorgeschlagen")]);
+    var kmAdm = [T.Lindemann, T.Ostrowski].map(function (x) { return { person: x.id, role: "schuladmin" }; });
+    pr1.members = pr1.members.concat(kmAdm, [{ person: T["Weißgerber"].id, role: "raumaufsicht" }, { person: T["Weißgerber"].id, role: "pruefungseinsicht" }, { person: T.Hellmers.id, role: "raumaufsicht" }],
+      ["kraemer", "lorenz", "hoffmeister", "sander", "wegener", "brandt", "jansen", "engel", "roth"].map(function (k) { return { person: EX[k].id, role: "teilnehmer" }; }));
+    var KX = function (stage, per, correctors, org) { return { id: rid(), stage: stage, kind: "person", target: per.id, correctors: correctors.map(function (x) { return x.id; }), org: org.id }; };
+    pr1.corrections = pr1.corrections.concat([KX(1, EX.kraemer, [T.Ohm, T.Voigt], afs), KX(2, EX.kraemer, [T.Steinhoff], afs),
+      KX(1, EX.wegener, [T.Fenske], km), KX(2, EX.wegener, [T["Brückner"]], km), KX(1, EX.hoffmeister, [T.Fenske], km), KX(2, EX.hoffmeister, [T["Brückner"]], km),
+      KX(1, EX.brandt, [T.Ohm], km), KX(2, EX.brandt, [T["Dähne"]], km)]);
+    var XPart = function (per, roomId, seat, extra) { return add("participants", Object.assign({ lastname: per.lastname, firstname: per.firstname, username: per.username, group_name: "extern", org: km.name, person: per.id, room: roomId, seat: seat, present: false, status: "nicht_eingeloggt", extra_time: 0, comment: "", health: "", cheat_ack: false, bookmarks: [], nta: per.nta || 0, violations: 0, attempt: 1 }, extra || {})); };
+    XPart(EX.kraemer, room.id, "3-4");
+    var r201 = out.rooms.filter(function (r) { return r.name === "Raum 201" && r.course === pr1.id; })[0];
+    XPart(EX.hoffmeister, r201.id, "1-1");
+    var kroom = R(Object.assign(fromVenue(V["Prüfungssaal 1"]), { exam_name: pr1.title, exam_code: "FA230", planned_start: day(1), course: pr1.id, org: km.id, owner: T.Lindemann.id }));
+    XPart(EX.wegener, kroom.id, "1-1"); XPart(EX.brandt, kroom.id, "1-2");
+    add("supervisors", { lastname: T["Weißgerber"].lastname, firstname: T["Weißgerber"].firstname, short: "HW", username: T["Weißgerber"].username, person: T["Weißgerber"].id, room: kroom.id, present: true, from: "08:15", to: "10:15", periods: [{ from: "08:15", to: "10:15" }] });
+    // Korrektorenpool der Kammer (Art 4): Lehrkräfte der Schulen, die sich ehrenamtlich bereit erklärt haben (Name, Schule, Fach)
+    out.settings.push({ id: rid(), key: "kpool:" + km.id, value: [{ person: T.Ohm.id, fach: "Büromanagement" }, { person: T["Dähne"].id, fach: "IT-Berufe" }, { person: T.Gaspari.id, fach: "IT-Berufe" }] });
+    out.settings.push({ id: rid(), key: "kpool:" + kb.id, value: [{ person: T.Steinhoff.id, fach: "Büromanagement" }] });
+    var NO = function (org, role, course, title, body, link, kind, days, by) { add("notices", { org: org.id, role: role, course: course.id, title: title, body: body, link: link, kind: kind, read: false, by: by }); };
+    NO(afs, "schuladmin", pr1, "Externe Prüflinge zur Annahme", "IHK Musterstadt: 1 externer Prüfling (Art 2) · IHK Bergland: 1 externer Prüfling (Art 2) für „" + pr1.title + "“", "#/app/kurs/" + pr1.id + "/extern", "vorschlag", -1, LI);
+    NO(bts, "schuladmin", pr1, "Externer Prüfling zur Annahme", "IHK Musterstadt: 1 externer Prüfling (Art 3 – nur Durchführung) für „" + pr1.title + "“", "#/app/kurs/" + pr1.id + "/extern", "vorschlag", -1, LI);
+    NO(km, "kammeradmin", pr1, "Zuordnung abgelehnt", "Die Ginsterweg-Schule Beispielhausen hat Paula Engel (MS-26-1008) abgelehnt. Bitte neu zuordnen.", "#/app/kurs/" + pr1.id + "/zuordnung", "ablehnung", -5, "Weidenbach, Torge");
     // Aufgabensteuerung (Beispielregeln): Aktion ausgeführt bzw. zeitliche Faktoren, verknüpft mit UND/ODER
     var mailA = function (task, subject, body) { return { id: rid(), type: "mail", task: task, from: "Bäumler, Karim", from_mail: "Karim.Baeumler@funsport-innovations.de", subject: subject, body: body }; };
     var exampleRules = function () { return [
@@ -477,6 +532,32 @@
         Object.keys(CRITERIA).forEach(function (st) { pts[st] = CRITERIA[st].map(function (m, k) { var base = c === 1 ? m * (0.42 + rnd() * 0.56) : (e1[st][k] * (0.9 + rnd() * 0.15)); return Math.min(m, Math.max(0, Math.round(base * 2) / 2)); }); if (c === 1) e1[st] = pts[st]; });
         var marks = { "1.1": [{ id: "zp" + i + c, type: "sign", sign: c === 1 ? (i % 3 ? "r" : "Ug") : "(r)", ax: 420, ay: 300 + c * 20 }, { id: "zl" + i + c, type: "hline", style: c === 1 ? "wavy" : "single", x1: 330, x2: 520, y: 330 + c * 10 }] };
         add("gradings", { participant: zp.id, corrector: c, points: pts, not_done: {}, marks: marks, released: true, approvals: (c === 1 ? z.k1 : z.k2).map(function (x) { return x.id; }) });
+      });
+    });
+
+    // ---------- Kammer in der abgeschlossenen Prüfung: Art 2 an der AFS (Protokoll freigegeben), Art 3 an der BTS (Protokoll noch nicht freigegeben) ----------
+    pr3.orgs = pr3.orgs.concat([km.id]);
+    pr3.members = pr3.members.concat([{ person: T.Lindemann.id, role: "schuladmin" }, { person: T["Weißgerber"].id, role: "pruefungseinsicht" }, { person: T["Weißgerber"].id, role: "raumaufsicht" }, { person: EX.lorenz.id, role: "teilnehmer" }, { person: EX.kraemer.id, role: "teilnehmer" }, { person: EX.brandt.id, role: "teilnehmer" }]);
+    var kroom3 = R(Object.assign(fromVenue(V["Prüfungssaal 2"]), { exam_name: pr3.title, exam_code: pr3.exam_code, planned_start: day(-21), started_at: day(-21), course: pr3.id, org: km.id, owner: T.Lindemann.id, state: "TERMINATED" }));
+    pr3.ext = {};
+    pr3.ext[EX.lorenz.id] = EXE(2, afs, "angenommen", [hx(-60, LI, "Art 2 · der AFS vorgeschlagen"), hx(-58, "Hinrichs, Marit", "von der AFS angenommen")]);
+    pr3.ext[EX.kraemer.id] = EXE(3, bts, "angenommen", [hx(-60, LI, "Art 3 · der BTS vorgeschlagen"), hx(-57, "Ammermann, Ilka", "von der BTS angenommen")]);
+    pr3.ext[EX.brandt.id] = EXE(4, null, "kammer", [hx(-60, LI, "Art 4 · Kammer prüft, Korrektur durch Lehrkräfte der Schulen")]);
+    pr3.corrections = pr3.corrections.concat([KX(1, EX.lorenz, [T.Ohm], afs), KX(2, EX.lorenz, [T.Steinhoff], afs), KX(1, EX.kraemer, [T.Fenske], km), KX(2, EX.kraemer, [T["Brückner"]], km), KX(1, EX.brandt, [T.Ohm], km), KX(2, EX.brandt, [T["Dähne"]], km)]);
+    zpRooms.afs.prot_released = true; zpRooms.afs.prot_released_at = day(-20);
+    [[EX.lorenz, zpRooms.afs, [T.Ohm], [T.Steinhoff]], [EX.kraemer, zpRooms.bts, [T.Fenske], [T["Brückner"]]], [EX.brandt, kroom3, [T.Ohm], [T["Dähne"]], true]].forEach(function (z, i) {
+      var per = z[0];
+      var zp = XPart(per, z[1].id, "2-" + (i + 1), { present: true, status: "beendet", health: "ok", cheat_ack: true, started_at: day(-21), finished_at: day(-21) });
+      add("protocol", { room: z[1].id, ts: day(-21), participant: per.lastname + ", " + per.firstname, username: per.username, seat: "2-" + (i + 1), action: "Teilnehmende/r hat sich angemeldet", comment: "", kind: "system" });
+      add("protocol", { room: z[1].id, ts: day(-21), participant: per.lastname + ", " + per.firstname, username: per.username, seat: "2-" + (i + 1), action: "Prüfung eingesammelt", comment: "", kind: "aktion" });
+      add("items", { participant: zp.id, kind: "mail", folder: "sent", submission: "1.1", data: { task: "1", from: "Prüfling " + per.pnr, from_mail: per.username + "@azubi.funsport-innovations.de", to: "Karim.Baeumler@funsport-innovations.de", subject: "AW: Quantitativer Angebotsvergleich für neue Lithium-Batterie-Packs", date: "13.10.2025 10:4" + i, attachments: [], body: "Sehr geehrter Herr Bäumler,\n\nnach meinem Angebotsvergleich ist das Angebot der InnovaTech GmbH günstiger.\n\nMit freundlichen Grüßen" } });
+      add("items", { participant: zp.id, kind: "note", folder: "notes", submission: "2.1", data: { task: "2", title: "Anfrage", html: "<p>Sehr geehrte Damen und Herren,</p><p>bitte senden Sie uns ein Angebot über 500 Kugellager Typ 608-2RS.</p>" } });
+      if (z[4]) return; // Art 4: Korrektur durch eine Lehrkraft aus dem Korrektorenpool noch offen (pseudonymisiert)
+      var e1 = {};
+      [1, 2].forEach(function (c) {
+        var pts = {};
+        Object.keys(CRITERIA).forEach(function (st) { pts[st] = CRITERIA[st].map(function (m, k) { var base = c === 1 ? m * (0.5 + rnd() * 0.45) : (e1[st][k] * (0.92 + rnd() * 0.12)); return Math.min(m, Math.max(0, Math.round(base * 2) / 2)); }); if (c === 1) e1[st] = pts[st]; });
+        add("gradings", { participant: zp.id, corrector: c, points: pts, not_done: {}, marks: { "1.1": [{ id: "kx" + i + c, type: "sign", sign: "r", ax: 420, ay: 300 + c * 20 }] }, released: true, approvals: (c === 1 ? z[2] : z[3]).map(function (x) { return x.id; }) });
       });
     });
 

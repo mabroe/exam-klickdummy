@@ -6,15 +6,15 @@
 //  sich untereinander, ebenso die Kommission (inkl. Vorsitz). Die Aufgabenerstellung sieht keine Rahmendaten und nur den ausgewählten
 //  Unternehmenspool. Anmerkungen sehen Koordinierungsstelle und Kommission/Vorsitz (Beratung, Lektorat, Prüflösung nur die eigenen), den
 //  Verlauf nur die Koordinierungsstelle. Organisationen werden erst nach der finalen Freigabe ausgewählt.
-import { D, byId, upd, create } from "../data.js?v=9.3";
-import { icon, esc, toast, confirmBox, modal, store, fmtDateTime, parseDate } from "../ui.js?v=9.3";
-import { navigate, redraw } from "../app.js?v=9.3";
-import { me, personName, orgShort, orgsLabel } from "../access.js?v=9.3";
-import { blankContent, validate as validateContent } from "./editor.js?v=9.3";
-import { normalizeContent } from "../scenario.js?v=9.3";
-import { seal, unseal, fingerprint } from "../vault.js?v=9.3";
-import { berufPicker, bindBerufPicker, berufMeta, berufById, berufByName, fbName, poolsFor, poolById, savePool, poolForm, readPoolForm } from "../masterdata.js?v=9.3";
-import { lockedBy, acquire, release } from "../locks.js?v=9.3";
+import { D, byId, upd, create } from "../data.js?v=10.0";
+import { icon, esc, toast, confirmBox, modal, store, fmtDateTime, parseDate } from "../ui.js?v=10.0";
+import { navigate, redraw } from "../app.js?v=10.0";
+import { me, personName, orgShort, orgsLabel, isAdm } from "../access.js?v=10.0";
+import { blankContent, validate as validateContent } from "./editor.js?v=10.0";
+import { normalizeContent } from "../scenario.js?v=10.0";
+import { seal, unseal, fingerprint } from "../vault.js?v=10.0";
+import { berufPicker, bindBerufPicker, berufMeta, berufById, berufByName, fbName, poolsFor, poolById, savePool, poolForm, readPoolForm } from "../masterdata.js?v=10.0";
+import { lockedBy, acquire, release } from "../locks.js?v=10.0";
 
 // ---------- Modell ----------
 export const ESTATUS = {
@@ -59,7 +59,7 @@ export const released = (c) => ["gesperrt", "begutachtung", "veroeffentlicht"].i
 // Kommission, Vorsitz sowie Schuladministration und Korrektor:innen der teilnehmenden Schulen; ab Prüfungsstart: wie bisher
 export function schoolReviewer(c, p = me()) {
   const course = examCourse(c); if (!course || !p) return false;
-  if (p.kind === "schuladmin") return (course.orgs || []).includes(p.org);
+  if (isAdm(p)) return (course.orgs || []).includes(p.org);
   return (course.corrections || []).some((a) => (a.correctors || []).includes(p.id));
 }
 export function canViewContent(c, p = me()) {
@@ -312,14 +312,14 @@ function tabOrgs(c, r) {
   const can = r.includes("koordination") && ["gesperrt", "begutachtung"].includes(c.status); const sel = new Set(c.meta?.orgs || []); const course = examCourse(c);
   const bid = c.meta?.beruf_id || berufByName(c.meta?.beruf || c.beruf)?.id || ""; const b = berufById(bid);
   const orgs = [...D.orgs].sort((a, x) => a.name.localeCompare(x.name));
-  return `<div class="notice info small mb">${icon("info")}<span><b>Organisationen der Prüfung (Task 47):</b> Die teilnehmenden Schulen werden <b>nach der finalen Freigabe</b> ausgewählt – in der Regel ca. <b>2 Monate vor der Prüfungsdurchführung</b>. Die Schuladministrationen werden automatisch hinzugefügt und organisieren die Prüfung an ihrer Schule; sie sehen keine anderen beteiligten Schulen. Den Inhalt sehen sie erst im Begutachtungszeitraum.</span></div>
+  return `<div class="notice info small mb">${icon("info")}<span><b>Organisationen der Prüfung (Task 47):</b> Die teilnehmenden Schulen werden <b>nach der finalen Freigabe</b> ausgewählt – in der Regel ca. <b>2 Monate vor der Prüfungsdurchführung</b>. Die Schul- bzw. Kammeradministrationen werden automatisch hinzugefügt und organisieren die Prüfung an ihrer Schule bzw. für die externen Prüflinge ihrer Kammer; sie sehen keine anderen beteiligten Schulen. Die Koordinierungsstelle sieht keine personenbezogenen Daten, nur die Organisationen. Den Inhalt sehen sie erst im Begutachtungszeitraum.</span></div>
     ${!released(c) ? `<div class="notice warn small mb">${icon("lock")}<span>Die Auswahl der Organisationen ist erst möglich, wenn der Kommissionsvorsitz die Prüfung final freigegeben hat (Status „Verschlüsselt“).</span></div>` : ""}
-    <section class="card pad" style="max-width:1000px"><div class="row between wrap"><h3>Teilnehmende Schulen <span class="badge gray" data-orgcount>${sel.size} ausgewählt</span></h3>
+    <section class="card pad" style="max-width:1000px"><div class="row between wrap"><h3>Teilnehmende Schulen und Kammern <span class="badge gray" data-orgcount>${sel.size} ausgewählt</span></h3>
       <div class="row wrap" style="gap:8px"><div class="search" style="width:280px"><input class="input" data-orgq placeholder="Schule, Kürzel oder Ort suchen" aria-label="Schulen suchen">${icon("search")}</div>
       ${b ? `<label class="checkbox small"><input type="checkbox" data-orgberuf checked> nur Schulen mit „${esc(b.name)}“</label>` : ""}</div></div>
       <div class="tablewrap mt-s" style="max-height:440px;overflow:auto"><table class="tbl compact"><thead><tr><th>${can ? `<input type="checkbox" data-orgall aria-label="Alle angezeigten auswählen">` : ""}</th><th>Schule</th><th>Ort</th><th>Ausbildungsberufe</th><th>Schuladministration</th></tr></thead><tbody>
-      ${orgs.map((o) => { const admins = D.persons.filter((p) => p.kind === "schuladmin" && p.org === o.id); const has = !bid || (o.berufe || []).includes(bid);
-        return `<tr data-orgrow="${esc((o.name + " " + o.short + " " + o.city).toLowerCase())}" data-hasberuf="${has ? 1 : 0}" ${b && !has && !sel.has(o.id) ? "hidden" : ""}><td><input type="checkbox" data-org="${o.id}" ${sel.has(o.id) ? "checked" : ""} ${can ? "" : "disabled"} aria-label="${esc(o.name)}"></td><td><b>${esc(o.name)}</b> <span class="xs muted">${esc(o.short)}</span></td><td class="small">${esc(o.city || "")}</td>
+      ${orgs.map((o) => { const admins = D.persons.filter((p) => isAdm(p) && p.org === o.id); const has = !bid || o.type === "kammer" || (o.berufe || []).includes(bid);
+        return `<tr data-orgrow="${esc((o.name + " " + o.short + " " + o.city).toLowerCase())}" data-hasberuf="${has ? 1 : 0}" ${b && !has && !sel.has(o.id) ? "hidden" : ""}><td><input type="checkbox" data-org="${o.id}" ${sel.has(o.id) ? "checked" : ""} ${can ? "" : "disabled"} aria-label="${esc(o.name)}"></td><td><b>${esc(o.name)}</b> <span class="xs muted">${esc(o.short)}</span>${o.type === "kammer" ? ` <span class="badge purple xs">${icon("building-2")} Kammer</span>` : o.bezirk ? ` <span class="xs muted">· Bezirk ${esc(o.bezirk)}</span>` : ""}</td><td class="small">${esc(o.city || "")}</td>
         <td class="xs">${(o.berufe || []).map((x) => `<span class="badge ${x === bid ? "green" : "gray"}" title="${esc(berufById(x)?.name || x)}">${esc(berufById(x)?.nr || x)}</span>`).join(" ")}</td><td class="xs">${admins.map((a) => esc(personName(a))).join(", ") || "–"}</td></tr>`; }).join("")}</tbody></table></div>
       <p class="xs muted mt-s" data-orgempty hidden>Keine Schule gefunden.</p>
     ${can ? `<div class="row end mt"><button class="btn primary" data-act="saveorgs" data-arg="">${icon("save")} Organisationen zuordnen</button></div>` : ""}
@@ -397,7 +397,7 @@ async function pickPerson(c, role) {
 }
 // Organisationen zuordnen (Task 47): Prüfung an den Schulen anlegen bzw. aktualisieren, Schuladministrationen automatisch hinzufügen
 async function saveOrgs(c, orgs) {
-  const admins = D.persons.filter((p) => p.kind === "schuladmin" && orgs.includes(p.org)).map((p) => p.id);
+  const admins = D.persons.filter((p) => isAdm(p) && orgs.includes(p.org)).map((p) => p.id);
   let course = examCourse(c);
   if (course) {
     const keep = (course.members || []).filter((m) => m.role !== "schuladmin");

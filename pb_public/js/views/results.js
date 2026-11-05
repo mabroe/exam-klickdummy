@@ -1,14 +1,14 @@
 // Ergebnisse (Task 28/30/36) und Prüfungseinsicht (Task 37/38)
-import { D, byId, upd, log } from "../data.js?v=9.3";
-import { icon, esc, toast, confirmBox, brand, modal, statusChip, fmtTime, fmtDateTime, parseDate } from "../ui.js?v=9.3";
-import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS, categoryList, CATEGORY_SYSTEMS } from "../scenario.js?v=9.3";
-import { navigate, redraw, session } from "../app.js?v=9.3";
-import { store } from "../ui.js?v=9.3";
-import { grading, stPoints, candidates, fmtP } from "./correction.js?v=9.3";
-import { keyThresholds, gradingKeyLabel, linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=9.3";
-import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, thirdState, orgShort, personName, einsichtCandidates } from "../access.js?v=9.3";
-import { roPaper, fitRoPapers } from "./kmode.js?v=9.3";
-import { contentScope } from "../content.js?v=9.3";
+import { D, byId, upd, log } from "../data.js?v=10.0";
+import { icon, esc, toast, confirmBox, brand, modal, statusChip, fmtTime, fmtDateTime, parseDate } from "../ui.js?v=10.0";
+import { EXAM, ALL_SUBTASKS, TOTAL_POINTS, CORRECTORS, categoryList, CATEGORY_SYSTEMS } from "../scenario.js?v=10.0";
+import { navigate, redraw, session } from "../app.js?v=10.0";
+import { store } from "../ui.js?v=10.0";
+import { grading, stPoints, candidates, fmtP } from "./correction.js?v=10.0";
+import { keyThresholds, gradingKeyLabel, linearGrade, fmtNote, noteBucket, overall, approvalState, keyTable, dkThreshold } from "../grades.js?v=10.0";
+import { me, courseOf, courseOfParticipant, canCorrect, isTeacherOf, thirdRequested, thirdState, orgShort, personName, einsichtCandidates, isAdm, extPerson, extEntryP, correctionOrg, maskP } from "../access.js?v=10.0";
+import { roPaper, fitRoPapers } from "./kmode.js?v=10.0";
+import { contentScope } from "../content.js?v=10.0";
 
 // Endpunkte je Teilaufgabe: Endbeurteilung (falls angefordert und erfasst), sonst Mittelwert Erst/Zweit, sonst Erstkorrektur
 export function finalPoints(pid, st) {
@@ -37,10 +37,12 @@ export function resultParticipants() {
   return D.participants.filter((p) => {
     if (!withSubs.has(p.id)) return false; const r = byId("rooms", p.room); const c = courseOf(r); if (!c) return false;
     if (!pe) return c.kind === "pruefung";
-    if (role === "schuladmin" || pe.kind === "schuladmin") return c.kind === "pruefung" && r.org === pe.org;
+    // Kammer: alle eigenen externen Prüflinge (auch Art 2, dann nur lesend); Schule: eigene Prüflinge und externe Prüflinge mit Korrektur durch die Schule (Art 2)
+    if (role === "kammeradmin" || pe.kind === "kammeradmin") return c.kind === "pruefung" && extPerson(p)?.org === pe.org;
+    if (role === "schuladmin" || pe.kind === "schuladmin") return c.kind === "pruefung" && r.org === pe.org && correctionOrg(c, p) === pe.org;
     if (role === "lehrkraft") return c.kind === "unterricht" && isTeacherOf(c, pe.id);
     return c.kind === "pruefung" && [1, 2, 3].some((st) => canCorrect(c, p, st, pe.id));
-  }).sort((a, b) => a.lastname.localeCompare(b.lastname));
+  }).map(maskP).sort((a, b) => a.lastname.localeCompare(b.lastname) || a.firstname.localeCompare(b.firstname));
 }
 const stCell = (r, a) => `<td class="num">${r.pts === null ? "–" : fmtP(r.pts)}${r.any && !r.complete ? `<div class="xs muted">unvollständig</div>` : ""}</td><td class="num">${r.note === null ? "–" : `<b>${fmtNote(r.note)}</b>`}${a && a.of && r.any ? `<div class="xs ${a.final ? "" : "muted"}">${a.final ? "final" : `${a.n}/${a.of} freigegeben`}</div>` : ""}</td>`;
 
@@ -49,7 +51,7 @@ export function overview() {
   return {
     shell: "staff", rail: "ergebnisse", title: "Ergebnisse",
     render() {
-      const pe = me(); const adm = pe?.kind === "schuladmin"; const lesson = session.role === "lehrkraft";
+      const pe = me(); const adm = isAdm(pe); const ka = pe?.kind === "kammeradmin"; const lesson = session.role === "lehrkraft";
       const CS = contentScope(resultParticipants()); const ps = CS.ps;
       const rows = ps.map((p) => ({ p, t: totals(p.id), a1: approvalState(p, 1), a2: approvalState(p, 2), a3: approvalState(p, 3) }));
       const done = rows.filter((r) => r.t.note !== null);
@@ -75,10 +77,11 @@ export function overview() {
         const both = a1.final && a2.final;
         const ts = thirdState(o.c, p);
         const hint = o.third ? (ts.auto ? `<span class="badge purple" title="Notenabweichung EK/ZK Δ ${fmtNote(o.diff)} ab Schwelle ${fmtNote(dkThreshold(o.c))} – Drittkorrektur ist durchzuführen">${icon("triangle-alert")} Drittkorrektur erforderlich – automatisch angefordert (Δ ${fmtNote(o.diff)})</span>` : `<span class="badge purple">Drittkorrektur angefordert</span>`) : ts.withdrawn && o.recommend ? `<span class="badge gray" title="Abweichung ${fmtNote(o.diff)}">Drittkorrektur empfohlen – Anforderung zurückgenommen</span>` : o.recommend ? `<span class="badge yellowb" title="Abweichung der Noten aus Erst- und Zweitkorrektur: ${fmtNote(o.diff)}">${icon("triangle-alert")} Drittkorrektur empfohlen (Δ ${fmtNote(o.diff)})</span>` : o.diff !== null ? `<span class="xs muted">Δ ${fmtNote(o.diff)}</span>` : "";
-        const act = !adm ? "" : `<td>${o.third ? (o.dk.any ? `<span class="xs muted">läuft</span>` : `<button class="btn sm ghost" data-dk="${p.id}" data-on="0">${icon("x")} zurücknehmen</button>`) : `<button class="btn sm ${o.recommend ? "primary" : ""}" data-dk="${p.id}" data-on="1" ${both || o.recommend ? "" : `disabled title="Erst nach Abschluss (finaler Freigabe) von Erst- und Zweitkorrektur"`}>${icon("file-pen-line")} ${ts.withdrawn ? "erneut anfordern" : "anfordern"}</button>`}</td>`;
-        return `<tr class="${o.recommend && !o.third ? "recrow" : ""}"><td>${esc(p.lastname)}<div class="xs muted">${esc(byId("rooms", p.room)?.exam_name || "")} · ${esc(byId("rooms", p.room)?.name || "")}</div></td><td>${esc(p.firstname)}</td><td>${esc(p.username)}</td>${stCell(o.ek, a1)}${stCell(o.zk, a2)}${o.third ? stCell(o.dk, a3) : `<td class="num muted" title="Nicht angefordert">–</td><td class="num muted" title="Nicht angefordert">–</td>`}<td class="num">${o.note === null ? "–" : `<b class="big-note">${fmtNote(o.note)}</b><div class="xs muted">${esc(o.src)}</div>`}</td><td>${hint}</td>${act}<td><a class="iconbtn" href="#/app/einsicht/${p.id}" title="Prüfungseinsicht" aria-label="Prüfungseinsicht ${esc(p.lastname)}">${icon("eye")}</a></td></tr>`;
+        const xe = extEntryP(p);
+        const act = !adm ? "" : correctionOrg(o.c, p) !== pe.org ? `<td><span class="xs muted" title="Drittkorrektur entscheidet die Stelle, die korrigiert">Schule (Art 2)</span></td>` : `<td>${o.third ? (o.dk.any ? `<span class="xs muted">läuft</span>` : `<button class="btn sm ghost" data-dk="${p.id}" data-on="0">${icon("x")} zurücknehmen</button>`) : `<button class="btn sm ${o.recommend ? "primary" : ""}" data-dk="${p.id}" data-on="1" ${both || o.recommend ? "" : `disabled title="Erst nach Abschluss (finaler Freigabe) von Erst- und Zweitkorrektur"`}>${icon("file-pen-line")} ${ts.withdrawn ? "erneut anfordern" : "anfordern"}</button>`}</td>`;
+        return `<tr class="${o.recommend && !o.third ? "recrow" : ""}"><td>${esc(p.lastname)}<div class="xs muted">${esc(byId("rooms", p.room)?.exam_name || "")} · ${esc(byId("rooms", p.room)?.name || "")}${xe ? ` · extern (${esc(extPerson(p)?.pnr || "")}) · Art ${xe.art || "–"}${xe.school ? " · " + esc(orgShort(xe.school)) : ""}` : ""}</div></td><td>${esc(p.firstname)}</td><td>${esc(p.username)}</td>${stCell(o.ek, a1)}${stCell(o.zk, a2)}${o.third ? stCell(o.dk, a3) : `<td class="num muted" title="Nicht angefordert">–</td><td class="num muted" title="Nicht angefordert">–</td>`}<td class="num">${o.note === null ? "–" : `<b class="big-note">${fmtNote(o.note)}</b><div class="xs muted">${esc(o.src)}</div>`}</td><td>${hint}</td>${act}<td><a class="iconbtn" href="#/app/einsicht/${p.id}" title="Prüfungseinsicht" aria-label="Prüfungseinsicht ${esc(p.lastname)}">${icon("eye")}</a></td></tr>`;
       }).join("");
-      return `<div class="pagehead"><div><h1>Ergebnisse</h1><div class="sub">${lesson ? "Unterricht · eine Korrektur je Teilnehmende/r" : `${esc(EXAM.name)}${adm ? ` · Prüflinge Ihrer Schule (${esc(orgShort(pe.org))})` : " · Prüflinge Ihrer Korrektorengruppen"}`}</div></div>
+      return `<div class="pagehead"><div><h1>Ergebnisse</h1><div class="sub">${lesson ? "Unterricht · eine Korrektur je Teilnehmende/r" : `${esc(EXAM.name)}${ka ? ` · externe Prüflinge Ihrer Kammer (${esc(orgShort(pe.org))})` : adm ? ` · Prüflinge Ihrer Schule (${esc(orgShort(pe.org))})` : " · Prüflinge Ihrer Korrektorengruppen"}`}</div></div>
         <div class="row wrap">${CS.select}<button class="btn" data-key>${icon("sigma")} Notenschlüssel</button><a class="btn" href="#/app/korrektur">${icon("file-pen-line")} Zur Korrektur</a><button class="btn" data-csv>${icon("download")} CSV exportieren</button>
         </div></div>
       ${adm ? `<div class="notice info small mb">${icon("eye")}<span><b>Prüfungseinsicht in Präsenz:</b> Prüflinge erhalten keinen eigenständigen Zugriff. Die Einsicht findet vor Ort statt – eine Person mit der Rolle „Prüfungseinsicht“ (Prüfungen › Mitglieder) meldet sich an und bleibt während der Einsicht dabei. Gezeigt werden nur Endnote und Abgabe mit Korrekturzeichen.</span></div>` : ""}

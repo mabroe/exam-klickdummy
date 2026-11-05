@@ -1188,3 +1188,11 @@ td.ctr, th.ctr { text-align: center; }
 .hzopts { margin: 6px 0 0 22px; padding: 0; }
 .hzpair + .hzpair { margin-top: 14px; }
 .tn-page details p { white-space: pre-line; }
+/* Kammer: Benachrichtigungen, Hinweise */
+.navbadge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--red, #c62828); color: #fff; font-size: 11px; font-weight: 700; margin-left: 4px; }
+.noticebox h3 { display: flex; gap: 8px; align-items: center; margin: 0; }
+.noticelist { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.noticelist li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line-2, #e3e3e3); border-left: 4px solid var(--yellow, #f5d000); border-radius: 6px; background: #fffdf2; }
+.noticelist li.read { border-left-color: var(--line-2, #e3e3e3); background: transparent; opacity: .8; }
+.badge.xs { font-size: 11px; padding: 1px 6px; vertical-align: middle; }
+.kgroup { border: 1px solid var(--line-2, #e3e3e3); border-radius: 6px; padding: 10px 12px; }

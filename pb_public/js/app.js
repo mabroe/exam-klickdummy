@@ -1,33 +1,35 @@
 // Exam Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=9.3";
-import { lock as lockGate } from "./gate.js?v=9.3";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=9.3";
-import * as TN from "./views/participant.js?v=9.3";
-import * as PR from "./views/proctor.js?v=9.3";
-import * as KO from "./views/correction.js?v=9.3";
-import * as LK from "./views/teacher.js?v=9.3";
-import * as RS from "./views/results.js?v=9.3";
-import * as KU from "./views/courses.js?v=9.3";
-import * as GD from "./guide.js?v=9.3";
-import * as ED from "./views/editor.js?v=9.3";
-import * as CR from "./views/creation.js?v=9.3";
-import { CORRECTORS } from "./scenario.js?v=9.3";
-import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=9.3";
-import { seatCount, seatCmp } from "./seats.js?v=9.3";
-import { syncForRoute } from "./content.js?v=9.3";
-import * as SD from "./views/stammdaten.js?v=9.3";
-import * as STU from "./views/student.js?v=9.3";
-import { closeAll as closeWindows } from "./views/dock.js?v=9.3";
-import { applySigns } from "./masterdata.js?v=9.3";
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=10.0";
+import { lock as lockGate } from "./gate.js?v=10.0";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=10.0";
+import * as TN from "./views/participant.js?v=10.0";
+import * as PR from "./views/proctor.js?v=10.0";
+import * as KO from "./views/correction.js?v=10.0";
+import * as LK from "./views/teacher.js?v=10.0";
+import * as RS from "./views/results.js?v=10.0";
+import * as KU from "./views/courses.js?v=10.0";
+import * as GD from "./guide.js?v=10.0";
+import * as ED from "./views/editor.js?v=10.0";
+import * as CR from "./views/creation.js?v=10.0";
+import { CORRECTORS } from "./scenario.js?v=10.0";
+import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=10.0";
+import { seatCount, seatCmp } from "./seats.js?v=10.0";
+import { syncForRoute } from "./content.js?v=10.0";
+import * as SD from "./views/stammdaten.js?v=10.0";
+import * as STU from "./views/student.js?v=10.0";
+import * as KAM from "./views/kammer.js?v=10.0";
+import { closeAll as closeWindows } from "./views/dock.js?v=10.0";
+import { applySigns } from "./masterdata.js?v=10.0";
 
-export const VERSION = "9.3";
-export const VERSION_LABEL = `Version ${VERSION} · 23.10.2026`;
+export const VERSION = "10.0";
+export const VERSION_LABEL = `Version ${VERSION} · 05.11.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },
   aufsicht: { label: "Raumaufsicht", icon: "monitor", user: "Thea Riedmüller" },
   korrektor: { label: "Korrektor:in", icon: "file-pen-line" },
   lehrkraft: { label: "Lehrkraft", icon: "school", user: "Amir Eggert" },
   schuladmin: { label: "Schuladministration", icon: "building-2", user: "Marit Hinrichs" },
+  kammeradmin: { label: "Kammeradministration", icon: "building-2", user: "Jasper Lindemann" },
   einsicht: { label: "Prüfungseinsicht", icon: "eye" },
   autor: { label: "Prüfungserstellung", icon: "pencil", user: "Koordinierungsstelle (IBBW)" },
   schueler: { label: "Schüler:in", icon: "graduation-cap" },
@@ -76,6 +78,7 @@ const routes = [
   [/^app\/pruefungseinsicht\/([^/]+)$/, (m) => RS.einsichtSession(m[1])],
   [/^app\/stammdaten(?:\/([^/]+))?$/, (m) => SD.view(m[1] || "berufe")],
   [/^schueler$/, () => STU.portal()],
+  [/^app\/kammer$/, () => KAM.externView()],
 ];
 
 let current = null;
@@ -153,11 +156,18 @@ function userMenu() {
   return `<div class="usermenu"><button data-usermenu>${icon("circle-user", "lg")}<span class="nm">${esc(session.userName())}</span>${icon("chevron-down")}</button></div>`;
 }
 function staffShell(v) {
-  const adm = me()?.kind === "schuladmin";
-  const nav = session.role === "einsicht" ? [["einsicht", "#/app/pruefungseinsicht", "eye", "Prüfungseinsicht"]] : session.role === "autor" ? [["erstellung", "#/app/erstellung", "clipboard-list", "Erstellung"], ...(me()?.kind === "koordination" ? [["stammdaten", "#/app/stammdaten", "database", "Stammdaten"]] : [])] : session.role === "bereichsadmin" ? [["katalog", "#/app/katalog", "library", "Katalog und Editor"]] : [
+  const adm = me()?.kind === "schuladmin"; const ka = me()?.kind === "kammeradmin"; const nn = adm || ka ? KAM.unreadCount() : 0;
+  const nav = ka ? [
+    ["kurse", "#/app/kurse", "clipboard-list", `Prüfungen${nn ? ` <span class="navbadge">${nn}</span>` : ""}`],
+    ["kammer", "#/app/kammer", "users", "Externe Prüflinge"],
+    ["ergebnisse", "#/app/ergebnisse", "chart-pie", "Ergebnisse"],
+    ["schule", "#/app/raumaufsicht", "building-2", "Meine Kammer"],
+    ["raeume", "#/app/raeume", "door-open", "Prüfungsräume"],
+    ["admin", "#/app/admin", "sliders-horizontal", "Administration"],
+  ] : session.role === "einsicht" ? [["einsicht", "#/app/pruefungseinsicht", "eye", "Prüfungseinsicht"]] : session.role === "autor" ? [["erstellung", "#/app/erstellung", "clipboard-list", "Erstellung"], ...(me()?.kind === "koordination" ? [["stammdaten", "#/app/stammdaten", "database", "Stammdaten"]] : [])] : session.role === "bereichsadmin" ? [["katalog", "#/app/katalog", "library", "Katalog und Editor"]] : [
     ["aufgaben", "#/app/aufgaben", "circle-check", "Aufgaben"],
     ["katalog", "#/app/katalog", "pencil", "Katalog"],
-    ["kurse", "#/app/kurse", adm ? "clipboard-list" : "book-open", adm ? "Prüfungen" : "Mein Unterricht"],
+    ["kurse", "#/app/kurse", adm ? "clipboard-list" : "book-open", adm ? `Prüfungen${nn ? ` <span class="navbadge">${nn}</span>` : ""}` : "Mein Unterricht"],
     ["ergebnisse", "#/app/ergebnisse", "chart-pie", "Ergebnisse"],
     ["schule", "#/app/raumaufsicht", "school", "Meine Schule"],
     ...(adm ? [["raeume", "#/app/raeume", "door-open", "Prüfungsräume"]] : []),
@@ -230,7 +240,7 @@ function roleCard(role) {
 // Schüler:innen mit Teilnahmen (ohne den Großraum-Testfall); zuerst Personen mit mehreren gleichzeitigen Teilnahmen
 function studentOpts() {
   const cnt = new Map(); D.participants.forEach((x) => { const r = byId("rooms", x.room); if (x.person && r && seatCount(r) <= 60) cnt.set(x.person, (cnt.get(x.person) || 0) + 1); });
-  return [...cnt.keys()].map((id) => byId("persons", id)).filter(Boolean).sort((a, b) => cnt.get(b.id) - cnt.get(a.id) || a.lastname.localeCompare(b.lastname)).map((p) => `<option value="${p.id}">${esc(personName(p))} (${esc(orgsLabel(p))}, ${cnt.get(p.id)} Teilnahme${cnt.get(p.id) === 1 ? "" : "n"})</option>`).join("");
+  return [...cnt.keys()].map((id) => byId("persons", id)).filter((p) => p && p.kind === "schueler").sort((a, b) => cnt.get(b.id) - cnt.get(a.id) || a.lastname.localeCompare(b.lastname)).map((p) => `<option value="${p.id}">${esc(personName(p))} (${esc(orgsLabel(p))}, ${cnt.get(p.id)} Teilnahme${cnt.get(p.id) === 1 ? "" : "n"})</option>`).join("");
 }
 export function login(person, role, extra = {}) { store.set("person", person?.id || ""); if (!extra.portal) store.del("portal"); setRole(role, extra); }
 function startView() {
@@ -290,6 +300,25 @@ function startView() {
           <label class="lbl mt-s" for="eisel">Person</label><select class="select" id="eisel">${optP(einsichtPersons().sort((a, b) => a.org.localeCompare(b.org) || a.lastname.localeCompare(b.lastname)), "t.riedmueller")}</select>
           <button class="btn primary" data-role="einsicht">${icon("arrow-right")} Zur Prüfungseinsicht</button></div>
       </div>
+      <h2 class="rolesec">${icon("building-2")} Kammer</h2>
+      <div class="rolegrid five six seven">
+        <div class="rolecard"><div class="rico">${icon("building-2", "lg")}</div><h3>Kammeradministration</h3>
+          <ul><li>Externe Prüflinge (NTA, Prüflingsnummer)</li><li>Zuordnung je Prüfling an Schulen oder Kammer (Art 1–4)</li><li>Rollen in der Kammer, Durchführungsstand</li></ul>
+          <label class="lbl mt-s" for="kasel">Person</label><select class="select" id="kasel">${D.persons.filter((p) => p.kind === "kammeradmin").sort((a, b) => a.lastname.localeCompare(b.lastname)).map((p) => `<option value="${p.id}">${esc(personName(p))} (${esc(orgShort(p.org))})</option>`).join("")}</select>
+          <button class="btn primary" data-role="kammeradmin">${icon("arrow-right")} Zur Kammer</button></div>
+        <div class="rolecard"><div class="rico">${icon("monitor", "lg")}</div><h3>Kammer-Raumaufsicht</h3>
+          <ul><li>Durchführung durch die Kammer (Art 1/4)</li><li>Nur zugeordnete Raumaufsichten der Kammer</li></ul>
+          <label class="lbl mt-s" for="kausel">Person</label><select class="select" id="kausel">${D.persons.filter((p) => p.kind === "kammer" && supIds.has(p.id)).map((p) => `<option value="${p.id}">${esc(personName(p))} (${esc(orgShort(p.org))})</option>`).join("") || `<option value="">derzeit niemand zugewiesen</option>`}</select>
+          <button class="btn primary" data-role="kaufsicht">${icon("arrow-right")} Zur Raumaufsicht</button></div>
+        <div class="rolecard"><div class="rico">${icon("file-pen-line", "lg")}</div><h3>Kammer-Korrektur</h3>
+          <ul><li>Korrektur der externen Prüflinge (Art 1/3)</li><li>Korrektorenpool (Art 4): pseudonymisiert</li></ul>
+          <label class="lbl mt-s" for="kksel">Person und Korrekturrolle</label><select class="select" id="kksel">${(() => { const seen = new Set(); const out = []; D.courses.filter((c) => c.kind === "pruefung").forEach((c) => (c.corrections || []).filter((a) => byId("orgs", a.org)?.type === "kammer").forEach((a) => (a.correctors || []).forEach((id) => { const pe = byId("persons", id); const k = id + "|" + a.stage; if (pe && !seen.has(k)) { seen.add(k); out.push({ pe, stage: +a.stage }); } }))); return out.sort((a, b) => (a.pe.kind === "kammer" ? 0 : 1) - (b.pe.kind === "kammer" ? 0 : 1) || a.stage - b.stage || a.pe.lastname.localeCompare(b.pe.lastname)).map((k) => `<option value="${k.pe.id}|${k.stage}">${esc(personName(k.pe))} – ${STAGE_LABEL[k.stage]}${k.pe.kind === "kammer" ? "" : ` (Korrektorenpool, ${esc(orgShort(k.pe.org))})`}</option>`).join(""); })()}</select>
+          <button class="btn primary" data-role="kkorr">${icon("arrow-right")} Zur Korrektur</button></div>
+        <div class="rolecard"><div class="rico">${icon("eye", "lg")}</div><h3>Kammer-Prüfungseinsicht</h3>
+          <ul><li>Einsicht der externen Prüflinge – immer bei der Kammer</li><li>auch bei Durchführung und Korrektur an einer Schule</li></ul>
+          <label class="lbl mt-s" for="keisel">Person</label><select class="select" id="keisel">${einsichtPersons().filter((p) => p.kind === "kammer").map((p) => `<option value="${p.id}">${esc(personName(p))} (${esc(orgShort(p.org))})</option>`).join("") || `<option value="">derzeit niemand zugewiesen</option>`}</select>
+          <button class="btn primary" data-role="keinsicht">${icon("arrow-right")} Zur Prüfungseinsicht</button></div>
+      </div>
       <h2 class="rolesec">${icon("pencil")} Prüfungserstellung</h2>
       <div class="rolegrid five six seven">
         <div class="rolecard"><div class="rico">${icon("building-2", "lg")}</div><h3>Koordinierungsstelle</h3>
@@ -328,6 +357,10 @@ function startView() {
         if (r === "koordination") { login(byId("persons", v("#kssel")), "autor"); navigate("#/app/erstellung"); }
         if (r === "schueler") { login(byId("persons", v("#susel")), "schueler", { portal: v("#susel") }); navigate("#/schueler"); }
         if (r === "einsicht") { login(byId("persons", v("#eisel")), "einsicht"); navigate("#/app/pruefungseinsicht"); }
+        if (r === "kammeradmin") { login(byId("persons", v("#kasel")), "kammeradmin"); navigate("#/app/kurse"); }
+        if (r === "kaufsicht") { login(byId("persons", v("#kausel")), "aufsicht"); const vr = visibleRooms(); navigate(vr.length === 1 ? `#/app/raum/${vr[0].id}/meinraum` : "#/app/raumaufsicht"); }
+        if (r === "kkorr") { const [pid, st] = v("#kksel").split("|"); login(byId("persons", pid), "korrektor", { corrector: +st }); navigate("#/app/korrektur"); }
+        if (r === "keinsicht") { login(byId("persons", v("#keisel")), "einsicht"); navigate("#/app/pruefungseinsicht"); }
         if (r === "bereichsadmin") { login(byId("persons", v("#basel")), "bereichsadmin"); navigate("#/app/katalog"); }
       }));
       el.querySelectorAll("[data-guide]").forEach((b) => (b.onclick = async () => { if ((b.hasAttribute("data-restart") || b.hasAttribute("data-switch")) && !(await confirmBox(b.hasAttribute("data-switch") ? "Andere Klickstrecke starten" : "Klickstrecke neu beginnen", "<p>Der bisherige Fortschritt der laufenden Klickstrecke wird verworfen. Ihre angelegten Daten bleiben erhalten.</p>", b.hasAttribute("data-switch") ? "Starten" : "Neu beginnen"))) return; GD.start(b.dataset.guide, b.hasAttribute("data-restart")); }));

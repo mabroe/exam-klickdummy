@@ -1,13 +1,13 @@
 // Korrekturworkflow: Korrekturübersicht, Korrekturmodus, Vergleich, Erwartungshorizont
-import { D, byId, upd, create, setting, setSetting } from "../data.js?v=9.3";
-import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=9.3";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=9.3";
-import { contentScope } from "../content.js?v=9.3";
-import * as CRk from "./creation.js?v=9.3";
-import { navigate, redraw, session } from "../app.js?v=9.3";
-import { me, courseOf, correctorStages, canCorrect, correctionOver, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses, STAGE_LABEL } from "../access.js?v=9.3";
-import { linearGrade, fmtNote, approvalState, approvalText } from "../grades.js?v=9.3";
-export { mode } from "./kmode.js?v=9.3";
+import { D, byId, upd, create, setting, setSetting } from "../data.js?v=10.0";
+import { icon, esc, modal, confirmBox, toast, drawer, popMenu, fmtDateTime, parseDate, uid, store } from "../ui.js?v=10.0";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, TOTAL_POINTS, CORRECTORS } from "../scenario.js?v=10.0";
+import { contentScope } from "../content.js?v=10.0";
+import * as CRk from "./creation.js?v=10.0";
+import { navigate, redraw, session } from "../app.js?v=10.0";
+import { me, courseOf, correctorStages, canCorrect, correctionOver, lessonCorrector, lessonTeachers, isTeacherOf, personName, visibleCourses, STAGE_LABEL, maskP } from "../access.js?v=10.0";
+import { linearGrade, fmtNote, approvalState, approvalText } from "../grades.js?v=10.0";
+export { mode } from "./kmode.js?v=10.0";
 
 const S = { view: "aufgaben", collapsed: {} };
 // Lehrkraft (Unterrichtsebene): genau eine Korrektur; Korrektor:in (Prüfungsebene): Erst-, Zweit-, Drittkorrektur
@@ -25,7 +25,7 @@ export function candidates() {
   const kind = lessonMode() ? "unterricht" : "pruefung";
   const stage = corr();
   // Prüfung: nur Prüflinge, für die die Person der Korrektorengruppe dieser Stufe angehört (Endbeurteilung nur, wenn angefordert)
-  return D.participants.filter((p) => { if (!withSubs.has(p.id)) return false; const c = courseOf(byId("rooms", p.room)); if (!pe) return !lessonMode(); return c?.kind === kind && canCorrect(c, p, stage, pe.id); }).sort((a, b) => a.lastname.localeCompare(b.lastname));
+  return D.participants.filter((p) => { if (!withSubs.has(p.id)) return false; const c = courseOf(byId("rooms", p.room)); if (!pe) return !lessonMode(); return c?.kind === kind && canCorrect(c, p, stage, pe.id); }).map(maskP).sort((a, b) => a.lastname.localeCompare(b.lastname) || a.firstname.localeCompare(b.firstname));
 }
 export const grading = (pid, c = corr()) => D.gradings.find((g) => g.participant === pid && g.corrector === c);
 export function stPoints(g, st) {

@@ -48,6 +48,8 @@ Im Browser-Modus gelten dieselben Fachregeln wie auf dem Server (Nachteilsausgle
 | **Schüler:in** | **Meine Teilnahmen**: wählen, woran man teilnimmt (z. B. Präsenzunterricht und Distanzeinheit gleichzeitig), freigegebene Korrektur und Ergebnisse des Unterrichts | Task 34 / 36 |
 | **Bereichsadministration** (Wenke Hollerbach) | **Katalog** für den Unterricht pflegen: Inhalte im Editor anlegen und bearbeiten, **global freigeben** und Freigabe beenden (Reiter „Nicht freigegeben“ für Entwürfe) | Katalog, Unterricht (OPU) |
 | **Schuladministration** (Prüfungsebene) | **Prüfungen** der eigenen Schule: Teilnehmende (Personen/Klassen), Raumaufsichten, Korrektor:innen (Erst/Zweit/Dritt), Prüfungseinsicht – jeweils nur Personen der eigenen Schule; Raumaufsichten der Schule organisieren | Exam-Schuladministration, Task 52 / 24 / 21 / 23 / 28 |
+| **Kammeradministration** (Jasper Lindemann, IHK Musterstadt · Carla Ostrowski, IHK Bergland) | **Externe Prüflinge** der Kammer (Name, Vorname, Prüflingsnummer, Nachteilsausgleich; einzeln oder per CSV), **Zuordnung je Prüfling** in einer Prüfung (Art 1–4, Schule), Benachrichtigungen, **Rollen in der Kammer** (Raumaufsicht, Prüfungseinsicht), Korrektoren je Prüfling, Raumaufsichten der Kammer, **Stand der Durchführung** der eigenen Prüflinge, Ergebnisse, Korrektorenpool | Exam-Administration (Kammer), Task 21/23/24/52 |
+| **Kammer-Raumaufsicht, -Korrektur, -Prüfungseinsicht** (Hanno Weißgerber, Mira Fenske, Ole Brückner) | Raumaufsicht in Räumen der Kammer (Art 1/4), Korrektur der externen Prüflinge (Art 1/3), Prüfungseinsicht aller externen Prüflinge | Kammer |
 
 ## Konten, Schulen und Sichtbarkeit
 
@@ -98,9 +100,15 @@ Auf der Startseite gibt es für **jeden Workflow eine eigene Klickstrecke** (gru
 | **Schüler:in** | Helena Nowak | Distanzeinheit wählen, bearbeiten und abgeben, Korrektur und Ergebnis ansehen, Präsenzunterricht (optional) |
 | **Katalog pflegen** | Bereichsadministration (Wenke Hollerbach), Lehrkraft | Unterrichtsinhalt erstellen und bearbeiten, global freigeben, durchgeführte Prüfung veröffentlichen und Import (optional), Sichtbarkeit prüfen |
 
-Schritte, die sich nicht aus den Daten erkennen lassen (z. B. „Sichtbarkeit prüfen“), werden mit „Erledigt“ abgehakt; optionale Schritte lassen sich überspringen.
+| **Kammer: Annahme und Ummeldung** | Schuladministration AFS/BTS, Kammeradministration IHK Musterstadt und IHK Bergland | Benachrichtigung, Annahme (nur Anzahl, Art, NTA sichtbar), Ablehnung, Neuzuordnung durch die andere Kammer (anderer Bezirk), kurzfristige Ummeldung, erneute Annahme, Ergebnis an der bisherigen Schule |
+| **Kammer Art 2** | Kammeradministration, Schuladministration AFS, Kammer-Prüfungseinsicht | Zuordnung an die AFS, Annahme, Raumaufsicht, Korrektorenzuweisung durch die Schule, Durchführungsstand der Kammer, Einsicht bei der Kammer (optional) |
+| **Kammer Art 3** | Schuladministration BTS, Kammeradministration, Kammer-Korrektur | Annahme, Raumaufsicht, keine Korrektur an der Schule, Protokoll freigeben, Protokolleinträge des eigenen Prüflings, Korrektur durch die Kammer (optional) |
+| **Kammer Art 1** | Kammeradministration, Kammer-Raumaufsicht | Kammer prüft selbst, Raumaufsicht der Kammer, Rolle vergeben, Korrektur durch die Kammer |
+| **Kammer Art 4** | Kammeradministration, Lehrkraft aus dem Korrektorenpool | Korrektorenpool, Prüfling anlegen, Art 4, Raumaufsicht der Kammer, Pool-Lehrkraft zuweisen, pseudonymisierte Korrektur |
 
-**Rollen auf der Startseite:** Alle Rollen sind als eigene Karten wählbar, gegliedert nach Unterricht (Lehrkraft, Schüler:in), Prüfungsdurchführung (Schuladministration, Raumaufsicht, Prüfling, Korrektor:in, Prüfungseinsicht), Prüfungserstellung (Koordinierungsstelle, Aufgabenerstellung, Kommission, Kommissionsvorsitz, Beratung, Lektorat, Prüflösung, weitere Person) und Katalog (Bereichsadministration). Die Karten der Erstellungsrollen listen die Personen mit dieser Rolle; ist eine Person nur einer Prüfung zugewiesen, öffnet sich diese direkt.
+Schritte, die sich nicht aus den Daten erkennen lassen (z. B. „Sichtbarkeit prüfen“), werden mit „Erledigt“ abgehakt; optionale Schritte lassen sich überspringen. Die Kammer-Klickstrecken setzen auf den Demodaten auf – vor einem erneuten Durchlauf „Demo zurücksetzen“.
+
+**Rollen auf der Startseite:** Alle Rollen sind als eigene Karten wählbar, gegliedert nach Unterricht (Lehrkraft, Schüler:in), Prüfungsdurchführung (Schuladministration, Raumaufsicht, Prüfling, Korrektor:in, Prüfungseinsicht), Prüfungserstellung (Koordinierungsstelle, Aufgabenerstellung, Kommission, Kommissionsvorsitz, Beratung, Lektorat, Prüflösung, weitere Person), Kammer (Kammeradministration, Kammer-Raumaufsicht, Kammer-Korrektur, Kammer-Prüfungseinsicht) und Katalog (Bereichsadministration). Die Karten der Erstellungsrollen listen die Personen mit dieser Rolle; ist eine Person nur einer Prüfung zugewiesen, öffnet sich diese direkt.
 
 ## Empfohlene Demo (zwei Fenster nebeneinander)
 
@@ -214,6 +222,26 @@ Das Prüfungsprotokoll gibt es **nur bei Prüfungen** (nicht im Unterricht). Der
 - Im Kurs der Prüfung, Reiter **„Korrektoren“**, weist die Schuladministration je Korrekturstufe (Erst-, Zweitkorrektur, Endbeurteilung) eine **Gruppe aus einer oder mehreren Korrektor:innen** zu – für eine **Klasse/einen Kurs** (gilt für alle zugehörigen Prüflinge) oder für **einzelne Prüflinge** (Einzelzuweisung hat Vorrang). Gruppen gelten nur für diese Prüfung; dieselben Personen dürfen in mehreren Stufen sein (ohne Warnung). Mitglieder lassen sich über „Bearbeiten“ austauschen oder entfernen, erteilte Freigaben bleiben erhalten.
 - Alle Mitglieder sehen die **gesamte Leistung** und erfassen **eine gemeinsame Bewertung** je Stufe; die Aufteilung regelt die Gruppe selbst.
 - **Gruppenfreigabe**: Die Bewertung ist **final**, sobald alle Mitglieder freigegeben haben; angezeigt wird der aggregierte Stand („1 von 2 freigegeben“). Bis dahin kann jedes Mitglied seine Freigabe zurückziehen – nicht mehr nach der letzten Freigabe oder nach dem Ende des Korrekturzeitraums (im Reiter „Korrektoren“ einstellbar). Finale Bewertungen sind schreibgeschützt.
+
+## Kammern und externe Prüflinge
+
+Eine Prüfung kann über die Schule, über eine Kammer oder gemischt stattfinden. Kammern sind eigene Organisationen; das IBBW (Koordinierungsstelle) fügt sie wie Schulen einer Prüfung hinzu, die Kammeradministration wird automatisch ergänzt. Die Koordinierungsstelle sieht nie personenbezogene Daten, nur die Organisationen. Demodaten: **IHK Musterstadt** (Bezirk MUS: AFS, BTS, KAS, DST, HHS) und **IHK Bergland** (Bezirk BER), beide fiktiv.
+
+**Arten je externem Prüfling** (Zuordnung durch die Kammer, je Prüfung und Prüfling):
+
+| Art | Durchführung | Korrektur | Prüfungseinsicht |
+|---|---|---|---|
+| 1 | Kammer (eigene Räume, Raumaufsicht der Kammer) | Kammer | Kammer |
+| 2 | Schule | Schule (inkl. Drittkorrektur) | Kammer |
+| 3 | Schule | Kammer (inkl. Drittkorrektur) | Kammer |
+| 4 | Kammer | bereite Lehrkräfte der Schulen aus dem Korrektorenpool, **pseudonymisiert** (nur Prüflingsnummer) | Kammer |
+
+- **Zuordnung und Annahme:** Die Kammer wählt Art und Schule; zur Auswahl stehen standardmäßig die vom IBBW hinzugefügten Schulen des eigenen Kammerbezirks, auf Wunsch auch Schulen anderer Bezirke. Bei Art 2/3 wird der Vorschlag erst mit der **Annahme durch die Schuladministration** wirksam (einzeln oder alle einer Kammer). Vor der Annahme sieht die Schule nur Anzahl, Art und Nachteilsausgleich, danach Name, Vorname, Prüflingsnummer und NTA. Abgelehnte Prüflinge erscheinen bei der Kammer als „noch nicht versorgt“.
+- **Ummeldung:** Fehlerhafte Zuordnungen korrigiert die Kammer bis zum Abschluss der Prüfung des Prüflings. Bei einem Schulwechsel wird die bisherige Schule benachrichtigt, eine noch nicht begonnene Teilnahme dort aus der Raumaufsicht entfernt; die neue Schule nimmt erneut an.
+- **An der Schule:** Angenommene externe Prüflinge stehen nur in dieser Prüfung zur Auswahl (Hinweis „extern · Kammer“); einer anderen Prüfung kann sie nur die Kammer zuordnen. Den Nachteilsausgleich pflegt die Kammer (an der Schule nur lesbar). Art 3: Die Prüflinge erscheinen weder in der Korrektorenzuweisung noch in den Ergebnissen der Schule. Nach Prüfungsende gibt die Schule das **Prüfungsprotokoll frei**; erst dann sieht die Kammer die Einträge ihrer Prüflinge. Durchführung und Protokoll bleiben bei der Schule.
+- **Datensparsamkeit:** Die Kammer sieht nur die Angaben ihrer eigenen externen Prüflinge (Ort, Raumaufsicht, Termin, Status, Zeitgutschrift, Protokolleinträge nach Freigabe, Ergebnisse) – keine anderen Teilnehmenden, keine Aufsichtspersonen und keine Raumaufsichten der Schule. Bei Art 2 sieht sie Bewertung und Korrekturzeichen ohne Namen der Korrigierenden. Andere Kammern und Schulen sehen nicht, wo ein Prüfling sonst schreibt.
+- **Korrektorenpool (Art 4):** Lehrkräfte, die sich ehrenamtlich bereit erklärt haben (im Vorfeld außerhalb der Plattform geklärt), mit Name, Schule und Fach; andere Lehrkräfte sieht die Kammer nicht. Die Bereitschaftserklärung in der Plattform ist zurückgestellt.
+- **Benachrichtigungen** (auf der Seite „Prüfungen“ und im Kurs, Zähler in der Navigation): neue Zuordnung, Art geändert, Ummeldung/Rückzug, Annahme, Ablehnung, Protokoll freigegeben.
 
 ## Ergebnisse und Prüfungseinsicht
 
@@ -384,7 +412,7 @@ pb_public/       Frontend (ohne Build-Schritt) – wird auf GitHub Pages veröff
 
 ### Datenmodell (Collections)
 
-`orgs` (Schulen), `persons` (Konten: Lehrkraft, Schüler:in, Schuladmin; `orgs` = weitere Schulen), `groups` (Klassen/Kurse der Schulverwaltung und eigene Gruppen), `courses` (Unterricht bzw. Prüfung mit Mitgliedern `[{ person, role, stage }]`, Gruppen, Gruppen und Korrektorengruppen), `venues` (Prüfungsräume je Schule, von der Schuladministration gepflegt), `rooms` (Raumaufsichten mit Kurs, Schule, Eigentümer, Sitzordnung `layout`/`capacity`/`cols`/`group_size` und ggf. realem Raum `venue`; Distanz: `mode`, `window_from`/`window_to`, `repeatable`, `show_horizon`; Freigabe der Korrektur `released`), `participants` (Teilnahmen, mit Person verknüpft), `supervisors`, `protocol`, `items` (Dateien inkl. Upload, Mails, Termine, Notizen, Tickets, Code und Abgabe-Markierungen je Prüfling, Zuordnung zur Aufgabe in `data.task`), `gradings` (Punkte, Korrekturzeichen, Begründungen und Freigabe je Korrektor), `kfiles` (Dateien der Korrigierenden), `comments`, `tasks` (Aufgabensteuerung), `catalog` (Prüfungs-/Kursinhalte inkl. Aufgabensteuerung `rules`, Katalogfreigabe `release` global/Organisation), `settings` (u. a. Stammdaten `berufe`, `fachbereiche`, `signsets`, Unternehmenspools `pool:<id>`, Bearbeitungssperren `lock:<Prüfung>:<Bereich>`); `orgs.berufe` (Ausbildungsberufe je Schule), `groups.fachbereich` (Kommissionen).
+`orgs` (Schulen und Kammern: `type` = "kammer", `bezirk`), `persons` (Konten: Lehrkraft, Schüler:in, Schuladmin, Kammeradmin, Kammer-Personen, externe Prüflinge mit `pnr` und `nta`; `orgs` = weitere Schulen), `notices` (Benachrichtigungen je Organisation und Rolle), `groups` (Klassen/Kurse der Schulverwaltung und eigene Gruppen), `courses` (Unterricht bzw. Prüfung mit Mitgliedern `[{ person, role, stage }]`, Gruppen und Korrektorengruppen; Zuordnung externer Prüflinge `ext[person] = { art, school, status, hist }`), `venues` (Prüfungsräume je Schule bzw. Kammer, von der Schul- bzw. Kammeradministration gepflegt), `rooms` (Raumaufsichten mit Kurs, Schule, Eigentümer, Sitzordnung `layout`/`capacity`/`cols`/`group_size` und ggf. realem Raum `venue`; Distanz: `mode`, `window_from`/`window_to`, `repeatable`, `show_horizon`; Freigabe der Korrektur `released`, Protokollfreigabe `prot_released`), `participants` (Teilnahmen, mit Person verknüpft), `supervisors`, `protocol`, `items` (Dateien inkl. Upload, Mails, Termine, Notizen, Tickets, Code und Abgabe-Markierungen je Prüfling, Zuordnung zur Aufgabe in `data.task`), `gradings` (Punkte, Korrekturzeichen, Begründungen und Freigabe je Korrektor), `kfiles` (Dateien der Korrigierenden), `comments`, `tasks` (Aufgabensteuerung), `catalog` (Prüfungs-/Kursinhalte inkl. Aufgabensteuerung `rules`, Katalogfreigabe `release` global/Organisation), `settings` (u. a. Stammdaten `berufe`, `fachbereiche`, `signsets`, Unternehmenspools `pool:<id>`, Bearbeitungssperren `lock:<Prüfung>:<Bereich>`); `orgs.berufe` (Ausbildungsberufe je Schule), `groups.fachbereich` (Kommissionen).
 
 ### Teilnehmenden-Status
 
@@ -406,6 +434,7 @@ pb_public/       Frontend (ohne Build-Schritt) – wird auf GitHub Pages veröff
 - Die Verbindungsanzeige basiert auf einem Heartbeat alle 10 Sekunden (Zeitlimit 30 s). Per Simulation angemeldete Teilnehmende gelten immer als verbunden.
 - Python in der IDE ist eine Simulation (Übersetzung einfacher Sprachkonstrukte), keine vollständige Python-Laufzeit.
 - Die Handschrifterkennung arbeitet regelbasiert mit Vorlagen und persönlichen Proben. Für den Produktivbetrieb empfiehlt sich zusätzlich ein mit echten Schriftproben vieler Korrigierender trainiertes Modell.
+- Kammer: Die Übermittlung der Ergebnisse an die Kammer (Art 2) folgt in einer späteren Iteration; Inhalte der Abgaben (z. B. Absender von E-Mails) werden bei Art 4 nicht pseudonymisiert. Die Prüfungseinsicht externer Prüflinge wird im Protokoll der Raumaufsicht vermerkt, in der sie geschrieben haben.
 - Nicht umgesetzt: Breakpoint-Varianten > 100 Teilnehmende, Wizard „Unternehmensdaten“ und Anlegen neuer Prüfungen über „Erstellen“ (Hinweis-Toast).
 
 ## Lizenzen

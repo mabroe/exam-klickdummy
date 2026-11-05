@@ -2,13 +2,14 @@
 //  - Erstkorrektur: rot, rechter Rand · Zweitkorrektur: grün, linker Rand · Drittkorrektur (Endbeurteilung): braun, linker Rand außen
 //  - Unterstreichen horizontal (einfach, doppelt, gekringelt) und vertikal (Randstrich)
 //  - Stift: Gesten für Linien, handschriftliche Korrekturzeichen werden erkannt und an den Rand gesetzt
-import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=9.3";
-import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=9.3";
-import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS, QTYPES } from "../scenario.js?v=9.3";
-import { navigate, redraw, session } from "../app.js?v=9.3";
-import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer, lessonMode } from "./correction.js?v=9.3";
-import { pdfPages, cachedPages, isPdf, isImage, isOffice, officeToPdf, downloadUrl, extOf } from "../docs.js?v=9.3";
-import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=9.3";
+import { D, byId, setting, setSetting, createWithFile, fileUrl, del } from "../data.js?v=10.0";
+import { icon, esc, toast, popMenu, store, uid, modal, confirmBox } from "../ui.js?v=10.0";
+import { EXAM, ALL_SUBTASKS, subtask, SIGNS, CORRECTORS, ALL_SIGN_KEYS, QTYPES } from "../scenario.js?v=10.0";
+import { navigate, redraw, session } from "../app.js?v=10.0";
+import { grading, stPoints, saveGrading, candidates, corr, corrName, fmtP, commentsDrawer, favoritesDrawer, lessonMode } from "./correction.js?v=10.0";
+import { pdfPages, cachedPages, isPdf, isImage, isOffice, officeToPdf, downloadUrl, extOf } from "../docs.js?v=10.0";
+import { recognizeSign, classifyGesture, decide, glyphStrokes, packSample, setUserSamples } from "../ink.js?v=10.0";
+import { maskP } from "../access.js?v=10.0";
 
 const PW = 900, ML = 110, MR = 790;               // Papierbreite, Textspalte links/rechts
 const VX = { 1: MR + 8, 2: ML - 8, 3: ML - 16 };    // Randstrich je Korrektor
@@ -92,7 +93,7 @@ function ensureConversion(srcId, url, name, pid, st) {
   if (!srcId || conversionOf(srcId) || converting.has(srcId) || failedConv.has(srcId) || session.role === "tn") return;
   converting.add(srcId);
   const base = name.replace(/\.[^.]+$/, "");
-  officeToPdf(url, name, { who: byId("participants", pid) ? `${byId("participants", pid).firstname} ${byId("participants", pid).lastname}` : "" })
+  officeToPdf(url, name, { who: byId("participants", pid) ? `${maskP(byId("participants", pid)).firstname} ${maskP(byId("participants", pid)).lastname}` : "" })
     .then((blob) => createWithFile("kfiles", { participant: pid, subtask: st, corrector: 0, name: `${base} (Korrekturfassung).pdf`, kind: "konvertiert", source: srcId, orig: name }, new File([blob], `${base}_Korrekturfassung.pdf`, { type: "application/pdf" })))
     .catch((e) => { console.error(e); failedConv.add(srcId); })
     .finally(() => { converting.delete(srcId); later(); });
@@ -270,7 +271,7 @@ export function fitRoPapers(root) {
 // ---------- Ansicht ----------
 export function mode(pid, st, q, compare) {
   store.set("lastKorrP", pid); // Erwartungshorizont im eigenen Tab nutzt den Inhalt dieser Teilnahme
-  const p = byId("participants", pid); const s = subtask(st);
+  const p = maskP(byId("participants", pid)); const s = subtask(st); // Art 4: pseudonymisiert
   if (!p || !s) return { redirect: "#/app/korrektur" };
   const ps = candidates();
   const own = corr();

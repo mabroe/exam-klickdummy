@@ -1,9 +1,9 @@
 // Datenschicht: PocketBase (lokaler Server) oder Browser-Datenbank (GitHub Pages) + Realtime-Spiegel aller Collections im Speicher
-import PocketBase from "./vendor/pocketbase.es.mjs?v=9.3";
-import { toPb } from "./ui.js?v=9.3";
-import CFG from "./config.js?v=9.3";
+import PocketBase from "./vendor/pocketbase.es.mjs?v=10.0";
+import { toPb } from "./ui.js?v=10.0";
+import CFG from "./config.js?v=10.0";
 
-export const APP_VERSION = "9.3";
+export const APP_VERSION = "10.0";
 // Backend ermitteln: PocketBase, wenn erreichbar, sonst Datenbank im Browser
 export const backend = { mode: "local", url: "" };
 async function probe(url) {
@@ -28,7 +28,7 @@ if (backend.mode === "pocketbase") {
     beacon: (col, id, data) => { try { fetch(`${backend.url}api/collections/${col}/records/${id}`, { method: "PATCH", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }); } catch {} },
   };
 } else {
-  const { createLocalBackend } = await import("./localdb.js?v=9.3");
+  const { createLocalBackend } = await import("./localdb.js?v=10.0");
   const lb = await createLocalBackend({ version: APP_VERSION });
   pb = lb.client; api = lb.api;
 }
@@ -38,7 +38,7 @@ export const demoApi = {
   beacon: (col, id, data) => api.beacon(col, id, data),
 };
 
-export const COLS = ["rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "settings", "kfiles", "orgs", "persons", "groups", "courses", "venues"];
+export const COLS = ["rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "settings", "kfiles", "orgs", "persons", "groups", "courses", "venues", "notices"];
 export const D = Object.fromEntries(COLS.map((c) => [c, []]));
 const listeners = new Set();
 export const onChange = (fn) => (listeners.add(fn), () => listeners.delete(fn));

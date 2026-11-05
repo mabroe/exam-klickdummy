@@ -2,7 +2,7 @@
 const t = "text", n = "number", b = "bool", j = "json", d = "date", f = "file";
 const F = (s) => Object.fromEntries(s.split(" ").map((x) => { const [k, ty] = x.split(":"); return [k, ty]; }));
 export const SCHEMA = {
-  rooms: F(`name:${t} exam_name:${t} exam_code:${t} state:${t} planned_start:${d} start_earliest:${t} start_latest:${t} duration_min:${n} global_extra:${n} capacity:${n} rows:${n} cols:${n} started_at:${d} paused_at:${d} paused_total_s:${n} created_label:${t} lockdown:${b} course:${t} org:${t} owner:${t} layout:${t} venue:${t} group_size:${n} mode:${t} window_from:${d} window_to:${d} repeatable:${b} show_horizon:${b} released:${b}`),
+  rooms: F(`name:${t} exam_name:${t} exam_code:${t} state:${t} planned_start:${d} start_earliest:${t} start_latest:${t} duration_min:${n} global_extra:${n} capacity:${n} rows:${n} cols:${n} started_at:${d} paused_at:${d} paused_total_s:${n} created_label:${t} lockdown:${b} course:${t} org:${t} owner:${t} layout:${t} venue:${t} group_size:${n} mode:${t} window_from:${d} window_to:${d} repeatable:${b} show_horizon:${b} released:${b} prot_released:${b} prot_released_at:${d}`),
   participants: F(`lastname:${t} firstname:${t} username:${t} group_name:${t} org:${t} room:${t} seat:${t} present:${b} status:${t} extra_time:${n} nta:${n} comment:${t} health:${t} cheat_ack:${b} last_seen:${d} started_at:${d} finished_at:${d} bookmarks:${j} simulated:${b} violations:${n} offline_until:${d} relogin:${b} person:${t} attempt:${n} progress:${j} fired:${j}`),
   supervisors: F(`lastname:${t} firstname:${t} short:${t} username:${t} room:${t} present:${b} from:${t} to:${t} periods:${j} person:${t}`),
   protocol: F(`room:${t} ts:${d} participant:${t} username:${t} seat:${t} action:${t} comment:${t} kind:${t}`),
@@ -13,10 +13,11 @@ export const SCHEMA = {
   catalog: F(`title:${t} beruf:${t} fach:${t} jahr:${t} kind:${t} description:${t} duration:${t} creator:${t} tags:${j} contents:${j} mine:${b} copied_from:${t} image:${n} rules:${j} content:${j} editor_by:${t} status:${t} meta:${j} team:${j} history:${j} feedback:${j} reviews:${j} sealed:${j} vault:${j} release:${j}`),
   settings: F(`key:${t} value:${j}`),
   kfiles: F(`participant:${t} subtask:${t} corrector:${n} name:${t} file:${f} kind:${t} source:${t} orig:${t}`),
-  orgs: F(`name:${t} short:${t} city:${t} berufe:${j}`),
-  persons: F(`lastname:${t} firstname:${t} username:${t} org:${t} kind:${t} short:${t} email:${t} orgs:${j}`),
+  orgs: F(`name:${t} short:${t} city:${t} berufe:${j} type:${t} bezirk:${t}`),
+  persons: F(`lastname:${t} firstname:${t} username:${t} org:${t} kind:${t} short:${t} email:${t} orgs:${j} pnr:${t} nta:${n}`),
   groups: F(`name:${t} org:${t} kind:${t} source:${t} course:${t} members:${j} chair:${t} fachbereich:${t}`),
-  courses: F(`title:${t} kind:${t} catalog:${t} org:${t} orgs:${j} owner:${t} members:${j} groups:${j} status:${t} exam_code:${t} description:${t} corrector:${t} corrections:${j} third:${j} korr_end:${t} dk_threshold:${n} rules:${j} einsicht:${j}`),
+  courses: F(`title:${t} kind:${t} catalog:${t} org:${t} orgs:${j} owner:${t} members:${j} groups:${j} status:${t} exam_code:${t} description:${t} corrector:${t} corrections:${j} third:${j} korr_end:${t} dk_threshold:${n} rules:${j} einsicht:${j} ext:${j}`),
+  notices: F(`org:${t} role:${t} course:${t} title:${t} body:${t} link:${t} kind:${t} read:${b} by:${t}`),
   venues: F(`org:${t} name:${t} building:${t} rows:${n} cols:${n} capacity:${n} layout:${t} group_size:${n}`),
 };
 const DEF = { text: "", number: 0, bool: false, json: null, date: "", file: "" };

@@ -1,10 +1,11 @@
 // Raumaufsicht: Übersicht der Raumaufsichten und Steuerkonsole eines Raums
-import { D, byId, upd, create, del, log, demoApi } from "../data.js?v=9.3";
-import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, isDistance, windowState, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=9.3";
-import { navigate, redraw, session, directHelp } from "../app.js?v=9.3";
-import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, orgsLabel, KIND, members } from "../access.js?v=9.3";
-import * as CR from "./creation.js?v=9.3";
-import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=9.3";
+import { D, byId, upd, create, del, log, demoApi } from "../data.js?v=10.0";
+import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, isDistance, windowState, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=10.0";
+import { navigate, redraw, session, directHelp } from "../app.js?v=10.0";
+import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, orgsLabel, KIND, members, isAdm, isExtern, isKammerOrg } from "../access.js?v=10.0";
+import * as CR from "./creation.js?v=10.0";
+import * as KA from "./kammer.js?v=10.0";
+import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=10.0";
 
 const MR = { status: "", q: "" }; // Filter „Mein Raum“ (Großraum)
 const pending = new Set();
@@ -35,9 +36,9 @@ export function overview() {
       if (st.filters.includes("today")) rows = rows.filter(({ r }) => parseDate(r.planned_start)?.toDateString() === new Date().toDateString());
       if (st.filters.includes("exam")) rows = rows.filter(({ r }) => r.exam_name.includes("FA230"));
       const page = rows.slice((st.page - 1) * st.per, st.page * st.per);
-      const scope = !p ? "" : p.kind === "schuladmin" ? `Prüfungs-Raumaufsichten Ihrer Schule (${esc(orgShort(p.org))})` : session.role === "aufsicht" ? "Raumaufsichten, in denen Sie als Aufsichtsperson eingetragen sind, sowie eigene" : "Raumaufsichten, die Ihr Konto betreffen (Eigentümer, Aufsichtsperson oder Lehrkraft des Unterrichts)";
+      const scope = !p ? "" : isAdm(p) ? `Prüfungs-Raumaufsichten Ihrer ${p.kind === "kammeradmin" ? "Kammer" : "Schule"} (${esc(orgShort(p.org))})` : session.role === "aufsicht" ? "Raumaufsichten, in denen Sie als Aufsichtsperson eingetragen sind, sowie eigene" : "Raumaufsichten, die Ihr Konto betreffen (Eigentümer, Aufsichtsperson oder Lehrkraft des Unterrichts)";
       return `<div class="pagehead"><div><h1>Übersicht Raumaufsicht</h1>${p ? `<div class="sub">${esc(personName(p))} · ${scope}</div>` : ""}</div></div>
-      <div class="row between wrap mb"><div class="row">${visibleCourses(p).length ? `<button class="btn" data-new>${icon("plus")} Neue Raumaufsicht erstellen</button>` : ""}${p?.kind === "schuladmin" ? `<a class="btn" href="#/app/raeume">${icon("door-open")} Prüfungsräume verwalten</a>` : ""}</div>
+      <div class="row between wrap mb"><div class="row">${visibleCourses(p).length ? `<button class="btn" data-new>${icon("plus")} Neue Raumaufsicht erstellen</button>` : ""}${isAdm(p) ? `<a class="btn" href="#/app/raeume">${icon("door-open")} Prüfungsräume verwalten</a>` : ""}</div>
         <div class="row">${ddHtml("f", "Filtern nach", [["today", "Prüfungsdatum: heute"], ["running", "Status: läuft/pausiert"], ["exam", "Prüfungskurs: FA230"]], st.filters, st)}<div class="search"><input class="input" style="width:240px" placeholder="Suche" data-q value="${esc(st.q)}">${icon("search")}</div></div></div>
       <div class="tablewrap"><table class="tbl"><thead><tr><th>Raumname</th><th>Kurs / Prüfung</th><th>Ebene</th><th>Schule</th><th class="num">Aufsichten</th><th class="num">Teilnehmende</th><th class="num">Sitzplätze</th><th>Start</th><th>Ende</th><th>Status</th><th>Erstelldatum</th><th></th></tr></thead>
       <tbody>${page.length ? page.map(({ r, c, sup, tn }) => `<tr class="rowlink" data-href="#/app/raum/${r.id}/meinraum" tabindex="0"><td><b>${esc(r.name)}</b><div class="xs muted">${r.venue ? `Schulraum${byId("venues", r.venue)?.building ? " · " + esc(byId("venues", r.venue).building) : ""}` : isDistance(r) ? `Distanzunterricht · bis ${fmtDateTime(parseDate(r.window_to))}` : `ohne realen Raum · ${esc(LAYOUTS[layoutOf(r)].label)}`}</div></td><td>${esc(r.exam_name || "–")}</td><td>${c ? `<span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span>` : "–"}</td><td>${esc(orgShort(r.org))}</td><td class="num">${sup}</td><td class="num">${tn}</td><td class="num">${seatCount(r)}</td><td>${fmtDateTime(parseDate(r.planned_start))}</td><td>${fmtTime(plannedEnd(r))}</td><td>${stateBadge(r)}</td><td>${esc(r.created_label)}</td><td><a class="linkarrow" href="#/app/raum/${r.id}/meinraum">${icon("arrow-right")} Zur Raumaufsicht</a></td></tr>`).join("") : `<tr><td colspan="12"><div class="empty">${icon("search")}<div>Keine Raumaufsichten für Ihr Konto</div></div></td></tr>`}</tbody></table>
@@ -61,7 +62,7 @@ export function venues() {
     shell: "staff", rail: "raeume", title: "Prüfungsräume",
     render() {
       const p = me();
-      if (p?.kind !== "schuladmin") return `<div class="empty">${icon("lock")} Prüfungsräume verwaltet die Schuladministration.</div>`;
+      if (!isAdm(p)) return `<div class="empty">${icon("lock")} Prüfungsräume verwaltet die Schul- bzw. Kammeradministration.</div>`;
       let list = venuesOf(p.org);
       if (VS.q) { const q = VS.q.toLowerCase(); list = list.filter((v) => (v.name + " " + v.building).toLowerCase().includes(q)); }
       const now = Date.now();
@@ -166,7 +167,7 @@ export async function newRoomDialog(courseId = "") {
     if (!lesson && v.venue && venueConflict(v.venue, planOf())) v.venue = "";
     const ven = byId("venues", v.venue);
     m.querySelector("[data-nr]").innerHTML = `<div class="nrgrid">
-      <div class="field"><label class="lbl" for="nr-c">${courses.some((x) => x.kind === "pruefung") && courses.some((x) => x.kind === "unterricht") ? "Kurs" : p?.kind === "schuladmin" ? "Prüfung" : "Unterricht (Kurs)"}</label><select id="nr-c" class="select" data-v="course">${courses.map((x) => `<option value="${x.id}" ${x.id === v.course ? "selected" : ""}>${esc(x.title)}</option>`).join("")}</select></div>
+      <div class="field"><label class="lbl" for="nr-c">${courses.some((x) => x.kind === "pruefung") && courses.some((x) => x.kind === "unterricht") ? "Kurs" : isAdm(p) ? "Prüfung" : "Unterricht (Kurs)"}</label><select id="nr-c" class="select" data-v="course">${courses.map((x) => `<option value="${x.id}" ${x.id === v.course ? "selected" : ""}>${esc(x.title)}</option>`).join("")}</select></div>
       ${lesson ? `<div class="field"><label class="lbl" for="nr-n">Bezeichnung</label><input id="nr-n" class="input" data-v="name" value="${esc(v.name)}" placeholder="z. B. Klassenarbeit ${esc(c.title.replace(/^Zentrale /, ""))} · Gruppe A"></div>`
         : `<div class="field"><label class="lbl" for="nr-v">Prüfungsraum</label><select id="nr-v" class="select" data-v="venue"><option value="">Raum auswählen</option>${opts}</select></div>`}
       ${lesson ? `<fieldset class="field modepick"><legend class="lbl">Durchführung</legend><label class="radio"><input type="radio" name="nr-mode" data-v="mode" value="praesenz" ${v.mode !== "distanz" ? "checked" : ""}> ${icon("school")} Präsenz <span class="xs muted">– Lehrkraft startet, pausiert und sammelt ein</span></label><label class="radio"><input type="radio" name="nr-mode" data-v="mode" value="distanz" ${v.mode === "distanz" ? "checked" : ""}> ${icon("house")} Distanz <span class="xs muted">– fester Zeitraum, Start durch die Schüler:innen</span></label></fieldset>` : ""}
@@ -443,7 +444,7 @@ function seatCard(room, p, seat, compact = false) {
   return `<div class="seat ${p.present ? "" : "absent"}"><div class="sh"><span class="no">${esc(seat)}</span>
     <label class="toggle" title="Anwesenheit"><input type="checkbox" data-present="${p.id}" ${p.present ? "checked" : ""} ${room.state === "TERMINATED" ? "disabled" : ""} aria-label="Anwesenheit ${esc(p.lastname)}"><span></span></label>
     ${connChip(p, true).replace("<span ", "<span data-compact ")}</div>${connOf(p).key === "lost" ? `<div class="seatwarn">${icon("wifi-off")} ${esc(connOf(p).short)}</div>` : ""}
-    <div class="sb">${statusChip(p.status)}<span class="nm">${esc(p.lastname)}, ${esc(p.firstname)}</span>${e ? `<span class="timeleft" data-left="${p.id}"></span>` : ""}<span class="row wrap" style="gap:4px;justify-content:center">${timeBadges(p)}${flags}</span></div>
+    <div class="sb">${statusChip(p.status)}<span class="nm">${esc(p.lastname)}, ${esc(p.firstname)}</span>${KA.extTag(p)}${e ? `<span class="timeleft" data-left="${p.id}"></span>` : ""}<span class="row wrap" style="gap:4px;justify-content:center">${timeBadges(p)}${flags}</span></div>
     <div class="sf"><button class="btn block sm" data-details="${p.id}">${icon("arrow-right")} Details</button></div></div>`;
 }
 function tabMeinRaum(room) {
@@ -490,13 +491,15 @@ function symbolHelp() {
   </tbody></table></div>`);
 }
 async function detailsModal(room, p) {
-  const others = D.rooms.filter((r) => r.id !== room.id);
+  // Externe Prüflinge: Nachteilsausgleich pflegt die Kammer; Versetzung nur innerhalb der Prüfung und Organisation
+  const ext = isExtern(byId("persons", p.person));
+  const others = D.rooms.filter((r) => r.id !== room.id && (!ext || (r.course === room.course && r.org === room.org)));
   const taken = new Set(inRoom(room).map((x) => x.seat));
   const free = freeSeats(room, taken);
   const e = endTime(room, p) || plannedEnd(room, p);
   const act = isActive(p.status); const dist = isDistance(room);
   const v = await modal({ title: `<span class="row" style="justify-content:space-between;width:100%"><label class="toggle" ${dist ? "hidden" : ""}><input type="checkbox" data-pres ${p.present ? "checked" : ""}><span></span></label>${connChip(p)}<span>${esc(p.seat || "–")}</span></span>`, size: "narrow",
-    body: `<div style="text-align:center"><h3>${esc(p.lastname)}, ${esc(p.firstname)}</h3><div class="small">Anmeldename: <b>${esc(p.username)}</b></div><div class="mt-s">${statusChip(p.status)}</div></div>
+    body: `<div style="text-align:center"><h3>${esc(p.lastname)}, ${esc(p.firstname)}</h3><div class="small">Anmeldename: <b>${esc(p.username)}</b>${ext ? ` · Prüflingsnummer <b>${esc(byId("persons", p.person)?.pnr || "–")}</b>` : ""}</div>${ext ? `<div class="mt-s">${KA.extTag(p)}</div>` : ""}<div class="mt-s">${statusChip(p.status)}</div></div>
     ${dist ? `<div class="notice info small mt">${icon("house")}<span>Distanzunterricht: keine Steuerung durch die Lehrkraft. ${p.started_at ? `Gestartet ${fmtDateTime(parseDate(p.started_at))}` : "Noch nicht gestartet"} · Durchlauf ${p.attempt || 1}.</span></div>` : ""}
     <div class="row mt" style="justify-content:center;gap:16px;${dist ? "display:none" : ""}">
       <button class="btn" style="flex-direction:column;width:110px;height:86px;background:var(--bg-soft)" data-value="pause" ${act ? "" : "disabled"}>${icon(p.status === "pausiert" ? "play" : "pause", "xl")}${p.status === "pausiert" ? "Fortsetzen" : "Pausieren"}</button>
@@ -508,7 +511,7 @@ async function detailsModal(room, p) {
     ${p.status === "zeit_beendet" ? `<div class="notice warn small">${icon("alarm-clock")}<span>Bearbeitungszeit abgelaufen – Prüfung läuft weiter, neue Aufgaben sind gesperrt. Ende durch Einsammeln.</span></div>` : ""}
     <div class="field"><label class="lbl">Zusatzzeit (individuell, z. B. nach Störung)</label><select class="select" data-f="extra_time">${[0, 5, 10, 15, 20, 30].map((m) => `<option value="${m}" ${m === (p.extra_time || 0) ? "selected" : ""}>${m ? m + " Minuten" : "-- Minuten"}</option>`).join("")}</select></div>
     <div class="field"><label class="lbl">Kommentar</label><textarea class="input" data-f="comment" maxlength="150" placeholder="Hier Kommentar eingeben (max. 150 Zeichen)">${esc(p.comment)}</textarea></div>
-    <div class="field"><label class="lbl">Nachteilsausgleich (NTA, vorab genehmigt)</label>${room.state !== "CREATED" ? `<p class="xs muted" style="margin:0 0 4px">${icon("lock")} Nur vor dem Prüfungsstart änderbar. Für Störungen während der Prüfung nutzen Sie die Zusatzzeit.</p>` : ""}<select class="select" data-f="nta" ${room.state !== "CREATED" ? "disabled" : ""}>${[0, 10, 15, 20, 30, 45].map((m) => `<option value="${m}" ${m === (p.nta || 0) ? "selected" : ""}>${m ? m + " Minuten" : "-- Minuten"}</option>`).join("")}</select></div>
+    <div class="field"><label class="lbl">Nachteilsausgleich (NTA, vorab genehmigt)</label>${ext ? `<p class="xs muted" style="margin:0 0 4px">${icon("lock")} Externer Prüfling: Den Nachteilsausgleich pflegt die Kammer.</p>` : room.state !== "CREATED" ? `<p class="xs muted" style="margin:0 0 4px">${icon("lock")} Nur vor dem Prüfungsstart änderbar. Für Störungen während der Prüfung nutzen Sie die Zusatzzeit.</p>` : ""}<select class="select" data-f="nta" ${room.state !== "CREATED" || ext ? "disabled" : ""}>${[0, 10, 15, 20, 30, 45].map((m) => `<option value="${m}" ${m === (p.nta || 0) ? "selected" : ""}>${m ? m + " Minuten" : "-- Minuten"}</option>`).join("")}</select></div>
     <div class="field" ${dist ? "hidden" : ""}><label class="lbl">Sitzplatz ändern</label><select class="select" data-f="seat"><option value="${esc(p.seat)}">${esc(p.seat || "–")} (aktuell)</option>${free.map((s) => `<option>${s}</option>`).join("")}</select></div>
     <div class="field"><label class="lbl">Versetzung in anderen Raum</label><select class="select" data-f="move"><option value="">Raum auswählen</option>${others.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select></div>`,
     footer: `<details class="demo-tests"><summary class="xs muted">Testfälle (Demo)</summary><div class="row wrap mt-s"><button class="btn xs" data-value="offline">${icon("radio")} Verbindungsabbruch 20 s</button></div></details><button class="btn primary block" data-ok>Speichern</button>`,
@@ -521,7 +524,7 @@ async function detailsModal(room, p) {
   if (v === "lock") { const to = p.status === "gesperrt" ? "laeuft" : "gesperrt"; await upd("participants", p.id, { status: to }); log(room.id, p, to === "gesperrt" ? "Teilnehmende/r wurde gesperrt" : "Teilnehmende/r wurde entsperrt", "", "vorkommnis"); toast(to === "gesperrt" ? "Teilnehmende/r gesperrt" : "Teilnehmende/r entsperrt", `${p.lastname}, ${p.firstname}`, "info"); return; }
   if (v === "offline") { await simulateOffline(room, p); return; }
   if (v === "collect") { if (await confirmBox("Prüfung einsammeln", `Die Prüfung von ${esc(p.firstname)} ${esc(p.lastname)} wird unwiderruflich eingesammelt.`, "Einsammeln")) { await upd("participants", p.id, { status: "eingesammelt", finished_at: toPb() }); log(room.id, p, "Prüfung eingesammelt", "", "aktion"); toast("Prüfung eingesammelt", `${p.lastname}, ${p.firstname}`); } return; }
-  const ntaLocked = room.state !== "CREATED"; if (ntaLocked) v.nta = p.nta || 0; // NTA nur vor Prüfungsstart
+  const ntaLocked = room.state !== "CREATED" || ext; if (ntaLocked) v.nta = p.nta || 0; // NTA nur vor Prüfungsstart (externe Prüflinge: Kammer)
   const patch = { extra_time: +v.extra_time, comment: v.comment, seat: v.seat, ...(ntaLocked ? {} : { nta: +v.nta }) };
   const changes = [];
   if (+v.extra_time !== (p.extra_time || 0)) changes.push(`Zusatzzeit ${v.extra_time} Min.`);
@@ -537,7 +540,7 @@ async function addParticipants(room, seat) {
   // Kandidaten: Teilnehmende des Kurses (bei Prüfungen: Personen der Schule des Raums), die noch keinem Raum dieses Kurses zugeordnet sind
   const c = courseOf(room);
   const assigned = new Set(D.participants.filter((x) => x.room && (x.room === room.id || (c && byId("rooms", x.room)?.course === c.id))).map((x) => x.person).filter(Boolean));
-  const fromCourse = c ? roomCandidates(room, "teilnehmer").filter((x) => !assigned.has(x.id)).map((x) => ({ id: "p:" + x.id, lastname: x.lastname, firstname: x.firstname, username: x.username, group_name: D.groups.filter((g) => (g.members || []).includes(x.id) && g.source !== "kurs").map((g) => g.name).join(", "), org: orgShort(x.org) })) : [];
+  const fromCourse = c ? roomCandidates(room, "teilnehmer").filter((x) => !assigned.has(x.id)).map((x) => ({ id: "p:" + x.id, lastname: x.lastname, firstname: x.firstname, username: x.username, group_name: isExtern(x) ? "extern · " + (x.pnr || "") : D.groups.filter((g) => (g.members || []).includes(x.id) && g.source !== "kurs").map((g) => g.name).join(", "), org: orgShort(x.org) })) : [];
   const legacy = c ? [] : D.participants.filter((x) => !x.room);
   const cand = [...fromCourse, ...legacy.map((x) => ({ id: x.id, lastname: x.lastname, firstname: x.firstname, username: x.username, group_name: x.group_name, org: x.org }))].sort((a, b) => a.lastname.localeCompare(b.lastname));
   const used = inRoom(room).length;
@@ -571,7 +574,7 @@ async function addParticipants(room, seat) {
       const pe = byId("persons", key.slice(2));
       const free0 = D.participants.find((x) => x.person === pe.id && !x.room);
       const data = { room: room.id, seat: free[i] || "", status: "nicht_eingeloggt", present: false };
-      p = free0 ? await upd("participants", free0.id, data) : await create("participants", { ...data, lastname: pe.lastname, firstname: pe.firstname, username: pe.username, person: pe.id, org: byId("orgs", pe.org)?.name || "", group_name: D.groups.filter((g) => (g.members || []).includes(pe.id) && g.source !== "kurs").map((g) => g.name)[0] || "", extra_time: 0, nta: 0, comment: "", health: "", cheat_ack: false, bookmarks: [], violations: 0 });
+      p = free0 ? await upd("participants", free0.id, data) : await create("participants", { ...data, lastname: pe.lastname, firstname: pe.firstname, username: pe.username, person: pe.id, org: byId("orgs", pe.org)?.name || "", group_name: isExtern(pe) ? "extern" : D.groups.filter((g) => (g.members || []).includes(pe.id) && g.source !== "kurs").map((g) => g.name)[0] || "", extra_time: 0, nta: isExtern(pe) ? +pe.nta || 0 : 0, comment: "", health: "", cheat_ack: false, bookmarks: [], violations: 0 });
     } else { p = byId("participants", key); await upd("participants", key, { room: room.id, seat: free[i] || "", status: "nicht_eingeloggt", present: false }); }
     log(room.id, p, "Teilnehmende/r zur Raumaufsicht hinzugefügt", "Platz " + (free[i] || "–"), "aktion");
   }
@@ -595,7 +598,7 @@ function tabTeilnehmende(room) {
   <div class="row between wrap mb"><div class="row wrap"><button class="btn" data-addtn>${icon("plus")} Teilnehmende hinzufügen</button><div class="notice success small">${icon("circle-check")}<span>${dist ? `<b>${all.length} Teilnehmende</b> zugeordnet · ${all.filter((p) => isFinished(p.status)).length} abgeschlossen · ${all.filter((p) => isActive(p.status)).length} in Bearbeitung` : `Es sind aktuell <b>${all.length} von ${seatCount(room)} Sitzplätzen</b> im Raum belegt.`}</span></div></div>
     <div class="row wrap"><button class="btn" data-delgrp ${ps.length ? "" : "disabled"}>${icon("users")} Gruppe entfernen</button><button class="btn" data-deltn ${st.sel.size ? "" : "disabled"}>${icon("trash-2")} Ausgewählte entfernen${st.sel.size ? ` (${st.sel.size})` : ""}</button></div></div>
   ${ps.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th><input type="checkbox" data-all aria-label="Alle auswählen"></th>${th("lastname", "Name")}${dist ? "<th>Durchlauf</th><th>Start</th>" : `${th("seat", "Platz")}<th>Anwesend</th>`}<th>Anmeldung / Verbindung</th>${th("status", "Status")}<th>Zeitgutschrift</th>${th("end", "Ende")}<th><span class="sr-only">Details</span></th></tr></thead>
-  <tbody>${page.map((p) => `<tr><td><input type="checkbox" data-sel="${p.id}" ${st.sel.has(p.id) ? "checked" : ""} aria-label="${esc(p.lastname)} auswählen"></td><td><b>${esc(p.lastname)}, ${esc(p.firstname)}</b><div class="sub">${esc(p.username)}</div></td><td>${dist ? `<span class="xs muted">${(p.attempt || 1) > 1 || isFinished(p.status) ? `Durchlauf ${p.attempt || 1}` : "–"}</span>` : esc(p.seat)}</td>
+  <tbody>${page.map((p) => `<tr><td><input type="checkbox" data-sel="${p.id}" ${st.sel.has(p.id) ? "checked" : ""} aria-label="${esc(p.lastname)} auswählen"></td><td><b>${esc(p.lastname)}, ${esc(p.firstname)}</b>${KA.extTag(p)}<div class="sub">${esc(p.username)}</div></td><td>${dist ? `<span class="xs muted">${(p.attempt || 1) > 1 || isFinished(p.status) ? `Durchlauf ${p.attempt || 1}` : "–"}</span>` : esc(p.seat)}</td>
     <td>${dist ? `<span class="xs muted">${p.started_at ? "gestartet " + fmtDateTime(parseDate(p.started_at)) : "noch nicht gestartet"}</span>` : `<label class="toggle"><input type="checkbox" data-present="${p.id}" ${p.present ? "checked" : ""} aria-label="Anwesenheit ${esc(p.lastname)}"><span></span></label>`}</td>
     <td>${connChip(p)}</td>
     <td>${statusChip(p.status)}</td><td><span class="row wrap" style="gap:3px">${timeBadges(p, room) || "–"}</span></td><td class="nowrap">${fmtTime(endTime(room, p) || plannedEnd(room, p))} Uhr</td>
@@ -703,7 +706,7 @@ function bindAufsicht(el, room) {
   el.querySelector("[data-delsv]").onclick = async () => {
     const list = [...st.sel].map((id) => byId("supervisors", id)).filter(Boolean);
     if (!(await confirmBox("Aufsichtspersonen löschen", list.map((s) => `${esc(s.lastname)}, ${esc(s.firstname)}`).join("<br>"), "Löschen"))) return;
-    const { del } = await import("../data.js?v=9.3");
+    const { del } = await import("../data.js?v=10.0");
     for (const s of list) { await del("supervisors", s.id); log(room.id, null, `Aufsichtsperson ${s.lastname} entfernt`, "", "aktion", actor()); }
     st.sel.clear(); toast("Aufsichtspersonen entfernt");
   };
@@ -719,12 +722,18 @@ function protocolRows(room) {
 function tabProtokoll(room) {
   const st = S.pr; const rows = protocolRows(room);
   const page = rows.slice((st.page - 1) * st.per, st.page * st.per);
-  return `<div class="row between wrap mb">${ddHtml("pf", "Filtern nach", [["participant", "Betroffene Benutzer"], ["seat", "Sitzplatz"], ["action", "Aktion"], ["comment", "Kommentar"]], st.filters, st)}<div class="search"><input class="input" style="width:260px" placeholder="Suchen" data-q value="${esc(st.q)}">${icon("search")}</div></div>
+  // Protokollfreigabe (Task 23): erst danach sehen beteiligte Kammern die Einträge ihrer externen Prüflinge
+  const nExt = inRoom(room).filter((x) => isExtern(byId("persons", x.person))).length; const pe = me();
+  const rel = isKammerOrg(room.org) ? "" : room.prot_released ? `<div class="notice success small mb">${icon("circle-check")}<span><b>Prüfungsprotokoll freigegeben</b>${room.prot_released_at ? ` am ${fmtDateTime(parseDate(room.prot_released_at))}` : ""}.${nExt ? ` Die zuständigen Kammern sehen die Einträge ihrer ${nExt} externen Prüflinge.` : ""}</span></div>`
+    : room.state === "TERMINATED" ? `<div class="notice ${nExt ? "warn" : "info"} small mb">${icon("file-text")}<span><b>Protokoll noch nicht freigegeben.</b>${nExt ? ` In dieser Raumaufsicht schreiben ${nExt} externe Prüflinge – die Kammer sieht deren Protokolleinträge erst nach der Freigabe.` : ""}</span>${isAdm(pe) && pe.org === room.org ? `<button class="btn primary sm" data-protrel>${icon("check")} Protokoll freigeben</button>` : `<span class="xs muted">Freigabe durch die Schuladministration</span>`}</div>`
+    : nExt ? `<div class="notice info small mb">${icon("info")}<span>Nach Prüfungsende gibt die Schuladministration das Protokoll frei; danach sieht die Kammer die Einträge ihrer ${nExt} externen Prüflinge.</span></div>` : "";
+  return `${rel}<div class="row between wrap mb">${ddHtml("pf", "Filtern nach", [["participant", "Betroffene Benutzer"], ["seat", "Sitzplatz"], ["action", "Aktion"], ["comment", "Kommentar"]], st.filters, st)}<div class="search"><input class="input" style="width:260px" placeholder="Suchen" data-q value="${esc(st.q)}">${icon("search")}</div></div>
   <div class="tablewrap"><table class="tbl"><thead><tr><th class="sortable" data-tsort>${icon(st.dir > 0 ? "chevron-up" : "chevron-down")} Zeitstempel</th><th>Teilnehmende</th><th>Anmeldename</th><th>Sitzplatz</th><th>Aktion</th><th>Kommentar</th></tr></thead>
   <tbody>${page.length ? page.map((r) => `<tr><td class="nowrap">${fmtDateTime(parseDate(r.ts))}</td><td>${esc(r.participant)}</td><td>${esc(r.username)}</td><td>${esc(r.seat)}</td><td>${r.kind === "vorkommnis" ? `<span class="badge red">${icon("message-square-warning")} </span> ` : ""}${esc(r.action)}</td><td><button class="iconbtn" data-cmt="${r.id}" aria-label="Kommentar bearbeiten">${icon("pencil")}</button> ${esc(r.comment)}</td></tr>`).join("") : `<tr><td colspan="6"><div class="empty">Keine Einträge</div></td></tr>`}</tbody></table>${pager(rows.length, st.page, st.per, [5, 10, 25, 50])}</div>`;
 }
 function bindProtokoll(el, room) {
   const st = S.pr;
+  const pr = el.querySelector("[data-protrel]"); if (pr) pr.onclick = () => KA.releaseProtocol(room);
   bindPager(el, st, redraw);
   bindDd(el, st, (k, v) => { st.filters = v; }, redraw);
   el.querySelector("[data-tsort]").onclick = () => { st.dir *= -1; redraw(); };
@@ -735,4 +744,4 @@ function bindProtokoll(el, room) {
     if (v !== null && v !== undefined) { await upd("protocol", r.id, { comment: v }); toast("Kommentar gespeichert"); }
   }));
 }
-function downloadProtocol(room) { import("./protocolpdf.js?v=9.3").then((m) => m.protocolPdf(room)); }
+function downloadProtocol(room) { import("./protocolpdf.js?v=10.0").then((m) => m.protocolPdf(room)); }

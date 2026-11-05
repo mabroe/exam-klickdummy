@@ -3,11 +3,11 @@
 //  - Unterricht: Lehrkraft (Tasks 31–36, 34 als Schüler:in)
 //  - Prüfung: Schuladministration (Tasks 52, 24, 21), Raumaufsicht (Task 22/23)
 // Der Fortschritt wird aus den Daten erkannt; der Leitfaden kann jederzeit ein- und ausgeklappt werden.
-import { D, byId, onChange } from "./data.js?v=9.3";
-import { icon, esc, store, toast } from "./ui.js?v=9.3";
-import { members, personName, inOrg } from "./access.js?v=9.3";
-import { navigate, render } from "./app.js?v=9.3";
-import * as CR from "./views/creation.js?v=9.3";
+import { D, byId, onChange } from "./data.js?v=10.0";
+import { icon, esc, store, toast } from "./ui.js?v=10.0";
+import { members, personName, inOrg } from "./access.js?v=10.0";
+import { navigate, render } from "./app.js?v=10.0";
+import * as CR from "./views/creation.js?v=10.0";
 
 const KEY = "guide";
 const st = () => store.lget(KEY, null);
@@ -238,6 +238,76 @@ function ownContent(s) {
   ];
 }
 
+// ---------- Kammer: externe Prüflinge (Arten 1–4), Annahme und Ummeldung ----------
+const pr1c = () => D.courses.find((x) => x.title === "FA230 - Musterprüfung");
+const pr3c = () => D.courses.find((x) => x.kind === "pruefung" && String(x.title).startsWith("Zwischenprüfung"));
+const xe = (c, u) => (c?.ext || {})[P(u)?.id] || null;
+const partOf = (c, pid, org) => !!pid && D.participants.some((x) => x.person === pid && byId("rooms", x.room)?.course === c?.id && (!org || byId("rooms", x.room)?.org === org));
+const partIn = (c, u, org) => partOf(c, P(u)?.id, org);
+const corrFor = (c, pid, org, stage) => !!pid && (c?.corrections || []).some((a) => a.kind === "person" && a.target === pid && a.org === org && +a.stage === stage);
+const roomIn = (c, name) => D.rooms.find((r) => r.name === name && r.course === c?.id);
+const kLinks = (c) => (t) => c && `#/app/kurs/${c.id}/${t}`;
+function kammerArt2(s) {
+  const c = pr1c(); const L = kLinks(c); const KA = asPerson("j.lindemann", "kammeradmin"); const SA = asPerson("m.hinrichs", "schuladmin");
+  const afs = P("m.hinrichs")?.org; const e = xe(c, "p.engel"); const r124 = roomIn(c, "Raum 124");
+  return [
+    { t: "K", title: "Kammer: Prüfling einer Schule zuordnen (Art 2)", text: "Als Kammeradministration (Jasper Lindemann, IHK Musterstadt) unter „Externe Prüflinge“ bei Paula Engel – von der GWS abgelehnt, noch nicht versorgt – „Ändern“: Art 2 (Durchführung und Korrektur an der Schule) und die Ahornfeld-Schule (AFS) wählen. Die AFS wird benachrichtigt.", as: KA, go: L("zuordnung"), done: !!e && +e.art === 2 && e.school === afs },
+    { t: "K", title: "Schule: Vorschlag annehmen", text: "Als Schuladministration der AFS (Marit Hinrichs) die Benachrichtigung öffnen bzw. „Externe Prüflinge“: Vor der Annahme sehen Sie nur Anzahl, Art und Nachteilsausgleich. „Annehmen“ – erst danach erscheinen Name, Vorname und Prüflingsnummer.", as: SA, go: L("extern"), done: !!e && e.school === afs && e.status === "angenommen" },
+    { t: 52, title: "Schule: Raumaufsicht zuordnen", text: "In der Raumaufsicht „Raum 124“ „Teilnehmende hinzufügen“: Paula Engel steht als angenommener externer Prüfling zur Auswahl – nur in dieser Prüfung. Den Nachteilsausgleich pflegt die Kammer; an der Schule ist er nur lesbar.", as: SA, go: r124 && `#/app/raum/${r124.id}/teilnehmende`, done: partIn(c, "p.engel", afs) },
+    { t: 24, title: "Schule: Korrektor:innen zuweisen", text: "Reiter „Korrektoren“ › Erstkorrektur › „Korrektorengruppe zuweisen“ › „Einzelne Prüflinge“: Paula Engel (Art 2) einer Lehrkraft der AFS zuweisen. Externe Prüflinge mit Art 3 erscheinen hier nicht – sie korrigiert die Kammer.", as: SA, go: L("korrektoren"), done: corrFor(c, P("p.engel")?.id, afs, 1) },
+    { t: "K", title: "Kammer: Stand der Durchführung", text: "Als Kammeradministration „Durchführung“: Sie sehen nur Ihre eigenen externen Prüflinge (Ort, Raumaufsicht, Termin, Status, Zeitgutschrift) – nicht die übrigen Teilnehmenden oder Aufsichtspersonen. Protokolleinträge einer Schule erst nach deren Freigabe.", manual: "kdf", as: KA, go: L("durchfuehrung"), done: !!s.manual?.kdf },
+    { t: 37, title: "Kammer: Prüfungseinsicht", text: "Als Kammer-Prüfungseinsicht (Hanno Weißgerber): Die Einsicht externer Prüflinge findet immer bei der Kammer statt – auch bei Svenja Lorenz, die in der Zwischenprüfung an der AFS geschrieben hat und dort korrigiert wurde. Die Prüfungseinsicht der AFS sieht sie nicht. (optional)", optional: true, manual: "kei", as: asPerson("h.weissgerber", "einsicht"), go: "#/app/pruefungseinsicht", done: !!s.manual?.kei },
+  ];
+}
+function kammerArt3(s) {
+  const c = pr1c(), c3 = pr3c(); const L = kLinks(c); const KA = asPerson("j.lindemann", "kammeradmin"); const SB = asPerson("i.ammermann", "schuladmin"); const bts = P("i.ammermann")?.org;
+  const e = xe(c, "l.sander"); const r201 = roomIn(c, "Raum 201"); const r110 = roomIn(c3, "Raum 110");
+  return [
+    { t: "K", title: "Schule: Vorschlag (Art 3) annehmen", text: "Als Schuladministration der Birkental-Schule (Ilka Ammermann) unter „Externe Prüflinge“ den Vorschlag der IHK Musterstadt annehmen: Art 3 – nur Durchführung an Ihrer Schule, die Korrektur übernimmt die Kammer.", as: SB, go: L("extern"), done: e?.status === "angenommen" },
+    { t: 52, title: "Schule: Raumaufsicht zuordnen", text: "Raum 201 › „Teilnehmende hinzufügen“: Leonie Sander (extern) zuordnen. Ihr Nachteilsausgleich (10 Min.) kommt von der Kammer.", as: SB, go: r201 && `#/app/raum/${r201.id}/teilnehmende`, done: partIn(c, "l.sander", bts) },
+    { t: 24, title: "Schule: keine Korrektur bei Art 3", text: "Reiter „Korrektoren“: Externe Prüflinge mit Art 3 (Leonie Sander, Can Hoffmeister) stehen nicht zur Auswahl – nach dem Beenden geht die Prüfung direkt an die Kammer.", manual: "k3", as: SB, go: L("korrektoren"), done: !!s.manual?.k3 },
+    { t: 23, title: "Schule: Prüfungsprotokoll freigeben", text: "In der abgeschlossenen Zwischenprüfung hat Jonas Krämer (Art 3) im Raum 110 der BTS geschrieben: „Prüfungsprotokoll“ › „Protokoll freigeben“. Erst danach sieht die Kammer die Einträge ihres Prüflings; Durchführung und Protokoll bleiben bei der Schule.", as: SB, go: r110 && `#/app/raum/${r110.id}/protokoll`, done: !!r110?.prot_released },
+    { t: "K", title: "Kammer: Protokolleinträge des eigenen Prüflings", text: "Als Kammeradministration in der Zwischenprüfung „Durchführung“: Für Jonas Krämer sind jetzt die Protokolleinträge sichtbar – nur seine, nicht die des gesamten Raums.", manual: "kp3", as: KA, go: c3 && `#/app/kurs/${c3.id}/durchfuehrung`, done: !!s.manual?.kp3 },
+    { t: 20, title: "Kammer: Korrektur durch die Kammer", text: "Als Kammer-Korrektorin (Mira Fenske, Erstkorrektur): Die Korrekturübersicht zeigt die externen Prüflinge mit Art 1 und 3, z. B. Jonas Krämer aus der Zwischenprüfung. (optional)", optional: true, manual: "kk3", as: asPerson("m.fenske", "korrektor", { corrector: 1 }), go: "#/app/korrektur", done: !!s.manual?.kk3 },
+  ];
+}
+function kammerArt1(s) {
+  const c = pr1c(); const L = kLinks(c); const KA = asPerson("j.lindemann", "kammeradmin"); const km = P("j.lindemann")?.org; const e = xe(c, "m.jansen"); const kr = roomIn(c, "Prüfungssaal 1");
+  return [
+    { t: "K", title: "Kammer prüft selbst (Art 1)", text: "Als Kammeradministration (Jasper Lindemann) unter „Externe Prüflinge“ bei Marek Jansen (noch nicht versorgt) „Zuordnen“: Art 1 – die Kammer prüft selbst. Keine Schule ist beteiligt.", as: KA, go: L("zuordnung"), done: +e?.art === 1 },
+    { t: 21, title: "Raumaufsicht der Kammer", text: "„Raumaufsichten“ › Prüfungssaal 1 › „Teilnehmende hinzufügen“: Marek Jansen zuordnen. In Räumen der Kammer stehen nur externe Prüflinge mit Art 1 oder 4 zur Auswahl.", as: KA, go: kr && `#/app/raum/${kr.id}/teilnehmende`, done: partIn(c, "m.jansen", km) },
+    { t: 52, title: "Rolle in der Kammer vergeben", text: "„Rollen in der Kammer“ › Raumaufsichten › „Raumaufsicht hinzufügen“: Mira Fenske. Die Kammer vergibt die Rollen innerhalb ihrer Organisation wie eine Schule.", as: KA, go: L("mitglieder"), done: members(c || {}).some((m) => m.person === P("m.fenske")?.id && m.role === "raumaufsicht") },
+    { t: 24, title: "Korrektur durch die Kammer", text: "„Korrektoren“ › Erstkorrektur › „Korrektorengruppe zuweisen“: Marek Jansen → Ole Brückner (Kammer).", as: KA, go: L("korrektoren"), done: corrFor(c, P("m.jansen")?.id, km, 1) },
+    { t: 22, title: "Kammer-Raumaufsicht", text: "Als Kammer-Raumaufsicht (Hanno Weißgerber): Sie sehen nur die Raumaufsicht der Kammer im Prüfungssaal 1 mit den externen Prüflingen der Kammer.", manual: "kr1", as: asPerson("h.weissgerber", "aufsicht"), go: kr && `#/app/raum/${kr.id}/meinraum`, done: !!s.manual?.kr1 },
+  ];
+}
+function kammerArt4(s) {
+  const c = pr1c(); const L = kLinks(c); const KA = asPerson("j.lindemann", "kammeradmin"); const km = P("j.lindemann")?.org; const kr = roomIn(c, "Prüfungssaal 1");
+  const nx = D.persons.filter((p) => p.kind === "extern" && p.org === km && !(s.base.persons || []).includes(p.id)).sort((a, b) => String(b.created).localeCompare(String(a.created)))[0];
+  const e = nx && (c?.ext || {})[nx.id]; const pool = (D.settings.find((x) => x.key === "kpool:" + km)?.value || []).map((x) => x.person);
+  return [
+    { t: "K", title: "Korrektorenpool ansehen", text: "Als Kammeradministration „Externe Prüflinge“: Unten steht der Korrektorenpool – Lehrkräfte der Schulen, die sich ehrenamtlich bereit erklärt haben (Name, Schule, Fach). Andere Lehrkräfte sieht die Kammer nicht.", manual: "pool", as: KA, go: "#/app/kammer", done: !!s.manual?.pool },
+    { t: "K", title: "Externen Prüfling anlegen", text: "„Prüfling anlegen“ (oder „CSV importieren“): Name, Vorname, Prüflingsnummer und Nachteilsausgleich erfassen.", as: KA, go: "#/app/kammer", done: !!nx },
+    { t: "K", title: "Zur Prüfung hinzufügen, Art 4 wählen", text: `„Prüfungen“ › FA230 › „Externe Prüflinge“ › „Prüflinge zur Prüfung hinzufügen“, danach bei ${nx ? esc(personName(nx)) : "dem neuen Prüfling"} „Zuordnen“: Art 4 – die Kammer prüft, Korrektur durch Lehrkräfte der Schulen.`, as: KA, go: L("zuordnung"), done: +e?.art === 4 },
+    { t: 21, title: "Raumaufsicht der Kammer", text: "„Raumaufsichten“ › Prüfungssaal 1 › „Teilnehmende hinzufügen“: den neuen Prüfling zuordnen.", as: KA, go: kr && `#/app/raum/${kr.id}/teilnehmende`, done: partOf(c, nx?.id, km) },
+    { t: 24, title: "Lehrkraft aus dem Pool zuweisen", text: "„Korrektoren“ › Erstkorrektur › „Korrektorengruppe zuweisen“: den Prüfling einer Lehrkraft aus dem Korrektorenpool zuweisen (z. B. Gesa Ohm, AFS).", as: KA, go: L("korrektoren"), done: !!nx && (c?.corrections || []).some((a) => a.target === nx.id && a.org === km && (a.correctors || []).some((x) => pool.includes(x))) },
+    { t: 20, title: "Pseudonymisierte Korrektur", text: "Als Gesa Ohm (Erstkorrektur): In der Korrekturübersicht erscheint Elena Brandt (Art 4, Zwischenprüfung) nur als „Prüfling, MS-26-1006“ – ohne Namen. Die Prüflinge der eigenen Schule sieht sie wie gewohnt.", manual: "pseudo", as: asPerson("g.ohm", "korrektor", { corrector: 1 }), go: "#/app/korrektur", done: !!s.manual?.pseudo },
+  ];
+}
+function kammerAnnahme(s) {
+  const c = pr1c(); const L = kLinks(c);
+  const SA = asPerson("m.hinrichs", "schuladmin"), SB = asPerson("i.ammermann", "schuladmin"), KA = asPerson("j.lindemann", "kammeradmin"), KB = asPerson("c.ostrowski", "kammeradmin");
+  const afs = P("m.hinrichs")?.org, bts = P("i.ammermann")?.org; const lo = xe(c, "s.lorenz"), ro = xe(c, "f.roth"), kr = xe(c, "j.kraemer"); const r123 = room123();
+  return [
+    { t: "K", title: "Schule: Benachrichtigung und Annahme", text: "Als Marit Hinrichs (AFS): Auf der Seite „Prüfungen“ steht die Benachrichtigung „Externe Prüflinge zur Annahme“. Unter „Externe Prüflinge“ sehen Sie je Kammer nur Anzahl, Art und Nachteilsausgleich. Den Vorschlag der IHK Musterstadt annehmen (einzeln oder „Alle annehmen“).", as: SA, go: L("extern"), done: lo?.status === "angenommen" },
+    { t: "K", title: "Schule: Vorschlag ablehnen", text: "Den Vorschlag der IHK Bergland (1 externer Prüfling) ablehnen, z. B. „keine freien Plätze“. Die Kammer wird benachrichtigt.", as: SA, go: L("extern"), done: ro?.status === "abgelehnt" || (!!ro && ro.school !== afs) },
+    { t: "K", title: "Andere Kammer: neu zuordnen", text: "Als Kammeradministration der IHK Bergland (Carla Ostrowski): Benachrichtigung „Zuordnung abgelehnt“. Fabian Roth der Birkental-Schule (BTS) zuordnen – sie liegt in einem anderen Kammerbezirk; dazu „auch Schulen anderer Kammerbezirke anzeigen“. Die IHK Bergland sieht nur ihre eigenen Prüflinge.", as: KB, go: L("zuordnung"), done: ro?.school === bts },
+    { t: "K", title: "Kammer: kurzfristige Ummeldung", text: "Jonas Krämer ist an der AFS (Raum 123) eingeplant, soll nach Absprache aber an der BTS schreiben: Als Jasper Lindemann (IHK Musterstadt) „Ändern“ → Art 2, BTS. Die AFS wird benachrichtigt und Jonas Krämer aus der noch nicht begonnenen Raumaufsicht entfernt.", as: KA, go: L("zuordnung"), done: kr?.school === bts },
+    { t: "K", title: "Schule: Ummeldung annehmen", text: "Als Ilka Ammermann (BTS): Auch eine Ummeldung nimmt immer die Schuladministration an. Beide Vorschläge (IHK Bergland, IHK Musterstadt) annehmen.", as: SB, go: L("extern"), done: ro?.school === bts && ro.status === "angenommen" && kr?.school === bts && kr.status === "angenommen" },
+    { t: "K", title: "Schule: Ergebnis der Ummeldung", text: "Als Marit Hinrichs (AFS): Benachrichtigung „Zuordnung durch die Kammer zurückgezogen“. In Raum 123 ist Jonas Krämer nicht mehr eingeplant; in keiner anderen Prüfung der AFS steht er zur Auswahl.", manual: "um", as: SA, go: r123 && `#/app/raum/${r123.id}/teilnehmende`, done: !!s.manual?.um },
+  ];
+}
+
 export const KINDS = {
   erstellung: { name: "Klickstrecke Prüfungserstellung bis Prüfungsstart", short: "Prüfungserstellung", icon: "pencil", group: "Prüfungserstellung", fn: creation },
   stammdaten: { name: "Klickstrecke Stammdaten (Koordinierungsstelle)", short: "Stammdaten", icon: "database", group: "Prüfungserstellung", fn: masterFlow },
@@ -245,6 +315,11 @@ export const KINDS = {
   durchfuehrung: { name: "Klickstrecke Prüfung durchführen (Raumaufsicht und Prüfling)", short: "Prüfung durchführen", icon: "monitor", group: "Prüfungsdurchführung", fn: conduct },
   korrektur: { name: "Klickstrecke Korrektur und Ergebnisse", short: "Korrektur und Ergebnisse", icon: "file-pen-line", group: "Prüfungsdurchführung", fn: correction },
   einsicht: { name: "Klickstrecke Prüfungseinsicht", short: "Prüfungseinsicht", icon: "eye", group: "Prüfungsdurchführung", fn: einsicht },
+  kammer_annahme: { name: "Klickstrecke Kammer: Annahme und Ummeldung", short: "Annahme und Ummeldung", icon: "user-round-plus", group: "Kammer", fn: kammerAnnahme },
+  kammer_art2: { name: "Klickstrecke Kammer Art 2: Durchführung und Korrektur an der Schule", short: "Art 2 · Schule führt durch und korrigiert", icon: "school", group: "Kammer", fn: kammerArt2 },
+  kammer_art3: { name: "Klickstrecke Kammer Art 3: nur Durchführung an der Schule", short: "Art 3 · Schule führt nur durch", icon: "monitor", group: "Kammer", fn: kammerArt3 },
+  kammer_art1: { name: "Klickstrecke Kammer Art 1: Kammer prüft selbst", short: "Art 1 · Kammer prüft selbst", icon: "building-2", group: "Kammer", fn: kammerArt1 },
+  kammer_art4: { name: "Klickstrecke Kammer Art 4: Korrektur durch Lehrkräfte (pseudonymisiert)", short: "Art 4 · Korrektur durch Lehrkräfte", icon: "file-pen-line", group: "Kammer", fn: kammerArt4 },
   unterricht: { name: "Klickstrecke Unterricht (Lehrkraft)", short: "Unterricht durchführen", icon: "book-open", group: "Unterricht", fn: lesson },
   inhalte: { name: "Klickstrecke Eigene Unterrichtsinhalte (Lehrkraft)", short: "Eigene Inhalte", icon: "copy", group: "Unterricht", fn: ownContent },
   schueler: { name: "Klickstrecke Schüler:in", short: "Schüler:in", icon: "graduation-cap", group: "Unterricht", fn: studentFlow },
@@ -264,7 +339,7 @@ export function start(kind, fresh = false) {
     loginAs(x.as); toast(NAMES[kind] + " fortgesetzt", `Weiter mit Schritt ${list.indexOf(x) + 1}: ${x.title}`, "info");
     navigate(x.go || "#/app/kurse"); render(); return;
   }
-  const base = { courses: D.courses.map((c) => c.id), rooms: D.rooms.map((r) => r.id), catalog: D.catalog.map((c) => c.id) };
+  const base = { courses: D.courses.map((c) => c.id), rooms: D.rooms.map((r) => r.id), catalog: D.catalog.map((c) => c.id), persons: D.persons.map((p) => p.id) };
   // Ausgangsstand für die Erkennung der Schritte
   const r = room123(); const tp = D.participants.find((x) => x.room === r?.id && x.username === "n.froehlke");
   const pr1 = D.courses.find((x) => x.title === "FA230 - Musterprüfung"); const nw = P("h.nowak"); const dist = D.participants.find((x) => x.person === nw?.id && byId("rooms", x.room)?.mode === "distanz");
@@ -309,7 +384,7 @@ export function mountPanel() {
   const el = old || document.createElement("aside");
   el.className = "guidepanel" + (s.open ? "" : " closed"); el.setAttribute("aria-label", "Klickstrecke");
   el.innerHTML = `<button class="gp-head" data-gtoggle aria-expanded="${s.open}">${icon("list-checks")}<span class="grow"><b>${esc(NAMES[s.kind])}</b><span class="xs">${done} von ${list.length} Schritten erledigt</span></span>${icon(s.open ? "chevron-down" : "chevron-up")}</button>
-    ${s.open ? `<div class="gp-bar"><i style="width:${Math.round((done / list.length) * 100)}%"></i></div><ol class="gp-steps">${list.map((x, i) => (!s.full && i !== cur && !(!x.done && x.optional && i < cur)) ? "" : `<li class="${x.done ? "done" : ""} ${i === cur ? "cur" : ""}"><div class="gp-row"><span class="gp-ico">${x.done ? icon("check") : i + 1}</span><span class="grow"><b>${esc(x.title)}</b>${x.optional ? ' <span class="xs muted">optional</span>' : ""}<span class="xs muted"> · Task ${x.t}</span></span></div>
+    ${s.open ? `<div class="gp-bar"><i style="width:${Math.round((done / list.length) * 100)}%"></i></div><ol class="gp-steps">${list.map((x, i) => (!s.full && i !== cur && !(!x.done && x.optional && i < cur)) ? "" : `<li class="${x.done ? "done" : ""} ${i === cur ? "cur" : ""}"><div class="gp-row"><span class="gp-ico">${x.done ? icon("check") : i + 1}</span><span class="grow"><b>${esc(x.title)}</b>${x.optional ? ' <span class="xs muted">optional</span>' : ""}${x.t === "K" ? '<span class="xs muted"> · Kammer</span>' : `<span class="xs muted"> · Task ${x.t}</span>`}</span></div>
       ${i === cur || (!x.done && x.optional && i < cur) ? `<p class="small">${x.text}</p><div class="row wrap" style="gap:6px">${x.go ? `<button class="btn primary xs" data-ggo="${i}">${icon("arrow-right")} ${x.as ? "Anmelden und öffnen" : "Öffnen"}</button>` : ""}${x.manual ? `<button class="btn xs" data-gman="${x.manual === true ? "vis" : x.manual}">${icon("check")} Erledigt</button>` : ""}${x.optional ? `<button class="btn xs ghost" data-gskip="${i}">überspringen</button>` : ""}</div>` : ""}</li>`).join("")}</ol>
     ${done === list.length || cur < 0 || list.every((x) => x.done || x.optional) ? `<div class="notice success small">${icon("circle-check")}<span>Klickstrecke abgeschlossen${done < list.length ? " – optionale Schritte sind noch offen" : ""}.</span></div>` : ""}<div class="row between gp-foot"><button class="link xs" data-gfull>${s.full ? "Nur aktuellen Schritt" : `Alle Schritte anzeigen`}</button><a class="xs" href="#/">Personen wechseln</a><button class="link xs" data-gstop title="Die Klickstrecke wird angehalten und kann auf der Startseite an derselben Stelle fortgesetzt werden">Pausieren</button></div>` : ""}`;
   if (!old) document.body.appendChild(el);
