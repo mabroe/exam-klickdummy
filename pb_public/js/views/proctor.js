@@ -1,11 +1,11 @@
 // Raumaufsicht: Übersicht der Raumaufsichten und Steuerkonsole eines Raums
-import { D, byId, upd, create, del, log, demoApi } from "../data.js?v=10.0";
-import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, isDistance, windowState, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=10.0";
-import { navigate, redraw, session, directHelp } from "../app.js?v=10.0";
-import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, orgsLabel, KIND, members, isAdm, isExtern, isKammerOrg } from "../access.js?v=10.0";
-import * as CR from "./creation.js?v=10.0";
-import * as KA from "./kammer.js?v=10.0";
-import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=10.0";
+import { D, byId, upd, create, del, log, demoApi } from "../data.js?v=10.1";
+import { icon, esc, modal, confirmBox, toast, statusChip, STATUS, isDistance, windowState, endTime, plannedEnd, fmtTime, fmtDateTime, parseDate, toPb, isConnected, isOffline, isActive, isFinished, isCollectable, connState as connOf, connChip, timeBadges, pager, bindPager, ddHtml, bindDd, mmss } from "../ui.js?v=10.1";
+import { navigate, redraw, session, directHelp } from "../app.js?v=10.1";
+import { me, canSeeRoom, visibleRooms, visibleCourses, canManageCourse, courseOf, roomCandidates, personName, orgShort, orgsLabel, KIND, members, isAdm, isExtern, isKammerOrg, isLeitung } from "../access.js?v=10.1";
+import * as CR from "./creation.js?v=10.1";
+import * as KA from "./kammer.js?v=10.1";
+import { seatCmp, LAYOUTS, layoutOf, isVirtual, seatMap, seatCount, validSeat, freeSeats, seatScheme, describe, gridStyle, posStyle, previewHtml, layoutIcon, venuesOf, venueConflict, conflictText } from "../seats.js?v=10.1";
 
 const MR = { status: "", q: "" }; // Filter „Mein Raum“ (Großraum)
 const pending = new Set();
@@ -36,7 +36,7 @@ export function overview() {
       if (st.filters.includes("today")) rows = rows.filter(({ r }) => parseDate(r.planned_start)?.toDateString() === new Date().toDateString());
       if (st.filters.includes("exam")) rows = rows.filter(({ r }) => r.exam_name.includes("FA230"));
       const page = rows.slice((st.page - 1) * st.per, st.page * st.per);
-      const scope = !p ? "" : isAdm(p) ? `Prüfungs-Raumaufsichten Ihrer ${p.kind === "kammeradmin" ? "Kammer" : "Schule"} (${esc(orgShort(p.org))})` : session.role === "aufsicht" ? "Raumaufsichten, in denen Sie als Aufsichtsperson eingetragen sind, sowie eigene" : "Raumaufsichten, die Ihr Konto betreffen (Eigentümer, Aufsichtsperson oder Lehrkraft des Unterrichts)";
+      const scope = !p ? "" : isAdm(p) ? `Prüfungs-Raumaufsichten Ihrer ${isKammerOrg(p.org) ? "Kammer" : "Schule"} (${esc(orgShort(p.org))})` : session.role === "aufsicht" ? "Raumaufsichten, in denen Sie als Aufsichtsperson eingetragen sind, sowie eigene" : "Raumaufsichten, die Ihr Konto betreffen (Eigentümer, Aufsichtsperson oder Lehrkraft des Unterrichts)";
       return `<div class="pagehead"><div><h1>Übersicht Raumaufsicht</h1>${p ? `<div class="sub">${esc(personName(p))} · ${scope}</div>` : ""}</div></div>
       <div class="row between wrap mb"><div class="row">${visibleCourses(p).length ? `<button class="btn" data-new>${icon("plus")} Neue Raumaufsicht erstellen</button>` : ""}${isAdm(p) ? `<a class="btn" href="#/app/raeume">${icon("door-open")} Prüfungsräume verwalten</a>` : ""}</div>
         <div class="row">${ddHtml("f", "Filtern nach", [["today", "Prüfungsdatum: heute"], ["running", "Status: läuft/pausiert"], ["exam", "Prüfungskurs: FA230"]], st.filters, st)}<div class="search"><input class="input" style="width:240px" placeholder="Suche" data-q value="${esc(st.q)}">${icon("search")}</div></div></div>
@@ -706,7 +706,7 @@ function bindAufsicht(el, room) {
   el.querySelector("[data-delsv]").onclick = async () => {
     const list = [...st.sel].map((id) => byId("supervisors", id)).filter(Boolean);
     if (!(await confirmBox("Aufsichtspersonen löschen", list.map((s) => `${esc(s.lastname)}, ${esc(s.firstname)}`).join("<br>"), "Löschen"))) return;
-    const { del } = await import("../data.js?v=10.0");
+    const { del } = await import("../data.js?v=10.1");
     for (const s of list) { await del("supervisors", s.id); log(room.id, null, `Aufsichtsperson ${s.lastname} entfernt`, "", "aktion", actor()); }
     st.sel.clear(); toast("Aufsichtspersonen entfernt");
   };
@@ -725,8 +725,8 @@ function tabProtokoll(room) {
   // Protokollfreigabe (Task 23): erst danach sehen beteiligte Kammern die Einträge ihrer externen Prüflinge
   const nExt = inRoom(room).filter((x) => isExtern(byId("persons", x.person))).length; const pe = me();
   const rel = isKammerOrg(room.org) ? "" : room.prot_released ? `<div class="notice success small mb">${icon("circle-check")}<span><b>Prüfungsprotokoll freigegeben</b>${room.prot_released_at ? ` am ${fmtDateTime(parseDate(room.prot_released_at))}` : ""}.${nExt ? ` Die zuständigen Kammern sehen die Einträge ihrer ${nExt} externen Prüflinge.` : ""}</span></div>`
-    : room.state === "TERMINATED" ? `<div class="notice ${nExt ? "warn" : "info"} small mb">${icon("file-text")}<span><b>Protokoll noch nicht freigegeben.</b>${nExt ? ` In dieser Raumaufsicht schreiben ${nExt} externe Prüflinge – die Kammer sieht deren Protokolleinträge erst nach der Freigabe.` : ""}</span>${isAdm(pe) && pe.org === room.org ? `<button class="btn primary sm" data-protrel>${icon("check")} Protokoll freigeben</button>` : `<span class="xs muted">Freigabe durch die Schuladministration</span>`}</div>`
-    : nExt ? `<div class="notice info small mb">${icon("info")}<span>Nach Prüfungsende gibt die Schuladministration das Protokoll frei; danach sieht die Kammer die Einträge ihrer ${nExt} externen Prüflinge.</span></div>` : "";
+    : room.state === "TERMINATED" ? `<div class="notice ${nExt ? "warn" : "info"} small mb">${icon("file-text")}<span><b>Protokoll noch nicht freigegeben.</b>${nExt ? ` In dieser Raumaufsicht schreiben ${nExt} externe Prüflinge – die Kammer sieht deren Protokolleinträge erst nach der Freigabe.` : ""}</span>${isLeitung(pe) && pe.org === room.org ? `<button class="btn primary sm" data-protrel>${icon("check")} Protokoll freigeben</button>` : `<span class="xs muted">Freigabe durch die Prüfungsleitung</span>`}</div>`
+    : nExt ? `<div class="notice info small mb">${icon("info")}<span>Nach Prüfungsende gibt die Prüfungsleitung das Protokoll frei; danach sieht die Kammer die Einträge ihrer ${nExt} externen Prüflinge.</span></div>` : "";
   return `${rel}<div class="row between wrap mb">${ddHtml("pf", "Filtern nach", [["participant", "Betroffene Benutzer"], ["seat", "Sitzplatz"], ["action", "Aktion"], ["comment", "Kommentar"]], st.filters, st)}<div class="search"><input class="input" style="width:260px" placeholder="Suchen" data-q value="${esc(st.q)}">${icon("search")}</div></div>
   <div class="tablewrap"><table class="tbl"><thead><tr><th class="sortable" data-tsort>${icon(st.dir > 0 ? "chevron-up" : "chevron-down")} Zeitstempel</th><th>Teilnehmende</th><th>Anmeldename</th><th>Sitzplatz</th><th>Aktion</th><th>Kommentar</th></tr></thead>
   <tbody>${page.length ? page.map((r) => `<tr><td class="nowrap">${fmtDateTime(parseDate(r.ts))}</td><td>${esc(r.participant)}</td><td>${esc(r.username)}</td><td>${esc(r.seat)}</td><td>${r.kind === "vorkommnis" ? `<span class="badge red">${icon("message-square-warning")} </span> ` : ""}${esc(r.action)}</td><td><button class="iconbtn" data-cmt="${r.id}" aria-label="Kommentar bearbeiten">${icon("pencil")}</button> ${esc(r.comment)}</td></tr>`).join("") : `<tr><td colspan="6"><div class="empty">Keine Einträge</div></td></tr>`}</tbody></table>${pager(rows.length, st.page, st.per, [5, 10, 25, 50])}</div>`;
@@ -744,4 +744,4 @@ function bindProtokoll(el, room) {
     if (v !== null && v !== undefined) { await upd("protocol", r.id, { comment: v }); toast("Kommentar gespeichert"); }
   }));
 }
-function downloadProtocol(room) { import("./protocolpdf.js?v=10.0").then((m) => m.protocolPdf(room)); }
+function downloadProtocol(room) { import("./protocolpdf.js?v=10.1").then((m) => m.protocolPdf(room)); }

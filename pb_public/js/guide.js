@@ -3,11 +3,11 @@
 //  - Unterricht: Lehrkraft (Tasks 31–36, 34 als Schüler:in)
 //  - Prüfung: Schuladministration (Tasks 52, 24, 21), Raumaufsicht (Task 22/23)
 // Der Fortschritt wird aus den Daten erkannt; der Leitfaden kann jederzeit ein- und ausgeklappt werden.
-import { D, byId, onChange } from "./data.js?v=10.0";
-import { icon, esc, store, toast } from "./ui.js?v=10.0";
-import { members, personName, inOrg } from "./access.js?v=10.0";
-import { navigate, render } from "./app.js?v=10.0";
-import * as CR from "./views/creation.js?v=10.0";
+import { D, byId, onChange } from "./data.js?v=10.1";
+import { icon, esc, store, toast } from "./ui.js?v=10.1";
+import { members, personName, inOrg } from "./access.js?v=10.1";
+import { navigate, render } from "./app.js?v=10.1";
+import * as CR from "./views/creation.js?v=10.1";
 
 const KEY = "guide";
 const st = () => store.lget(KEY, null);
@@ -228,7 +228,7 @@ function ownContent(s) {
   const mitb = course && members(course).find((m) => m.role === "mitbetreuung");
   if (c?.release && !s.manual?.relseen) { s.manual.relseen = true; save(s); }
   return [
-    { t: 31, title: "Eigenen Inhalt mit Unterricht erstellen", text: "Als Lehrkraft Amir Eggert im Katalog „Neuen Inhalt erstellen“ (mit „Unterricht anlegen“) – alternativ einen Katalogeintrag kopieren: Es entsteht eine eigene, bearbeitbare Kopie.", as: lk, go: "#/app/katalog", done: !!c },
+    { t: 31, title: "Eigenen Unterricht von Grund auf erstellen", text: "Als Lehrkraft Amir Eggert unter „Mein Unterricht“ „Eigenen Unterricht erstellen“: Titel, Art (z. B. Klassenarbeit, Übung) und Start mit leerem Inhalt oder mit Beispielaufgaben je Fragetyp. Alternativ einen Katalogeintrag kopieren – auch dann entsteht eine eigene, bearbeitbare Kopie.", as: lk, go: "#/app/kurse", done: !!c },
     { t: 31, title: "Inhalt im Editor bearbeiten", text: "Aufgaben, Materialien (z. B. Datei unter „Eigene Dateien“, E-Mail „vor 2 Tagen“) und Bewertung anlegen und speichern.", as: lk, go: c ? `#/app/editor/${c.id}/aufgaben` : "#/app/katalog", done: !!c && c.updated !== c.created },
     { t: 31, title: "Weitere Lehrkraft als Mitbetreuung", text: "Im Unterricht „Lehrkraft hinzufügen“ (z. B. Lina Voigt). Die Mitbetreuung kann den Inhalt ebenfalls bearbeiten.", as: lk, go: course ? `#/app/kurs/${course.id}/mitglieder` : "#/app/kurse", done: !!mitb },
     { t: 31, title: "Mitbetreuung bearbeitet den Inhalt", text: `Als ${esc(personName(byId("persons", mitb?.person)) || "Mitbetreuung")} den Inhalt im Editor öffnen und ändern. (optional)`, optional: true, as: mitb ? { person: mitb.person, role: "lehrkraft" } : lk, go: c ? `#/app/editor/${c.id}/allgemein` : "#/app/kurse", manual: "mitb", done: !!s.manual?.mitb },
@@ -308,6 +308,21 @@ function kammerAnnahme(s) {
   ];
 }
 
+// ---------- Prüfungsleitung und Prüfungsorganisation ----------
+function orgRolesFlow(s) {
+  const RO = asPerson("j.rosenthal", "schuladmin"); const afs = P("j.rosenthal")?.org; const c = pr1c(); const L = kLinks(c);
+  const v = P("l.voigt"); const r = (D.settings.find((x) => x.key === "orgrole:" + afs)?.value || []).find((x) => x.person === v?.id); const lo = xe(c, "s.lorenz");
+  const UB = asPerson("u.brettschneider", "orga");
+  return [
+    { t: "–", title: "Prüfungsleitung: Organisation bestimmen", text: "Als Prüfungsleitung der AFS (Schulleiter Jakob Rosenthal) unter „Rollen“ „Prüfungsorganisation bestimmen“: Lina Voigt (Lehrkraft) nur für „FA230 - Musterprüfung“. Uta Brettschneider (Sekretariat) ist bereits für alle Prüfungen bestimmt; Marit Hinrichs hat in der Demo beide Rollen.", as: RO, go: "#/app/orgrollen", done: !!r && (r.courses || []).includes(c?.id) },
+    { t: 52, title: "Organisation: nur zugewiesene Prüfungen", text: "Als Lina Voigt (Prüfungsorganisation): Unter „Prüfungen“ erscheint nur FA230. Teilnehmende, Raumaufsichten und Korrektoren sind bearbeitbar; Leitungsaufgaben fehlen.", manual: "po1", as: asPerson("l.voigt", "orga"), go: "#/app/kurse", done: !!s.manual?.po1 },
+    { t: 28, title: "Organisation: Bearbeitungsstand ohne Noten", text: "Als Uta Brettschneider (Sekretariat, Prüfungsorganisation) „Bearbeitungsstand“: Sie sehen, ob Erst- und Zweitkorrektur abgeschlossen sind – keine Punkte, Noten oder Statistiken.", manual: "po2", as: UB, go: "#/app/ergebnisse", done: !!s.manual?.po2 },
+    { t: "K", title: "Organisation: Annahme nur durch die Leitung", text: "Als Uta Brettschneider „Externe Prüflinge“: Die Vorschläge der Kammern (Anzahl, Art, Nachteilsausgleich) sind sichtbar – annehmen oder ablehnen kann nur die Prüfungsleitung.", manual: "po3", as: UB, go: L("extern"), done: !!s.manual?.po3 },
+    { t: "K", title: "Leitung: externen Prüfling annehmen", text: "Als Jakob Rosenthal (Prüfungsleitung) unter „Externe Prüflinge“ den Vorschlag der IHK Musterstadt annehmen.", as: RO, go: L("extern"), done: lo?.status === "angenommen" },
+    { t: 28, title: "Leitung: Ergebnisse mit Noten", text: "Als Jakob Rosenthal „Ergebnisse“: Punkte, Noten, Notenspiegel und die Entscheidung über die Drittkorrektur liegen bei der Prüfungsleitung.", manual: "po4", as: RO, go: "#/app/ergebnisse", done: !!s.manual?.po4 },
+  ];
+}
+
 export const KINDS = {
   erstellung: { name: "Klickstrecke Prüfungserstellung bis Prüfungsstart", short: "Prüfungserstellung", icon: "pencil", group: "Prüfungserstellung", fn: creation },
   stammdaten: { name: "Klickstrecke Stammdaten (Koordinierungsstelle)", short: "Stammdaten", icon: "database", group: "Prüfungserstellung", fn: masterFlow },
@@ -315,6 +330,7 @@ export const KINDS = {
   durchfuehrung: { name: "Klickstrecke Prüfung durchführen (Raumaufsicht und Prüfling)", short: "Prüfung durchführen", icon: "monitor", group: "Prüfungsdurchführung", fn: conduct },
   korrektur: { name: "Klickstrecke Korrektur und Ergebnisse", short: "Korrektur und Ergebnisse", icon: "file-pen-line", group: "Prüfungsdurchführung", fn: correction },
   einsicht: { name: "Klickstrecke Prüfungseinsicht", short: "Prüfungseinsicht", icon: "eye", group: "Prüfungsdurchführung", fn: einsicht },
+  orgrollen: { name: "Klickstrecke Prüfungsleitung und Prüfungsorganisation", short: "Leitung und Organisation", icon: "user-round-plus", group: "Prüfungsdurchführung", fn: orgRolesFlow },
   kammer_annahme: { name: "Klickstrecke Kammer: Annahme und Ummeldung", short: "Annahme und Ummeldung", icon: "user-round-plus", group: "Kammer", fn: kammerAnnahme },
   kammer_art2: { name: "Klickstrecke Kammer Art 2: Durchführung und Korrektur an der Schule", short: "Art 2 · Schule führt durch und korrigiert", icon: "school", group: "Kammer", fn: kammerArt2 },
   kammer_art3: { name: "Klickstrecke Kammer Art 3: nur Durchführung an der Schule", short: "Art 3 · Schule führt nur durch", icon: "monitor", group: "Kammer", fn: kammerArt3 },

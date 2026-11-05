@@ -5,17 +5,17 @@
 //    Teilaufgaben mit Fragetyp, Arbeitsauftrag, Bewertungsraster und Erwartungshorizont (auch mit Bildern)
 //  - Aufgabensteuerung: Regeln (Bedingungen mit UND/ODER, Aktionen)
 //  - Prüfen: Vollständigkeit und Übersicht, Speichern, Vorschau
-import { D, byId, upd, create } from "../data.js?v=10.0";
-import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=10.0";
-import { navigate, redraw, session } from "../app.js?v=10.0";
-import { me, personName, isTeacherOf, inOrg, orgShort, canManageCourse } from "../access.js?v=10.0";
-import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=10.0";
-import { hasOwnContent, contentFromDefault, FOLDER, relLabel } from "../content.js?v=10.0";
-import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=10.0";
-import { condText } from "../rules.js?v=10.0";
-import { inProcess, canEditContent, statusBadge, actionBar, runAction, STATUS_ACTS, rolesOf, seesNames } from "./creation.js?v=10.0";
-import { lockedBy, acquire, releaseAll } from "../locks.js?v=10.0";
-import { activeSignSet } from "../masterdata.js?v=10.0";
+import { D, byId, upd, create } from "../data.js?v=10.1";
+import { icon, esc, toast, confirmBox, modal, store } from "../ui.js?v=10.1";
+import { navigate, redraw, session } from "../app.js?v=10.1";
+import { me, personName, isTeacherOf, inOrg, orgShort, canManageCourse } from "../access.js?v=10.1";
+import { useContent, normalizeContent, ALL_TOOLS, QTYPES, APP_TOOLS, INLINE_TYPES, GRADING_KEYS, CATEGORY_SYSTEMS, categoryList } from "../scenario.js?v=10.1";
+import { hasOwnContent, contentFromDefault, FOLDER, relLabel } from "../content.js?v=10.1";
+import { rulesEditor, bindRulesEditor, validateRules } from "./ruleeditor.js?v=10.1";
+import { condText } from "../rules.js?v=10.1";
+import { inProcess, canEditContent, statusBadge, actionBar, runAction, STATUS_ACTS, rolesOf, seesNames } from "./creation.js?v=10.1";
+import { lockedBy, acquire, releaseAll } from "../locks.js?v=10.1";
+import { activeSignSet } from "../masterdata.js?v=10.1";
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const rid = () => Math.random().toString(36).slice(2, 12);
@@ -73,19 +73,30 @@ export function blankContent(title, duration = 45) {
 }
 const newTask = (n) => ({ uid: rid(), title: `Aufgabe ${n}`, situation: "", tools: ALL_TOOLS.map((x) => x[0]), materials: [], subtasks: [newSub()] });
 const newSub = (type = "freitext") => ({ title: "Neue Teilaufgabe", type, tool: type === "app" ? "files" : type, text: "", options: type === "single" || type === "multiple" ? [{ text: "", correct: true }, { text: "", correct: false }] : [], criteria: [["Inhalt", 5, ""]], horizon: [["", "5 P"]], images: [] });
-export async function newContentDialog() {
+// Gerüst mit Beispielaufgaben je Fragetyp (eigene Aufgaben von Grund auf erstellen)
+function starterTasks() {
+  const s = (title, type, text, extra = {}) => ({ ...newSub(type), title, text, ...extra });
+  return [{ ...newTask(1), title: "Grundlagen", subtasks: [
+    s("Begriff erklären", "freitext", "Erklären Sie den Begriff in eigenen Worten."),
+    s("Kurzantwort", "kurz", "Nennen Sie das Ergebnis.", { criteria: [["Ergebnis", 2, ""]], horizon: [["", "2 P"]] }),
+    s("Eine richtige Antwort", "single", "Welche Aussage ist richtig?", { options: [{ text: "Aussage A", correct: true }, { text: "Aussage B", correct: false }, { text: "Aussage C", correct: false }], criteria: [["Auswahl", 2, ""]], horizon: [["Aussage A", "2 P"]] }),
+    s("Mehrere richtige Antworten", "multiple", "Welche Aussagen treffen zu?", { options: [{ text: "Aussage A", correct: true }, { text: "Aussage B", correct: true }, { text: "Aussage C", correct: false }], criteria: [["Auswahl", 3, ""]], horizon: [["Aussage A und B", "3 P"]] })] },
+    { ...newTask(2), title: "Anwendung", situation: "Beschreiben Sie hier die Ausgangssituation der Aufgabe.", subtasks: [s("Ergebnis als Datei abgeben", "upload", "Bearbeiten Sie die Aufgabe und laden Sie Ihr Ergebnis als Datei hoch."), s("Mit Anwendung bearbeiten", "app", "Senden Sie Ihr Ergebnis per E-Mail bzw. legen Sie es in den Dateien ab und markieren Sie es als Abgabe.")] }];
+}
+export async function newContentDialog(opts = {}) {
   const author = isAuthor();
-  const v = await modal({ title: "Neuen Inhalt erstellen", size: "narrow",
+  const v = await modal({ title: opts.lesson ? "Eigenen Unterricht erstellen" : "Neuen Inhalt erstellen", size: "narrow",
     body: `<div class="field"><label class="lbl" for="nc-t">Titel</label><input id="nc-t" class="input" data-f="title" placeholder="z. B. Lernerfolgskontrolle Tabellenkalkulation"></div>
-      <div class="field"><label class="lbl" for="nc-k">Art</label><select id="nc-k" class="select" data-f="kind"><option selected>Lernerfolgskontrolle</option></select><p class="xs muted" style="margin:4px 0 0">Der Katalog enthält Inhalte für den Unterricht. Prüfungen entstehen im Erstellungsprozess der Koordinierungsstelle (Navigation „Erstellung“).</p></div>
+      <div class="field"><label class="lbl" for="nc-k">Art</label><select id="nc-k" class="select" data-f="kind">${(author ? ["Lernerfolgskontrolle"] : ["Lernerfolgskontrolle", "Klassenarbeit", "Übung", "Hausaufgabe (Distanz)"]).map((k, i) => `<option ${i ? "" : "selected"}>${k}</option>`).join("")}</select><p class="xs muted" style="margin:4px 0 0">Der Katalog enthält Inhalte für den Unterricht. Prüfungen entstehen im Erstellungsprozess der Koordinierungsstelle (Navigation „Erstellung“).</p></div>
       <div class="grid2"><div class="field"><label class="lbl" for="nc-b">Ausbildungsberuf</label><input id="nc-b" class="input" data-f="beruf" value="Kaufmann/-frau für Büromanagement"></div><div class="field"><label class="lbl" for="nc-f">Fach / Lernfeld</label><input id="nc-f" class="input" data-f="fach" value="Informationsverarbeitung"></div></div>
       <div class="field"><label class="lbl" for="nc-d">Bearbeitungszeit (Minuten)</label><input id="nc-d" class="input" type="number" min="5" data-f="dur" value="45"></div>
+      <fieldset class="field" style="border:0;padding:0"><legend class="lbl">Beginnen mit</legend><label class="checkbox" style="display:flex;margin:4px 0"><input type="radio" name="nc-s" value="leer" checked> leerem Inhalt <span class="xs muted">&nbsp;– eine leere Aufgabe</span></label><label class="checkbox" style="display:flex;margin:4px 0"><input type="radio" name="nc-s" value="beispiel"> Beispielaufgaben je Fragetyp <span class="xs muted">&nbsp;– Freitext, Kurzantwort, Single/Multiple Choice, Datei-Upload, Anwendung</span></label></fieldset>
       ${author ? `<p class="xs muted">Der Inhalt wird als Entwurf angelegt und erscheint erst nach der globalen Freigabe im Katalog.</p>` : `<label class="checkbox"><input type="checkbox" data-lesson checked> Unterricht mit diesem Inhalt anlegen (unter „Mein Unterricht“)</label><p class="xs muted">Eigene Inhalte sind zunächst nur für Sie (und die Mitbetreuung Ihres Unterrichts) sichtbar. Für Ihre Schule können Sie sie später im Katalog freigeben.</p>`}`,
     footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Erstellen und im Editor öffnen</button>`,
-    onMount: (m, close) => (m.querySelector("[data-ok]").onclick = () => { const o = {}; m.querySelectorAll("[data-f]").forEach((f) => (o[f.dataset.f] = f.value.trim())); o.lesson = !!m.querySelector("[data-lesson]")?.checked; if (!o.title) { m.querySelector("[data-f=title]").style.borderColor = "var(--red)"; return; } close(o); }) });
+    onMount: (m, close) => (m.querySelector("[data-ok]").onclick = () => { const o = {}; m.querySelectorAll("[data-f]").forEach((f) => (o[f.dataset.f] = f.value.trim())); o.lesson = !!m.querySelector("[data-lesson]")?.checked; o.start = m.querySelector("[name=nc-s]:checked")?.value || "leer"; if (!o.title) { m.querySelector("[data-f=title]").style.borderColor = "var(--red)"; return; } close(o); }) });
   if (!v) return;
   const p = me(); const dur = Math.max(5, +v.dur || 45);
-  const rec = await create("catalog", { title: v.title, kind: v.kind, beruf: v.beruf, fach: v.fach, jahr: String(new Date().getFullYear()), description: "", duration: `${dur} Minuten`, creator: author ? "Bereichsadministration (IBBW)" : personName(p), tags: [v.kind === "Prüfung" ? "Prüfungen" : "Lernerfolgskontrolle", "Editor"], contents: [], mine: !author, copied_from: "", image: Math.floor(Math.random() * 4), content: blankContent(v.title, dur), rules: [], editor_by: author ? "autor" : p?.id || "", release: null });
+  const rec = await create("catalog", { title: v.title, kind: v.kind, beruf: v.beruf, fach: v.fach, jahr: String(new Date().getFullYear()), description: "", duration: `${dur} Minuten`, creator: author ? "Bereichsadministration (IBBW)" : personName(p), tags: [v.kind === "Prüfung" ? "Prüfungen" : "Lernerfolgskontrolle", "Editor"], contents: [], mine: !author, copied_from: "", image: Math.floor(Math.random() * 4), content: v.start === "beispiel" ? { ...blankContent(v.title, dur), tasks: starterTasks() } : blankContent(v.title, dur), rules: [], editor_by: author ? "autor" : p?.id || "", release: null });
   for (let i = 0; i < 40 && !byId("catalog", rec.id); i++) await new Promise((r) => setTimeout(r, 50)); // Realtime-Spiegel abwarten
   if (!author && v.lesson) await lessonFor(rec, v.title);
   toast("Inhalt angelegt", v.title + (!author && v.lesson ? " – Unterricht angelegt" : "")); navigate(`#/app/editor/${rec.id}/allgemein`);

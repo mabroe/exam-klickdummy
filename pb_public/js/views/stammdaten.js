@@ -1,10 +1,10 @@
 // Stammdaten der Koordinierungsstelle: Ausbildungsberufe mit Berufsnummer und Prüfungstiteln, Fachbereiche, Schulen und ihre
 // Ausbildungsberufe, Unternehmenspools je Fachbereich, Korrekturzeichensätze (verbindlich für Erstellung, Prüfung und Unterricht)
-import { D, upd, create, byId, setSetting } from "../data.js?v=10.0";
-import { icon, esc, toast, modal, confirmBox } from "../ui.js?v=10.0";
-import { redraw } from "../app.js?v=10.0";
-import { me, personName, orgsLabel } from "../access.js?v=10.0";
-import { berufe, fachbereiche, fbName, berufById, pools, savePool, poolForm, readPoolForm, signsets, saveSignsets, inkSupported, INK_CHARS } from "../masterdata.js?v=10.0";
+import { D, upd, create, byId, setSetting } from "../data.js?v=10.1";
+import { icon, esc, toast, modal, confirmBox } from "../ui.js?v=10.1";
+import { redraw } from "../app.js?v=10.1";
+import { me, personName, orgsLabel } from "../access.js?v=10.1";
+import { berufe, fachbereiche, fbName, berufById, pools, savePool, poolForm, readPoolForm, signsets, saveSignsets, inkSupported, INK_CHARS } from "../masterdata.js?v=10.1";
 
 const TABS = [["berufe", "Ausbildungsberufe"], ["schulen", "Schulen"], ["kommissionen", "Kommissionen"], ["pools", "Unternehmenspools"], ["zeichen", "Korrekturzeichensätze"], ["fachbereiche", "Fachbereiche"]];
 const UI = { q: "", sq: "", set: "", fb: "" };

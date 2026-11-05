@@ -1,35 +1,36 @@
 // Exam Klickdummy – Router, Shells, Rollenwahl
-import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=10.0";
-import { lock as lockGate } from "./gate.js?v=10.0";
-import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=10.0";
-import * as TN from "./views/participant.js?v=10.0";
-import * as PR from "./views/proctor.js?v=10.0";
-import * as KO from "./views/correction.js?v=10.0";
-import * as LK from "./views/teacher.js?v=10.0";
-import * as RS from "./views/results.js?v=10.0";
-import * as KU from "./views/courses.js?v=10.0";
-import * as GD from "./guide.js?v=10.0";
-import * as ED from "./views/editor.js?v=10.0";
-import * as CR from "./views/creation.js?v=10.0";
-import { CORRECTORS } from "./scenario.js?v=10.0";
-import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms } from "./access.js?v=10.0";
-import { seatCount, seatCmp } from "./seats.js?v=10.0";
-import { syncForRoute } from "./content.js?v=10.0";
-import * as SD from "./views/stammdaten.js?v=10.0";
-import * as STU from "./views/student.js?v=10.0";
-import * as KAM from "./views/kammer.js?v=10.0";
-import { closeAll as closeWindows } from "./views/dock.js?v=10.0";
-import { applySigns } from "./masterdata.js?v=10.0";
+import { D, loadAll, subscribeAll, onChange, resetDemo, byId, demoApi, backend } from "./data.js?v=10.1";
+import { lock as lockGate } from "./gate.js?v=10.1";
+import { icon, esc, store, brand, popMenu, modal, toast, $, debounce, closeMenus, confirmBox } from "./ui.js?v=10.1";
+import * as TN from "./views/participant.js?v=10.1";
+import * as PR from "./views/proctor.js?v=10.1";
+import * as KO from "./views/correction.js?v=10.1";
+import * as LK from "./views/teacher.js?v=10.1";
+import * as RS from "./views/results.js?v=10.1";
+import * as KU from "./views/courses.js?v=10.1";
+import * as GD from "./guide.js?v=10.1";
+import * as ED from "./views/editor.js?v=10.1";
+import * as CR from "./views/creation.js?v=10.1";
+import { CORRECTORS } from "./scenario.js?v=10.1";
+import { me, personName, orgShort, orgsLabel, einsichtPersons, members, correctorStage, STAGE_LABEL, visibleRooms, isAdm, isKammerOrg, isLeitung, orgRoles } from "./access.js?v=10.1";
+import { seatCount, seatCmp } from "./seats.js?v=10.1";
+import { syncForRoute } from "./content.js?v=10.1";
+import * as SD from "./views/stammdaten.js?v=10.1";
+import * as STU from "./views/student.js?v=10.1";
+import * as KAM from "./views/kammer.js?v=10.1";
+import { closeAll as closeWindows } from "./views/dock.js?v=10.1";
+import { applySigns } from "./masterdata.js?v=10.1";
 
-export const VERSION = "10.0";
+export const VERSION = "10.1";
 export const VERSION_LABEL = `Version ${VERSION} · 05.11.2026`;
 export const ROLES = {
   tn: { label: "Prüfling", icon: "graduation-cap" },
   aufsicht: { label: "Raumaufsicht", icon: "monitor", user: "Thea Riedmüller" },
   korrektor: { label: "Korrektor:in", icon: "file-pen-line" },
   lehrkraft: { label: "Lehrkraft", icon: "school", user: "Amir Eggert" },
-  schuladmin: { label: "Schuladministration", icon: "building-2", user: "Marit Hinrichs" },
-  kammeradmin: { label: "Kammeradministration", icon: "building-2", user: "Jasper Lindemann" },
+  schuladmin: { label: "Prüfungsleitung", icon: "building-2", user: "Marit Hinrichs" },
+  kammeradmin: { label: "Kammer-Prüfungsleitung", icon: "building-2", user: "Jasper Lindemann" },
+  orga: { label: "Prüfungsorganisation", icon: "clipboard-list" },
   einsicht: { label: "Prüfungseinsicht", icon: "eye" },
   autor: { label: "Prüfungserstellung", icon: "pencil", user: "Koordinierungsstelle (IBBW)" },
   schueler: { label: "Schüler:in", icon: "graduation-cap" },
@@ -79,6 +80,7 @@ const routes = [
   [/^app\/stammdaten(?:\/([^/]+))?$/, (m) => SD.view(m[1] || "berufe")],
   [/^schueler$/, () => STU.portal()],
   [/^app\/kammer$/, () => KAM.externView()],
+  [/^app\/orgrollen$/, () => KAM.rolesView()],
 ];
 
 let current = null;
@@ -156,21 +158,24 @@ function userMenu() {
   return `<div class="usermenu"><button data-usermenu>${icon("circle-user", "lg")}<span class="nm">${esc(session.userName())}</span>${icon("chevron-down")}</button></div>`;
 }
 function staffShell(v) {
-  const adm = me()?.kind === "schuladmin"; const ka = me()?.kind === "kammeradmin"; const nn = adm || ka ? KAM.unreadCount() : 0;
+  const pe0 = me(); const staff = isAdm(pe0); const ka = staff && isKammerOrg(pe0.org); const adm = staff && !ka; const nn = staff ? KAM.unreadCount() : 0;
+  const lead = isLeitung(pe0); const erg = lead ? "Ergebnisse" : "Bearbeitungsstand";
   const nav = ka ? [
     ["kurse", "#/app/kurse", "clipboard-list", `Prüfungen${nn ? ` <span class="navbadge">${nn}</span>` : ""}`],
     ["kammer", "#/app/kammer", "users", "Externe Prüflinge"],
-    ["ergebnisse", "#/app/ergebnisse", "chart-pie", "Ergebnisse"],
+    ["ergebnisse", "#/app/ergebnisse", "chart-pie", erg],
     ["schule", "#/app/raumaufsicht", "building-2", "Meine Kammer"],
     ["raeume", "#/app/raeume", "door-open", "Prüfungsräume"],
+    ...(lead ? [["rollen", "#/app/orgrollen", "user-round-plus", "Rollen"]] : []),
     ["admin", "#/app/admin", "sliders-horizontal", "Administration"],
   ] : session.role === "einsicht" ? [["einsicht", "#/app/pruefungseinsicht", "eye", "Prüfungseinsicht"]] : session.role === "autor" ? [["erstellung", "#/app/erstellung", "clipboard-list", "Erstellung"], ...(me()?.kind === "koordination" ? [["stammdaten", "#/app/stammdaten", "database", "Stammdaten"]] : [])] : session.role === "bereichsadmin" ? [["katalog", "#/app/katalog", "library", "Katalog und Editor"]] : [
     ["aufgaben", "#/app/aufgaben", "circle-check", "Aufgaben"],
     ["katalog", "#/app/katalog", "pencil", "Katalog"],
     ["kurse", "#/app/kurse", adm ? "clipboard-list" : "book-open", adm ? `Prüfungen${nn ? ` <span class="navbadge">${nn}</span>` : ""}` : "Mein Unterricht"],
-    ["ergebnisse", "#/app/ergebnisse", "chart-pie", "Ergebnisse"],
+    ["ergebnisse", "#/app/ergebnisse", "chart-pie", adm ? erg : "Ergebnisse"],
     ["schule", "#/app/raumaufsicht", "school", "Meine Schule"],
     ...(adm ? [["raeume", "#/app/raeume", "door-open", "Prüfungsräume"]] : []),
+    ...(adm && lead ? [["rollen", "#/app/orgrollen", "user-round-plus", "Rollen"]] : []),
     ["admin", "#/app/admin", "sliders-horizontal", "Administration"],
   ];
   return `<button class="skiplink" data-skip>Zum Inhalt springen</button><header class="topbar">${brand()}${userMenu()}</header>
@@ -242,6 +247,13 @@ function studentOpts() {
   const cnt = new Map(); D.participants.forEach((x) => { const r = byId("rooms", x.room); if (x.person && r && seatCount(r) <= 60) cnt.set(x.person, (cnt.get(x.person) || 0) + 1); });
   return [...cnt.keys()].map((id) => byId("persons", id)).filter((p) => p && p.kind === "schueler").sort((a, b) => cnt.get(b.id) - cnt.get(a.id) || a.lastname.localeCompare(b.lastname)).map((p) => `<option value="${p.id}">${esc(personName(p))} (${esc(orgsLabel(p))}, ${cnt.get(p.id)} Teilnahme${cnt.get(p.id) === 1 ? "" : "n"})</option>`).join("");
 }
+// Personen mit der Rolle Prüfungsorganisation (Schulen bzw. Kammern); Prüfungsleitungen mit kombinierter Rolle zuletzt
+function orgaOpts(kammer) {
+  const out = [];
+  D.orgs.filter((o) => (o.type === "kammer") === kammer).forEach((o) => orgRoles(o.id).forEach((r) => { const pe = byId("persons", r.person); if (pe) out.push({ pe, r, o }); }));
+  return out.sort((a, b) => (isLeitung(a.pe) ? 1 : 0) - (isLeitung(b.pe) ? 1 : 0) || a.o.short.localeCompare(b.o.short) || a.pe.lastname.localeCompare(b.pe.lastname))
+    .map(({ pe, r, o }) => `<option value="${pe.id}">${esc(personName(pe))} (${esc(o.short)}${isLeitung(pe) ? ", auch Leitung" : ""}${(r.courses || []).length ? `, ${r.courses.length} Prüfung${r.courses.length === 1 ? "" : "en"}` : ""})</option>`).join("");
+}
 export function login(person, role, extra = {}) { store.set("person", person?.id || ""); if (!extra.portal) store.del("portal"); setRole(role, extra); }
 function startView() {
   const room = D.rooms.find((r) => r.name === "Raum 123") || D.rooms[0];
@@ -279,10 +291,14 @@ function startView() {
       </div>
       <h2 class="rolesec">${icon("clipboard-list")} Prüfungsdurchführung</h2>
       <div class="rolegrid five six seven">
-        <div class="rolecard"><div class="rico">${icon("building-2", "lg")}</div><h3>Schuladministration</h3>
-          <ul><li>Prüfungsebene: Teilnehmende, Raumaufsichten, Korrektoren zuordnen</li><li>Prüfungsräume und Raumaufsichten der eigenen Schule</li><li>Ergebnisse, Drittkorrektur</li></ul>
+        <div class="rolecard"><div class="rico">${icon("building-2", "lg")}</div><h3>Prüfungsleitung</h3>
+          <ul><li>Schulleitung: Annahme externer Prüflinge, Begutachtung</li><li>Drittkorrektur, Protokollfreigabe, Ergebnisse mit Noten</li><li>bestimmt die Prüfungsorganisation (kombinierbar)</li></ul>
           <label class="lbl mt-s" for="sasel">Person</label><select class="select" id="sasel">${optP(P("schuladmin"), "m.hinrichs")}</select>
           <button class="btn primary" data-role="schuladmin">${icon("arrow-right")} Zu den Prüfungen</button></div>
+        <div class="rolecard"><div class="rico">${icon("clipboard-list", "lg")}</div><h3>Prüfungsorganisation</h3>
+          <ul><li>Teilnehmende, Räume, Raumaufsichten, Korrektoren</li><li>von der Prüfungsleitung bestimmt – alle oder einzelne Prüfungen</li><li>Bearbeitungsstand ohne Noten</li></ul>
+          <label class="lbl mt-s" for="posel">Person</label><select class="select" id="posel">${orgaOpts(false)}</select>
+          <button class="btn primary" data-role="orga">${icon("arrow-right")} Zu den Prüfungen</button></div>
         <div class="rolecard"><div class="rico">${icon("monitor", "lg")}</div><h3>Raumaufsicht</h3>
           <ul><li>Nur zugeordnete Raumaufsichten</li><li>Starten, pausieren, einsammeln, beenden</li><li>Protokoll</li></ul>
           <label class="lbl mt-s" for="ausel">Person</label><select class="select" id="ausel">${optP(P("lehrkraft").filter((p) => supIds.has(p.id)), "t.riedmueller")}</select>
@@ -302,10 +318,14 @@ function startView() {
       </div>
       <h2 class="rolesec">${icon("building-2")} Kammer</h2>
       <div class="rolegrid five six seven">
-        <div class="rolecard"><div class="rico">${icon("building-2", "lg")}</div><h3>Kammeradministration</h3>
-          <ul><li>Externe Prüflinge (NTA, Prüflingsnummer)</li><li>Zuordnung je Prüfling an Schulen oder Kammer (Art 1–4)</li><li>Rollen in der Kammer, Durchführungsstand</li></ul>
+        <div class="rolecard"><div class="rico">${icon("building-2", "lg")}</div><h3>Kammer-Prüfungsleitung</h3>
+          <ul><li>Drittkorrektur, Ergebnisse mit Noten</li><li>bestimmt die Kammer-Prüfungsorganisation</li><li>in der Demo mit Organisation kombiniert</li></ul>
           <label class="lbl mt-s" for="kasel">Person</label><select class="select" id="kasel">${D.persons.filter((p) => p.kind === "kammeradmin").sort((a, b) => a.lastname.localeCompare(b.lastname)).map((p) => `<option value="${p.id}">${esc(personName(p))} (${esc(orgShort(p.org))})</option>`).join("")}</select>
           <button class="btn primary" data-role="kammeradmin">${icon("arrow-right")} Zur Kammer</button></div>
+        <div class="rolecard"><div class="rico">${icon("clipboard-list", "lg")}</div><h3>Kammer-Prüfungsorganisation</h3>
+          <ul><li>Externe Prüflinge (NTA, Prüflingsnummer)</li><li>Zuordnung je Prüfling an Schulen oder Kammer (Art 1–4)</li><li>Rollen in der Kammer, Durchführungsstand</li></ul>
+          <label class="lbl mt-s" for="kposel">Person</label><select class="select" id="kposel">${orgaOpts(true)}</select>
+          <button class="btn primary" data-role="korga">${icon("arrow-right")} Zur Kammer</button></div>
         <div class="rolecard"><div class="rico">${icon("monitor", "lg")}</div><h3>Kammer-Raumaufsicht</h3>
           <ul><li>Durchführung durch die Kammer (Art 1/4)</li><li>Nur zugeordnete Raumaufsichten der Kammer</li></ul>
           <label class="lbl mt-s" for="kausel">Person</label><select class="select" id="kausel">${D.persons.filter((p) => p.kind === "kammer" && supIds.has(p.id)).map((p) => `<option value="${p.id}">${esc(personName(p))} (${esc(orgShort(p.org))})</option>`).join("") || `<option value="">derzeit niemand zugewiesen</option>`}</select>
@@ -357,6 +377,8 @@ function startView() {
         if (r === "koordination") { login(byId("persons", v("#kssel")), "autor"); navigate("#/app/erstellung"); }
         if (r === "schueler") { login(byId("persons", v("#susel")), "schueler", { portal: v("#susel") }); navigate("#/schueler"); }
         if (r === "einsicht") { login(byId("persons", v("#eisel")), "einsicht"); navigate("#/app/pruefungseinsicht"); }
+        if (r === "orga") { login(byId("persons", v("#posel")), "orga"); navigate("#/app/kurse"); }
+        if (r === "korga") { login(byId("persons", v("#kposel")), "orga"); navigate("#/app/kurse"); }
         if (r === "kammeradmin") { login(byId("persons", v("#kasel")), "kammeradmin"); navigate("#/app/kurse"); }
         if (r === "kaufsicht") { login(byId("persons", v("#kausel")), "aufsicht"); const vr = visibleRooms(); navigate(vr.length === 1 ? `#/app/raum/${vr[0].id}/meinraum` : "#/app/raumaufsicht"); }
         if (r === "kkorr") { const [pid, st] = v("#kksel").split("|"); login(byId("persons", pid), "korrektor", { corrector: +st }); navigate("#/app/korrektur"); }

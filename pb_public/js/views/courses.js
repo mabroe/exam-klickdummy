@@ -2,14 +2,14 @@
 //  - Unterricht (Lehrkraft): Teilnehmende (Personen, vorhandene Gruppen, eigene Gruppen) und weitere Lehrkräfte (Mitbetreuung)
 //  - Prüfung (Schuladministration): Teilnehmende, Raumaufsichten, Korrektor:innen (Erst/Zweit/Dritt), Prüfungseinsicht –
 //    jeweils nur für Personen der eigenen Organisation
-import { D, byId, upd, create, del, log } from "../data.js?v=10.0";
-import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=10.0";
-import { navigate, redraw } from "../app.js?v=10.0";
-import * as RU from "./rules.js?v=10.0";
-import * as CRx from "./creation.js?v=10.0";
-import * as ED from "./editor.js?v=10.0";
-import * as KA from "./kammer.js?v=10.0";
-import { groupDiff, groupSnapshot, assignments, approvalStateFor, orgIds, inOrg, sameOrg, orgsLabel, lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL, isAdm, isExtern, extOf, extForSchool, correctionOrg } from "../access.js?v=10.0";
+import { D, byId, upd, create, del, log } from "../data.js?v=10.1";
+import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate } from "../ui.js?v=10.1";
+import { navigate, redraw } from "../app.js?v=10.1";
+import * as RU from "./rules.js?v=10.1";
+import * as CRx from "./creation.js?v=10.1";
+import * as ED from "./editor.js?v=10.1";
+import * as KA from "./kammer.js?v=10.1";
+import { groupDiff, groupSnapshot, assignments, approvalStateFor, orgIds, inOrg, sameOrg, orgsLabel, lessonCorrector, me, members, canManageCourse, visibleCourses, visibleRooms, orgName, orgShort, personName, KIND, ROLE_LABEL, STAGE_LABEL, isAdm, isExtern, extOf, extForSchool, correctionOrg, isKammerOrg, isLeitung, isOrga } from "../access.js?v=10.1";
 
 const ROOM_STATE = { CREATED: ["In Vorbereitung", "gray"], RUNNING: ["Prüfung läuft", "cyan"], PAUSED: ["Prüfung pausiert", "yellowb"], TERMINATED: ["Prüfung beendet", "green"] };
 const UI = { q: "", addQ: "" };
@@ -21,21 +21,21 @@ export function list() {
     render() {
       const p = me();
       if (!p || p.kind === "schueler") return `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Bitte als Lehrkraft oder Schuladministration anmelden.</p><a class="btn" href="#/">Zur Anmeldung</a></div>`;
-      const adm = isAdm(p); const ka = p.kind === "kammeradmin";
+      const adm = isAdm(p); const ka = adm && isKammerOrg(p.org);
       const list = visibleCourses(p);
       const own = (c) => members(c).filter((m) => sameOrg(byId("persons", m.person), p));
       return `${adm ? KA.noticesBox(p) : ""}<div class="pagehead"><div><h1>${adm ? "Prüfungen" : "Mein Unterricht"}</h1><div class="sub">${esc(personName(p))} · ${esc(orgIds(p).map(orgName).join(" · "))}</div></div>
-        ${adm ? "" : `<a class="btn primary" href="#/app/katalog">${icon("copy")} Inhalt aus dem Katalog kopieren</a>`}</div>
-      <p class="muted">${ka ? "Prüfungen, denen das IBBW Ihre Kammer zugeordnet hat. Sie verwalten Ihre externen Prüflinge, ordnen sie je Prüfling einer Schule zu oder prüfen selbst und vergeben die Rollen innerhalb Ihrer Kammer." : adm ? "Prüfungsebene: Prüfungen, an denen Ihre Schule beteiligt ist. Sie ordnen Teilnehmende, Raumaufsichten und Korrektor:innen Ihrer Schule zu und organisieren die Raumaufsichten." : "Unterrichtsebene: aus dem Katalog kopierte Kurse, die Sie besitzen oder mitbetreuen. Fügen Sie Teilnehmende und Lehrkräfte hinzu und planen Sie die Raumaufsicht."}</p>
+        ${adm ? "" : `<div class="row wrap"><button class="btn primary" data-newown>${icon("plus")} Eigenen Unterricht erstellen</button><a class="btn" href="#/app/katalog">${icon("copy")} Inhalt aus dem Katalog kopieren</a></div>`}</div>
+      <p class="muted">${ka ? "Prüfungen, denen das IBBW Ihre Kammer zugeordnet hat. Sie verwalten Ihre externen Prüflinge, ordnen sie je Prüfling einer Schule zu oder prüfen selbst und vergeben die Rollen innerhalb Ihrer Kammer." : adm ? "Prüfungsebene: Prüfungen, an denen Ihre Schule beteiligt ist. Sie ordnen Teilnehmende, Raumaufsichten und Korrektor:innen Ihrer Schule zu und organisieren die Raumaufsichten." : "Unterrichtsebene: eigene oder aus dem Katalog kopierte Kurse, die Sie besitzen oder mitbetreuen. Eigene Aufgaben erstellen Sie von Grund auf im Editor. Fügen Sie Teilnehmende und Lehrkräfte hinzu und planen Sie die Raumaufsicht."}</p>
       ${list.length ? `<div class="tablewrap mt"><table class="tbl"><thead><tr><th>Titel</th><th>Ebene</th><th>${adm ? "Prüfungstermin" : "Besitzer"}</th><th class="num">${ka ? "Externe Prüflinge" : `Teilnehmende${adm ? " (eigene Schule)" : ""}`}</th><th class="num">Raumaufsichten</th><th>Status</th><th></th></tr></thead>
         <tbody>${list.map((c) => { const tn = (adm ? own(c) : members(c)).filter((m) => m.role === "teilnehmer"); const rooms = visibleRooms(p).filter((r) => r.course === c.id);
-          const xo = adm && !ka ? KA.openProposals(c, p) : 0; const xu = ka ? KA.unsupplied(c, p.org).length : 0; const tab0 = ka ? "zuordnung" : xo ? "extern" : "mitglieder";
+          const xo = adm && !ka && isLeitung(p) ? KA.openProposals(c, p) : 0; const xu = ka && isOrga(p, c) ? KA.unsupplied(c, p.org).length : 0; const tab0 = KA.firstTab(c, p, xo);
           return `<tr class="rowlink" data-href="#/app/kurs/${c.id}/${tab0}" tabindex="0"><td><b>${esc(c.title)}</b>${xo ? ` <span class="badge yellowb">${icon("user-round-plus")} ${xo} externe zur Annahme</span>` : ""}${xu ? ` <span class="badge red">${xu} nicht versorgt</span>` : ""}${c.kind === "pruefung" ? (() => { const ci = CRx.contentInfo(byId("catalog", c.catalog)); return ci ? `<div class="xs"><span class="badge ${ci.badge}">${icon(ci.key === "frei" ? "circle-check" : ci.key === "begutachtung" ? "eye" : "lock")} ${esc(ci.text)}</span></div>` : ""; })() : c.catalog ? `<div class="xs muted">Kopie von „${esc(byId("catalog", c.catalog)?.title || "Katalog")}“</div>` : ""}</td><td><span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span></td>
           <td class="small">${adm ? esc(examDate(c)) : esc(personName(byId("persons", c.owner)))}</td><td class="num">${new Set(tn.map((m) => m.person)).size}</td><td class="num">${rooms.length}</td><td>${esc(c.status || "–")}</td>
           <td><a class="linkarrow" href="#/app/kurs/${c.id}/${tab0}">${icon("arrow-right")} Öffnen</a></td></tr>`; }).join("")}</tbody></table></div>`
-      : `<div class="empty">${icon("book-open")}<h3>${adm ? `Keine Prüfungen für Ihre ${ka ? "Kammer" : "Schule"}` : "Noch kein Unterricht"}</h3>${adm ? "" : `<p>Kopieren Sie eine Prüfung aus dem Katalog.</p><a class="btn primary" href="#/app/katalog">Zum Katalog</a>`}</div>`}`;
+      : `<div class="empty">${icon("book-open")}<h3>${adm ? `Keine Prüfungen für Ihre ${ka ? "Kammer" : "Schule"}` : "Noch kein Unterricht"}</h3>${adm ? "" : `<p>Erstellen Sie eigene Aufgaben von Grund auf oder kopieren Sie einen Inhalt aus dem Katalog.</p><div class="row" style="justify-content:center;gap:8px"><button class="btn primary" data-newown>${icon("plus")} Eigenen Unterricht erstellen</button><a class="btn" href="#/app/katalog">Zum Katalog</a></div>`}</div>`}`;
     },
-    mount(el) { KA.bindNotices(el); },
+    mount(el) { KA.bindNotices(el); el.querySelectorAll("[data-newown]").forEach((b) => (b.onclick = () => ED.newContentDialog({ lesson: true }))); },
   };
 }
 
@@ -49,21 +49,22 @@ export function detail(id, tab) {
       const c = byId("courses", id); const p = me();
       if (!c) return `<div class="empty">Kurs nicht gefunden. <a href="#/app/kurse">Zur Übersicht</a></div>`;
       if (!canManageCourse(c, p)) return `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Dieser Kurs gehört nicht zu Ihrem Konto bzw. Ihrer Organisation.</p><a class="btn" href="#/app/kurse">Zur Übersicht</a></div>`;
-      const ka = p.kind === "kammeradmin"; const xo = c.kind === "pruefung" && p.kind === "schuladmin" ? KA.openProposals(c, p) : 0;
-      const tabs = ka ? [["zuordnung", "Externe Prüflinge"], ["mitglieder", "Rollen in der Kammer"], ["korrektoren", "Korrektoren"], ["raumaufsichten", "Raumaufsichten"], ["durchfuehrung", "Durchführung"], ["info", "Kursinformationen"]]
-        : [["mitglieder", "Mitglieder und Gruppen"], ...(c.kind === "pruefung" && p.kind === "schuladmin" ? [["extern", `Externe Prüflinge${xo ? ` <span class="badge yellowb">${xo}</span>` : ""}`]] : []), ...(c.kind === "pruefung" ? [["korrektoren", "Korrektoren"]] : []), ["raumaufsichten", "Raumaufsichten"], ["info", "Kursinformationen"]];
+      const ka = isAdm(p) && isKammerOrg(p.org); const xo = c.kind === "pruefung" && isAdm(p) && !ka && isLeitung(p) ? KA.openProposals(c, p) : 0;
+      // Prüfungsebene: Reiter je nach Rolle (Organisation bzw. Leitung, kombinierbar)
+      const tabs = KA.examTabs(c, p, xo);
+      if (c.kind === "pruefung" && isAdm(p) && !tabs.some(([k]) => k === tab)) tab = tabs[0]?.[0] || "info";
       const catX = byId("catalog", c.catalog); const ciX = CRx.contentInfo(catX); const hidden = catX?.status && !CRx.canViewContent(catX);
       const lockNote = ciX ? `<div class="notice ${ciX.key === "frei" ? "success" : ciX.key === "begutachtung" ? "info" : "warn"} small mb">${icon(ciX.key === "frei" ? "circle-check" : ciX.key === "begutachtung" ? "eye" : "lock")}<span><b>${esc(ciX.text)}.</b> ${ciX.key === "begutachtung" ? "Schuladministration und Korrektor:innen können die Prüfung jetzt begutachten. Fehler melden Sie bitte außerhalb des Portals an die Koordinierungsstelle bzw. Prüfungskommission." : ciX.key === "frei" ? "" : "Die Organisation an Ihrer Schule (Teilnehmende, Raumaufsichten, Korrektoren) ist bereits möglich; der Inhalt ist bis zum Begutachtungszeitraum nicht einsehbar."}</span></div>` : "";
       const body = (tab === "steuerung" || (tab === "info" && c.kind !== "pruefung")) && hidden ? `<div class="empty">${icon("lock")}<h3>Inhalt nicht einsehbar</h3><p>${esc(ciX.text)}.</p></div>` : ka && tab === "zuordnung" ? KA.tabZuordnung(c, p) : ka && tab === "durchfuehrung" ? KA.tabDurchfuehrung(c, p) : !ka && tab === "extern" && c.kind === "pruefung" ? KA.tabSchoolExt(c, p) : tab === "raumaufsichten" ? tabRooms(c, p) : tab === "info" ? tabInfo(c) : tab === "korrektoren" && c.kind === "pruefung" ? tabCorrectors(c, p) : c.kind === "pruefung" ? tabMembersExam(c, p) : tabMembersLesson(c, p);
       return `${isAdm(p) ? KA.courseNotices(c, p) : ""}<div class="breadcrumb"><a href="#/app/kurse">${isAdm(p) ? "Prüfungen" : "Mein Unterricht"}</a>${icon("chevron-right")}<b>${esc(c.title)}</b></div>
       <div class="pagehead"><div><h1>${esc(c.title)}</h1><div class="row mt-s small"><span class="badge ${c.kind === "pruefung" ? "purple" : "cyan"}">${KIND[c.kind]}</span><span>${c.kind === "pruefung" ? (ka ? "Ihre Kammer: " : "Ihre Schule: ") + esc(orgsOwn(c, p)) + (examDate(c) !== "–" ? " · Prüfungstermin " + esc(examDate(c)) : "") : "Besitzer: " + esc(personName(byId("persons", c.owner)))}</span>${c.kind === "unterricht" && catX ? `<span class="badge ${catX.mine ? "cyan" : "gray"}">${catX.mine ? `${icon("copy")} eigene Kopie` : "Katalogeintrag"}${ED.releaseOf(catX) ? " · " + esc(ED.releaseLabel(catX)) : ""}</span>` : ""}</div></div>
-        <div class="actions-bar">${c.kind === "unterricht" && catX && ED.canEdit(catX) ? `<a class="btn" href="#/app/editor/${catX.id}/allgemein" data-edfrom="#/app/kurs/${c.id}/${tab}" data-edid="${catX.id}" data-edlabel="Zum Unterricht „${esc(c.title)}“">${icon("pencil")} Inhalt bearbeiten</a>` : ""}${c.kind === "unterricht" && catX && ED.canPublish(catX) ? `<button class="btn" data-publish="${ED.releaseOf(catX) ? 0 : 1}">${icon(ED.releaseOf(catX) ? "eye-off" : "globe")} ${ED.releaseOf(catX) ? "Katalogfreigabe beenden" : "Für meine Schule freigeben"}</button>` : ""}${c.catalog && CRx.canViewContent(byId("catalog", c.catalog)) ? `<a class="btn" href="#/app/vorschau/${c.catalog}/dashboard" data-pvfrom="${c.id}">${icon("eye")} ${byId("catalog", c.catalog)?.status === "begutachtung" ? "Prüfung begutachten" : "Vorschau"}</a>` : c.catalog ? `<span class="btn" aria-disabled="true" style="opacity:.6;cursor:not-allowed" title="${esc(CRx.contentInfo(byId("catalog", c.catalog))?.text || "")}">${icon("lock")} Inhalt nicht einsehbar</span>` : ""}<button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button></div></div>
+        <div class="actions-bar">${c.kind === "unterricht" && catX && ED.canEdit(catX) ? `<a class="btn" href="#/app/editor/${catX.id}/allgemein" data-edfrom="#/app/kurs/${c.id}/${tab}" data-edid="${catX.id}" data-edlabel="Zum Unterricht „${esc(c.title)}“">${icon("pencil")} Inhalt bearbeiten</a>` : ""}${c.kind === "unterricht" && catX && ED.canPublish(catX) ? `<button class="btn" data-publish="${ED.releaseOf(catX) ? 0 : 1}">${icon(ED.releaseOf(catX) ? "eye-off" : "globe")} ${ED.releaseOf(catX) ? "Katalogfreigabe beenden" : "Für meine Schule freigeben"}</button>` : ""}${c.catalog && CRx.canViewContent(byId("catalog", c.catalog)) ? `<a class="btn" href="#/app/vorschau/${c.catalog}/dashboard" data-pvfrom="${c.id}">${icon("eye")} ${byId("catalog", c.catalog)?.status === "begutachtung" ? "Prüfung begutachten" : "Vorschau"}</a>` : c.catalog ? `<span class="btn" aria-disabled="true" style="opacity:.6;cursor:not-allowed" title="${esc(CRx.contentInfo(byId("catalog", c.catalog))?.text || "")}">${icon("lock")} Inhalt nicht einsehbar</span>` : ""}${c.kind === "pruefung" && isAdm(p) && !isOrga(p, c) ? "" : `<button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button>`}</div></div>
       ${lockNote}<nav class="tabs">${tabs.map(([k, l]) => `<a href="#/app/kurs/${id}/${k}" class="${k === tab ? "active" : ""}">${l}</a>`).join("")}</nav>${body}`;
     },
     mount(el) {
       const c = byId("courses", id); if (!c || !canManageCourse(c)) return;
       const pub = el.querySelector("[data-publish]"); if (pub) pub.onclick = () => ED.publish(byId("catalog", c.catalog), pub.dataset.publish === "1");
-      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=10.0").then((m) => m.newRoomDialog(c.id))));
+      el.querySelectorAll("[data-newroom]").forEach((nr) => (nr.onclick = () => import("./proctor.js?v=10.1").then((m) => m.newRoomDialog(c.id))));
       el.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => addPersons(c, b.dataset.add, b.dataset.stage)));
       el.querySelectorAll("[data-addgroup]").forEach((b) => (b.onclick = () => addGroup(c, b.dataset.addgroup)));
       const ng = el.querySelector("[data-owngroup]"); if (ng) ng.onclick = () => ownGroup(c);
@@ -121,7 +122,7 @@ function tabMembersExam(c, p) {
   const ms = members(c);
   const mine = ms.filter((m) => sameOrg(byId("persons", m.person), p));
 
-  const ka = p.kind === "kammeradmin";
+  const ka = isKammerOrg(p.org);
   const sec = (role, ic, title, addLabel, extra) => { const l = mine.filter((m) => m.role === role); return `<div class="card pad mt"><div class="row between wrap"><h3>${icon(ic)} ${title} (${new Set(l.map((m) => m.person)).size})</h3><div class="row wrap">${role === "teilnehmer" && !ka ? `<button class="btn sm" data-addgroup="teilnehmer">${icon("users")} Klasse/Kurs hinzufügen</button>` : ""}<button class="btn sm" data-add="${role}">${icon("user-round-plus")} ${addLabel}</button></div></div>${role === "teilnehmer" && !ka ? groupRows(c, true) : ""}${personRows(l, c, role, extra)}</div>`; };
   if (ka) return `<div class="notice info small mb">${icon("info")}<span>Rollen innerhalb Ihrer Kammer <b>${esc(orgName(p.org))}</b>: externe Prüflinge, Raumaufsichten und Prüfungseinsicht für die Durchführung durch die Kammer (Art 1/4) bzw. die Prüfungseinsicht aller externen Prüflinge. Angaben zu Schulen werden hier nicht angezeigt.</span></div>
   ${(() => { const sa = mine.filter((m) => m.role === "schuladmin"); return sa.length ? `<div class="card pad mt"><h3>${icon("building-2")} Kammeradministration (${sa.length})</h3><p class="xs muted">Von der Koordinierungsstelle mit der Zuordnung Ihrer Kammer automatisch hinzugefügt.</p><div class="row wrap" style="gap:6px">${sa.map((m) => `<span class="badge gray">${icon("user")} ${esc(personName(byId("persons", m.person)))}</span>`).join("")}</div></div>` : ""; })()}
@@ -138,7 +139,7 @@ function tabMembersExam(c, p) {
 }
 function tabRooms(c, p) {
   const rooms = visibleRooms(p).filter((r) => r.course === c.id);
-  return `<div class="row between wrap mb"><p class="muted" style="margin:0">${c.kind === "pruefung" ? "Raumaufsichten Ihrer Schule für diese Prüfung." : "Raumaufsichten dieses Unterrichtskurses."}</p><button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button></div>
+  return `<div class="row between wrap mb"><p class="muted" style="margin:0">${c.kind === "pruefung" ? "Raumaufsichten Ihrer Schule für diese Prüfung." : "Raumaufsichten dieses Unterrichtskurses."}</p>${c.kind === "pruefung" && isAdm(p) && !isOrga(p, c) ? "" : `<button class="btn primary" data-newroom>${icon("calendar-plus")} Raumaufsicht erstellen</button>`}</div>
   ${rooms.length ? `<div class="tablewrap"><table class="tbl"><thead><tr><th>Raum</th><th>Start</th><th class="num">Aufsichten</th><th class="num">Teilnehmende</th><th>Status</th><th></th></tr></thead><tbody>${rooms.map((r) => `<tr class="rowlink" data-href="#/app/raum/${r.id}/meinraum" tabindex="0"><td><b>${esc(r.name)}</b></td><td>${fmtDateTime(parseDate(r.planned_start))}</td><td class="num">${D.supervisors.filter((s) => s.room === r.id).length}</td><td class="num">${D.participants.filter((x) => x.room === r.id).length}</td><td><span class="badge ${ROOM_STATE[r.state]?.[1]}">${ROOM_STATE[r.state]?.[0]}</span></td><td><a class="linkarrow" href="#/app/raum/${r.id}/meinraum">${icon("arrow-right")} Zur Raumaufsicht</a></td></tr>`).join("")}</tbody></table></div>`
   : `<div class="empty">${icon("calendar-plus")}<h3>Noch keine Raumaufsicht</h3><p>Erstellen Sie eine Raumaufsicht und ordnen Sie anschließend Teilnehmende und Aufsichtspersonen aus den Kursmitgliedern zu.</p></div>`}`;
 }
@@ -162,7 +163,7 @@ function tabCorrectors(c, p) {
   const own = assignments(c).filter((a) => !a.org || inOrg(p, a.org));
   // Prüflinge, die diese Organisation korrigiert (externe Prüflinge: Schule bei Art 2, sonst Kammer)
   const ps = D.participants.filter((x) => byId("rooms", x.room)?.course === c.id && inOrg(p, correctionOrg(c, x)));
-  return `${p.kind === "kammeradmin" ? `<div class="notice info small mb">${icon("building-2")}<span><b>Kammer:</b> Sie weisen Korrektor:innen je Prüfling zu – für Prüflinge mit Art 1 und 3 aus Ihrer Kammer, für Art 4 Lehrkräfte aus dem Korrektorenpool (sie sehen nur die Prüflingsnummer). Prüflinge mit Art 2 korrigiert die Schule.</span></div>` : ""}<div class="notice info small mb">${icon("info")}<span>Je Korrekturstufe können <b>mehrere Korrektor:innen als Gruppe</b> zugewiesen werden – für eine Klasse/einen Kurs oder für einzelne Prüflinge (Einzelzuweisung hat Vorrang). Alle Mitglieder sehen die gesamte Leistung, teilen die Korrektur eigenständig auf und erfassen <b>eine gemeinsame Bewertung</b>; sie ist final, wenn alle freigegeben haben. Gruppen gelten nur für diese Prüfung.</span></div>
+  return `${isKammerOrg(p.org) ? `<div class="notice info small mb">${icon("building-2")}<span><b>Kammer:</b> Sie weisen Korrektor:innen je Prüfling zu – für Prüflinge mit Art 1 und 3 aus Ihrer Kammer, für Art 4 Lehrkräfte aus dem Korrektorenpool (sie sehen nur die Prüflingsnummer). Prüflinge mit Art 2 korrigiert die Schule.</span></div>` : ""}<div class="notice info small mb">${icon("info")}<span>Je Korrekturstufe können <b>mehrere Korrektor:innen als Gruppe</b> zugewiesen werden – für eine Klasse/einen Kurs oder für einzelne Prüflinge (Einzelzuweisung hat Vorrang). Alle Mitglieder sehen die gesamte Leistung, teilen die Korrektur eigenständig auf und erfassen <b>eine gemeinsame Bewertung</b>; sie ist final, wenn alle freigegeben haben. Gruppen gelten nur für diese Prüfung.</span></div>
   <div class="card pad row wrap" style="gap:24px;align-items:flex-end">
     <div class="field" style="margin:0"><label class="lbl" for="korrend">Ende des Korrekturzeitraums</label><input id="korrend" class="input" type="date" data-korrend value="${esc(c.korr_end || "")}"><p class="xs muted" style="margin:4px 0 0">Bis dahin können Freigaben zurückgezogen werden.</p></div>
     <div class="field" style="margin:0"><label class="lbl" for="dkth">Drittkorrektur empfehlen ab Notenabweichung</label><select id="dkth" class="select" data-dkth>${[0.5, 1, 1.5, 2].map((v) => `<option value="${v}" ${(+c.dk_threshold || 1) === v ? "selected" : ""}>${v.toFixed(1).replace(".", ",")} Notenstufen</option>`).join("")}</select><p class="xs muted" style="margin:4px 0 0">Ob eine Endbeurteilung erfolgt, entscheiden Sie in den Ergebnissen.</p></div></div>
@@ -176,7 +177,7 @@ function tabCorrectors(c, p) {
 }
 async function assignDialog(c, stage, editId) {
   const p = me(); const ex = assignments(c).find((a) => a.id === editId);
-  const ka = p.kind === "kammeradmin";
+  const ka = isKammerOrg(p.org);
   const ms = members(c).filter((m) => m.role === "teilnehmer" && sameOrg(byId("persons", m.person), p));
   const groups = ka ? [] : (c.groups || []).filter((g) => g.role === "teilnehmer").map((g) => byId("groups", g.group)).filter((g) => g && inOrg(p, g.org));
   // Kammer: externe Prüflinge mit Korrektur durch die Kammer (Art 1/3/4); Schule: eigene Prüflinge und angenommene externe Prüflinge mit Art 2
@@ -232,7 +233,7 @@ const ROLE_FOR = { teilnehmer: "schueler", mitbetreuung: "lehrkraft", raumaufsic
 async function addPersons(c, role, stage) {
   const p = me();
   const existing = new Set(members(c).filter((m) => m.role === role || (role === "mitbetreuung" && m.role === "besitzer")).map((m) => m.person));
-  const ka = p.kind === "kammeradmin";
+  const ka = isKammerOrg(p.org);
   const kind = ka ? (role === "teilnehmer" ? "extern" : "kammer") : ROLE_FOR[role];
   const cand = D.persons.filter((x) => sameOrg(x, p) && (role === "pruefungseinsicht" && !ka ? x.kind !== "schueler" && x.kind !== "extern" : x.kind === kind) && !existing.has(x.id)).sort((a, b) => a.lastname.localeCompare(b.lastname));
   const title = { teilnehmer: ka ? "Externe Prüflinge hinzufügen" : "Schüler:innen hinzufügen", mitbetreuung: "Lehrkraft hinzufügen (Mitbetreuung)", raumaufsicht: "Raumaufsicht hinzufügen", korrektor: "Korrektor:in hinzufügen", pruefungseinsicht: "Prüfungseinsicht hinzufügen" }[role];

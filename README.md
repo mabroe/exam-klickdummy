@@ -48,6 +48,8 @@ Im Browser-Modus gelten dieselben Fachregeln wie auf dem Server (Nachteilsausgle
 | **Schüler:in** | **Meine Teilnahmen**: wählen, woran man teilnimmt (z. B. Präsenzunterricht und Distanzeinheit gleichzeitig), freigegebene Korrektur und Ergebnisse des Unterrichts | Task 34 / 36 |
 | **Bereichsadministration** (Wenke Hollerbach) | **Katalog** für den Unterricht pflegen: Inhalte im Editor anlegen und bearbeiten, **global freigeben** und Freigabe beenden (Reiter „Nicht freigegeben“ für Entwürfe) | Katalog, Unterricht (OPU) |
 | **Schuladministration** (Prüfungsebene) | **Prüfungen** der eigenen Schule: Teilnehmende (Personen/Klassen), Raumaufsichten, Korrektor:innen (Erst/Zweit/Dritt), Prüfungseinsicht – jeweils nur Personen der eigenen Schule; Raumaufsichten der Schule organisieren | Exam-Schuladministration, Task 52 / 24 / 21 / 23 / 28 |
+| **Prüfungsleitung** (Schulleitung bzw. Kammer; z. B. Jakob Rosenthal, AFS) | von der Koordinierungsstelle hinzugefügt: Annahme externer Prüflinge, Begutachtung vor Prüfungsstart, Drittkorrektur, Protokollfreigabe, **Ergebnisse mit Noten**, bestimmt unter „Rollen“ die Prüfungsorganisation | Exam-Schul- bzw. Kammeradministration (Leitung) |
+| **Prüfungsorganisation** (z. B. Uta Brettschneider, Sekretariat AFS; Lina Voigt nach Zuweisung; Malte Pohl, IHK Musterstadt, nur FA230) | Teilnehmende, Räume, Raumaufsichten, Korrektoren; Kammer: externe Prüflinge, Zuordnung, Rollen in der Kammer, Durchführungsstand – **ohne Noten** (Bearbeitungsstand der Korrektur); für alle oder ausgewählte Prüfungen der Organisation | Exam-Schul- bzw. Kammeradministration (Organisation) |
 | **Kammeradministration** (Jasper Lindemann, IHK Musterstadt · Carla Ostrowski, IHK Bergland) | **Externe Prüflinge** der Kammer (Name, Vorname, Prüflingsnummer, Nachteilsausgleich; einzeln oder per CSV), **Zuordnung je Prüfling** in einer Prüfung (Art 1–4, Schule), Benachrichtigungen, **Rollen in der Kammer** (Raumaufsicht, Prüfungseinsicht), Korrektoren je Prüfling, Raumaufsichten der Kammer, **Stand der Durchführung** der eigenen Prüflinge, Ergebnisse, Korrektorenpool | Exam-Administration (Kammer), Task 21/23/24/52 |
 | **Kammer-Raumaufsicht, -Korrektur, -Prüfungseinsicht** (Hanno Weißgerber, Mira Fenske, Ole Brückner) | Raumaufsicht in Räumen der Kammer (Art 1/4), Korrektur der externen Prüflinge (Art 1/3), Prüfungseinsicht aller externen Prüflinge | Kammer |
 
@@ -100,6 +102,7 @@ Auf der Startseite gibt es für **jeden Workflow eine eigene Klickstrecke** (gru
 | **Schüler:in** | Helena Nowak | Distanzeinheit wählen, bearbeiten und abgeben, Korrektur und Ergebnis ansehen, Präsenzunterricht (optional) |
 | **Katalog pflegen** | Bereichsadministration (Wenke Hollerbach), Lehrkraft | Unterrichtsinhalt erstellen und bearbeiten, global freigeben, durchgeführte Prüfung veröffentlichen und Import (optional), Sichtbarkeit prüfen |
 
+| **Prüfungsleitung und Prüfungsorganisation** | Prüfungsleitung (Jakob Rosenthal), Prüfungsorganisation (Lina Voigt, Uta Brettschneider) | Organisation für eine Prüfung bestimmen, nur zugewiesene Prüfung, Bearbeitungsstand ohne Noten, Annahme nur durch die Leitung, Annahme durch die Leitung, Ergebnisse mit Noten |
 | **Kammer: Annahme und Ummeldung** | Schuladministration AFS/BTS, Kammeradministration IHK Musterstadt und IHK Bergland | Benachrichtigung, Annahme (nur Anzahl, Art, NTA sichtbar), Ablehnung, Neuzuordnung durch die andere Kammer (anderer Bezirk), kurzfristige Ummeldung, erneute Annahme, Ergebnis an der bisherigen Schule |
 | **Kammer Art 2** | Kammeradministration, Schuladministration AFS, Kammer-Prüfungseinsicht | Zuordnung an die AFS, Annahme, Raumaufsicht, Korrektorenzuweisung durch die Schule, Durchführungsstand der Kammer, Einsicht bei der Kammer (optional) |
 | **Kammer Art 3** | Schuladministration BTS, Kammeradministration, Kammer-Korrektur | Annahme, Raumaufsicht, keine Korrektur an der Schule, Protokoll freigeben, Protokolleinträge des eigenen Prüflings, Korrektur durch die Kammer (optional) |
@@ -223,6 +226,26 @@ Das Prüfungsprotokoll gibt es **nur bei Prüfungen** (nicht im Unterricht). Der
 - Alle Mitglieder sehen die **gesamte Leistung** und erfassen **eine gemeinsame Bewertung** je Stufe; die Aufteilung regelt die Gruppe selbst.
 - **Gruppenfreigabe**: Die Bewertung ist **final**, sobald alle Mitglieder freigegeben haben; angezeigt wird der aggregierte Stand („1 von 2 freigegeben“). Bis dahin kann jedes Mitglied seine Freigabe zurückziehen – nicht mehr nach der letzten Freigabe oder nach dem Ende des Korrekturzeitraums (im Reiter „Korrektoren“ einstellbar). Finale Bewertungen sind schreibgeschützt.
 
+## Prüfungsleitung und Prüfungsorganisation
+
+Die bisherige Schul- bzw. Kammeradministration ist in zwei kombinierbare Rollen geteilt:
+
+| Aufgabe | Organisation | Leitung |
+|---|---|---|
+| Teilnehmende, Raumaufsicht, Prüfungseinsicht zuordnen (Task 52) | ✓ | |
+| Prüfungsräume, Raumaufsichten organisieren (Task 21) | ✓ | |
+| Korrektorengruppen festlegen (Task 24) | ✓ | |
+| Kammer: externe Prüflinge, NTA, Zuordnung an Schulen | ✓ | |
+| Externe Prüflinge annehmen bzw. ablehnen | | ✓ |
+| Prüfungsbegutachtung vor Prüfungsstart | | ✓ |
+| Drittkorrektur anfordern bzw. zurücknehmen (Task 26) | | ✓ |
+| Prüfungsprotokoll freigeben (Task 23) | | ✓ |
+| Ergebnisse und Statistik (Task 28/30) | Bearbeitungsstand ohne Noten | ✓ |
+
+- Die Koordinierungsstelle fügt mit der Organisation die **Prüfungsleitung** hinzu; die Leitung bestimmt unter „Rollen“ die **Prüfungsorganisation** – für alle Prüfungen der Organisation oder nur für ausgewählte.
+- Eine Person kann beide Rollen haben (in der Demo z. B. Marit Hinrichs, Ilka Ammermann, Jasper Lindemann). Lehrkräfte mit der Rolle Prüfungsorganisation melden sich dafür über die Karte „Prüfungsorganisation“ an; als Lehrkraft sehen sie weiterhin ihren Unterricht.
+- Benachrichtigungen zu Vorschlägen externer Prüflinge erhält die Leitung, alle übrigen auch die Organisation.
+
 ## Kammern und externe Prüflinge
 
 Eine Prüfung kann über die Schule, über eine Kammer oder gemischt stattfinden. Kammern sind eigene Organisationen; das IBBW (Koordinierungsstelle) fügt sie wie Schulen einer Prüfung hinzu, die Kammeradministration wird automatisch ergänzt. Die Koordinierungsstelle sieht nie personenbezogene Daten, nur die Organisationen. Demodaten: **IHK Musterstadt** (Bezirk MUS: AFS, BTS, KAS, DST, HHS) und **IHK Bergland** (Bezirk BER), beide fiktiv.
@@ -306,6 +329,10 @@ Navigation **„Stammdaten“** (nur Koordinierungsstelle):
 - **Korrekturzeichensätze**: Zeichensätze anlegen, duplizieren, bearbeiten (Gruppen, Kürzel, Bedeutung) und einen als **verbindlich** festlegen. Er gilt sofort **einheitlich in allen Instanzen** – Erstellung, Prüfung (Erst-, Zweit-, Drittkorrektur) und Unterricht; Favoriten der Korrektor:innen werden daraus gewählt. Kürzel aus Buchstaben mit Schreibvorlage werden per Stift erkannt, andere stehen über die Auswahl zur Verfügung.
 - **Kommissionen**: Bezeichnung, Fachbereich, Mitglieder und Vorsitz pflegen oder neue Kommissionen anlegen. Änderungen wirken **sofort** in allen Prüfungen, denen die Kommission zugewiesen ist.
 - **Fachbereiche** (Kaufmännische Berufe, IT-Berufe, Gewerblich-technische Berufe).
+
+## Eigener Unterricht von Grund auf
+
+Lehrkräfte erstellen unter „Mein Unterricht“ › **„Eigenen Unterricht erstellen“** eigene Aufgaben ohne Katalogvorlage: Titel, Art (Lernerfolgskontrolle, Klassenarbeit, Übung, Hausaufgabe/Distanz), Beruf, Fach, Bearbeitungszeit und Start mit **leerem Inhalt** oder mit **Beispielaufgaben je Fragetyp** (Freitext, Kurzantwort, Single/Multiple Choice, Datei-Upload, Bearbeitung mit Anwendung). Es entstehen ein eigener Inhalt und ein Unterricht; der Editor öffnet sich direkt. Der Inhalt ist zunächst nur für die Lehrkraft (und die Mitbetreuung) sichtbar und kann später für die eigene Schule im Katalog freigegeben werden.
 
 ## Katalog und Unterricht
 

@@ -1,10 +1,10 @@
 // Lehrkraft / Schuladministration: Meine Aufgaben, Katalog, Kursdetails, Meine Prüfungen, Demo-Verwaltung
-import { D, byId, upd, create, resetDemo, demoApi } from "../data.js?v=10.0";
-import { icon, esc, modal, toast, popMenu, parseDate, mmss, pager, bindPager, ddHtml, bindDd, statusChip, toPb, isActive } from "../ui.js?v=10.0";
-import { simulateOffline } from "./proctor.js?v=10.0";
-import { navigate, redraw, render, session } from "../app.js?v=10.0";
-import * as ED from "./editor.js?v=10.0";
-import { me, visibleCourses, visibleRooms, inOrg, orgShort } from "../access.js?v=10.0";
+import { D, byId, upd, create, resetDemo, demoApi } from "../data.js?v=10.1";
+import { icon, esc, modal, toast, popMenu, parseDate, mmss, pager, bindPager, ddHtml, bindDd, statusChip, toPb, isActive } from "../ui.js?v=10.1";
+import { simulateOffline } from "./proctor.js?v=10.1";
+import { navigate, redraw, render, session } from "../app.js?v=10.1";
+import * as ED from "./editor.js?v=10.1";
+import { me, visibleCourses, visibleRooms, inOrg, orgShort, isAdm, isKammerOrg } from "../access.js?v=10.1";
 
 const S = { tab: "active", sort: "new", q: "", open: {}, cat: { q: "", applied: "", tab: "Alle", beruf: [], fach: [], jahr: [], page: 1, per: 6 } };
 let timer = null;
@@ -18,7 +18,7 @@ export function tasks() {
       const ms = room ? parseDate(room.planned_start) - Date.now() : null;
       const soon = room && room.state === "CREATED" && ms > 0 && ms < 3 * 3600000;
       const running = room && (room.state === "RUNNING" || room.state === "PAUSED");
-      const myRole = me()?.kind === "schuladmin" ? "schuladmin" : me()?.kind === "kammeradmin" ? "kammeradmin" : "lehrkraft";
+      const myRole = isAdm(me()) ? (isKammerOrg(me().org) ? "kammeradmin" : "schuladmin") : "lehrkraft";
       let list = D.tasks.filter((t) => (!t.role || t.role === myRole) && (S.tab === "active" ? !t.closed : t.closed));
       if (S.q) list = list.filter((t) => (t.title + " " + t.procedure).toLowerCase().includes(S.q.toLowerCase()));
       const groups = [];
@@ -129,7 +129,7 @@ export function catalog() {
   };
 }
 // Kopieren aus dem Katalog: Unterrichtsebene (Lehrkraft) – legt einen eigenen Kurs mit Mitgliederverwaltung an
-export async function copyCourse(c) { if (!c) return; const m = await import("./courses.js?v=10.0"); return m.copyToLesson(c); }
+export async function copyCourse(c) { if (!c) return; const m = await import("./courses.js?v=10.1"); return m.copyToLesson(c); }
 export function course(id) {
   const c = byId("catalog", id);
   if (!c) return { redirect: "#/app/katalog" };
@@ -193,7 +193,7 @@ export function admin() {
       el.querySelector("[data-sim]").onclick = async () => { const room = D.rooms.find((r) => r.name === "Raum 123"); const r = await demoApi.simulateLogin(room.id); toast("Simulation", `${r.count} Teilnehmende angemeldet.`, "info"); };
       const room = D.rooms.find((r) => r.name === "Raum 123");
       const off = el.querySelector("[data-off]"); if (off) off.onclick = () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-offp]").value); if (p) simulateOffline(room, p); };
-      el.querySelectorAll("[data-nta]").forEach((b) => (b.onclick = async () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-ntap]").value); await upd("participants", p.id, { nta: +b.dataset.nta }); const { log } = await import("../data.js?v=10.0"); log(p.room, p, "Nachteilsausgleich geändert", `${b.dataset.nta} Min.`, "aktion"); toast("Nachteilsausgleich gesetzt", `${p.lastname}: ${b.dataset.nta} Min.`); }));
+      el.querySelectorAll("[data-nta]").forEach((b) => (b.onclick = async () => { const p = D.participants.find((x) => x.id === el.querySelector("[data-ntap]").value); await upd("participants", p.id, { nta: +b.dataset.nta }); const { log } = await import("../data.js?v=10.1"); log(p.room, p, "Nachteilsausgleich geändert", `${b.dataset.nta} Min.`, "aktion"); toast("Nachteilsausgleich gesetzt", `${p.lastname}: ${b.dataset.nta} Min.`); }));
       const end = el.querySelector("[data-ending]"); if (end) end.onclick = async () => {
         const start = new Date(Date.now() - ((room.duration_min || 90) + (room.global_extra || 0) - 2) * 60000);
         await upd("rooms", room.id, { state: "RUNNING", started_at: toPb(start), paused_total_s: 0, paused_at: "" });

@@ -4,7 +4,7 @@
 // Alle Personennamen sind zufällig erzeugte Fantasienamen – Ähnlichkeiten mit realen Personen sind nicht beabsichtigt.
 (function (root) {
   // Stand der Demodaten. Erhöhen, wenn sich die Demodaten ändern – ältere Datenbestände werden beim Start automatisch neu aufgebaut.
-  var SEED_VERSION = 20;
+  var SEED_VERSION = 21;
   var COLLECTIONS = ["orgs", "venues", "persons", "groups", "courses", "rooms", "participants", "supervisors", "protocol", "items", "gradings", "comments", "tasks", "catalog", "kfiles", "settings", "notices"];
 
   // Bewertungskriterien je Teilaufgabe (Maximalpunkte) – muss zu js/scenario.js passen
@@ -77,6 +77,10 @@
     T.Fenske = KP("Fenske", "Mira", km, "kammer", "MF");
     T["Brückner"] = KP("Brückner", "Ole", km, "kammer", "OB");
     T.Hellmers = KP("Hellmers", "Antje", kb, "kammer", "AH");
+    // Trennung Prüfungsleitung / Prüfungsorganisation: Schulleitung nur Leitung, Sekretariat bzw. Kammer-Sachbearbeitung nur Organisation
+    T.Rosenthal = P("Rosenthal", "Jakob", afs, "schuladmin", "JR");
+    T.Brettschneider = P("Brettschneider", "Uta", afs, "verwaltung", "UB");
+    T.Pohl = KP("Pohl", "Malte", km, "kammer", "MP");
     var XP = function (l, f, k, pnr, nta) { var x = KP(l, f, k, "extern", "", { pnr: pnr, nta: nta || 0 }); x.email = ""; return x; };
     var EX = {
       kraemer: XP("Kesselring", "Jonas", km, "MS-26-1001"), lorenz: XP("Lorenz", "Svenja", km, "MS-26-1002", 15), hoffmeister: XP("Hoffmeister", "Can", km, "MS-26-1003"),
@@ -585,6 +589,12 @@
         { group: "Sprachlich-formale Mängel", items: [["R", "Rechtschreibung"], ["Z", "Zeichensetzung"], ["Gr", "Grammatik"], ["A", "Ausdruck"], ["Sb", "Satzbau"]] },
         { group: "Mängel inhaltlicher Art", items: [["I", "Inhalt"], ["Def", "Definition"], ["Log", "Logik"], ["Th", "Thema bzw. Aufgabenstellung nicht beachtet, falsches Textverständnis"], ["ÜF", "Übertragungsfehler – Fehler ohne Punktabzug, wenn er als Flüchtigkeitsfehler anzusehen ist"], ["Zs", "Zusammenhang"], ["Wf", "Fehler, der wiederholt vorkommt"]] }] },
       { id: "kurz", name: "Kurzsatz (Entwurf)", groups: [{ group: "Allgemeine Korrekturzeichen", items: [["r", "richtig"], ["f", "falsch"], ["(r)", "Folgefehler richtig weitergerechnet"], ["Uv", "unvollständig"]] }, { group: "Sprache", items: [["R", "Rechtschreibung"], ["Gr", "Grammatik"], ["A", "Ausdruck"]] }] }] } });
+    // Prüfungsorganisation je Organisation (von der Prüfungsleitung bestimmt; leere Liste = alle Prüfungen). Die übrigen Leitungen sind in der Demo kombiniert.
+    var ROLEMAP = {};
+    out.persons.filter(function (x) { return (x.kind === "schuladmin" || x.kind === "kammeradmin") && x.id !== T.Rosenthal.id; }).forEach(function (x) { (ROLEMAP[x.org] = ROLEMAP[x.org] || []).push({ person: x.id, courses: [], by: "Demodaten" }); });
+    ROLEMAP[afs.id].push({ person: T.Brettschneider.id, courses: [], by: "Rosenthal, Jakob" });
+    ROLEMAP[km.id].push({ person: T.Pohl.id, courses: [pr1.id], by: "Lindemann, Jasper" });
+    Object.keys(ROLEMAP).forEach(function (o) { add("settings", { key: "orgrole:" + o, value: ROLEMAP[o] }); });
     add("settings", { key: "demo", value: { seeded_at: iso(now), seed_version: SEED_VERSION } });
     return out;
   }

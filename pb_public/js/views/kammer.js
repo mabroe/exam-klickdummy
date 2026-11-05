@@ -3,14 +3,24 @@
 //  - Die Kammer sieht nur die Informationen ihrer eigenen externen Prüflinge (nicht des gesamten Raums)
 //  - Die Schule sieht vor der Annahme nur Anzahl, Art und Nachteilsausgleich; nach der Annahme Name, Vorname, Prüflingsnummer, NTA
 //  - Protokolleinträge einer Schule sieht die Kammer erst nach der Protokollfreigabe durch die Schule
-import { D, byId, upd, create, log, setting } from "../data.js?v=10.0";
-import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate, statusChip, isFinished, isActive } from "../ui.js?v=10.0";
-import { navigate, redraw } from "../app.js?v=10.0";
-import { me, members, personName, orgName, orgShort, isKammerOrg, isExtern, ART, EXT_STATUS, extOf, atSchool, extAccepted, extForSchool } from "../access.js?v=10.0";
+import { D, byId, upd, create, log, setting } from "../data.js?v=10.1";
+import { icon, esc, modal, confirmBox, toast, fmtDateTime, parseDate, statusChip, isFinished, isActive } from "../ui.js?v=10.1";
+import { navigate, redraw } from "../app.js?v=10.1";
+import { me, members, personName, orgName, orgShort, isKammerOrg, isExtern, ART, EXT_STATUS, extOf, atSchool, extAccepted, extForSchool, isAdm, isLeitung, isOrga } from "../access.js?v=10.1";
 
 const UI = { allSchools: false, sel: new Set(), q: "" };
 const nowIso = () => new Date().toISOString().replace("T", " ");
-const isKA = (p = me()) => p?.kind === "kammeradmin";
+const isKA = (p = me()) => isAdm(p) && isKammerOrg(p.org);
+// Reiter einer Prüfung auf Prüfungsebene je nach Rolle: Organisation (O) bzw. Leitung (L), kombinierbar
+export function examTabs(c, p, xo = 0) {
+  if (c.kind !== "pruefung" || !isAdm(p)) return [["mitglieder", "Mitglieder und Gruppen"], ["raumaufsichten", "Raumaufsichten"], ["info", "Kursinformationen"]];
+  const O = isOrga(p, c), L = isLeitung(p);
+  const t = isKA(p)
+    ? [["zuordnung", "Externe Prüflinge", O], ["mitglieder", "Rollen in der Kammer", O], ["korrektoren", "Korrektoren", O], ["raumaufsichten", "Raumaufsichten", O || L], ["durchfuehrung", "Durchführung", O || L], ["info", "Kursinformationen", true]]
+    : [["mitglieder", "Mitglieder und Gruppen", O], ["extern", `Externe Prüflinge${xo ? ` <span class="badge yellowb">${xo}</span>` : ""}`, O || L], ["korrektoren", "Korrektoren", O], ["raumaufsichten", "Raumaufsichten", O || L], ["info", "Kursinformationen", true]];
+  return t.filter((x) => x[2]).map(([k, l]) => [k, l]);
+}
+export const firstTab = (c, p, xo = 0) => { const t = examTabs(c, p, xo).map((x) => x[0]); return xo && t.includes("extern") ? "extern" : t[0] || "info"; };
 export const artBadge = (art) => (art ? `<span class="badge ${+art === 2 ? "lime" : +art === 3 ? "orange" : "purple"}" title="${esc(ART[art].text)}">Art ${art} · ${esc(ART[art].short)}</span>` : `<span class="badge gray">noch nicht versorgt</span>`);
 export const extStatusBadge = (e) => (!e ? `<span class="badge gray">offen</span>` : `<span class="badge ${EXT_STATUS[e.status]?.[1] || "gray"}">${esc(EXT_STATUS[e.status]?.[0] || e.status)}</span>`);
 // Hinweis „extern“ an Teilnehmenden (Raumaufsicht, Listen)
@@ -36,7 +46,8 @@ export async function notify(org, role, c, title, body, link, kind = "info") {
   const pe = me();
   await create("notices", { org, role, course: c?.id || "", title, body, link, kind, read: false, by: pe ? personName(pe) : "System" }).catch(() => {});
 }
-const myNotices = (p = me()) => (p ? D.notices.filter((n) => n.org === p.org && n.role === (isKA(p) ? "kammeradmin" : "schuladmin")).sort((a, b) => String(b.created).localeCompare(String(a.created))) : []);
+// Vorschläge zur Annahme sieht die Prüfungsleitung, alle übrigen Benachrichtigungen Leitung und Organisation
+const myNotices = (p = me()) => (p && isAdm(p) ? D.notices.filter((n) => n.org === p.org && (n.kind !== "vorschlag" || isLeitung(p))).sort((a, b) => String(b.created).localeCompare(String(a.created))) : []);
 export function noticesBox(p = me()) {
   const list = myNotices(p); const unread = list.filter((n) => !n.read);
   if (!list.length) return "";
@@ -63,17 +74,18 @@ export function externView() {
     shell: "staff", rail: "kammer", title: "Externe Prüflinge",
     render() {
       const p = me();
-      if (!isKA(p)) return `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Externe Prüflinge verwaltet die Kammeradministration.</p><a class="btn" href="#/">Zur Anmeldung</a></div>`;
+      if (!isKA(p)) return `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Externe Prüflinge verwaltet die Kammer (Prüfungsorganisation).</p><a class="btn" href="#/">Zur Anmeldung</a></div>`;
+      const ro = !isOrga(p);
       let list = D.persons.filter((x) => isExtern(x) && x.org === p.org).sort((a, b) => a.lastname.localeCompare(b.lastname));
       if (UI.q) { const q = UI.q.toLowerCase(); list = list.filter((x) => (x.lastname + " " + x.firstname + " " + x.pnr).toLowerCase().includes(q)); }
       const exams = (pe) => D.courses.filter((c) => c.kind === "pruefung" && members(c).some((m) => m.person === pe.id && m.role === "teilnehmer"));
       const pool = poolOf(p.org);
       return `${noticesBox(p)}<div class="pagehead"><div><h1>Externe Prüflinge</h1><div class="sub">${esc(personName(p))} · ${esc(orgName(p.org))}</div></div>
-        <div class="row wrap"><button class="btn" data-csv>${icon("upload")} CSV importieren</button><button class="btn primary" data-newx>${icon("user-round-plus")} Prüfling anlegen</button></div></div>
+        ${ro ? `<span class="badge gray">${icon("eye")} nur lesend – Pflege durch die Prüfungsorganisation</span>` : `<div class="row wrap"><button class="btn" data-csv>${icon("upload")} CSV importieren</button><button class="btn primary" data-newx>${icon("user-round-plus")} Prüfling anlegen</button></div>`}</div>
       <p class="muted">Externe Prüfungsteilnehmende der Kammer mit Name, Vorname, Prüflingsnummer und Nachteilsausgleich. Den Nachteilsausgleich pflegt ausschließlich die Kammer – die Schulen sehen ihn nur lesend. Die Zuordnung zu Schulen erfolgt je Prüfung und Prüfling unter „Prüfungen“ › „Externe Prüflinge“.</p>
       <div class="row between wrap mb"><div class="search"><input class="input" style="width:280px" data-xq placeholder="Name oder Prüflingsnummer" value="${esc(UI.q)}" aria-label="Prüflinge suchen">${icon("search")}</div><span class="small muted">${list.length} Prüfling(e)</span></div>
       <div class="tablewrap"><table class="tbl compact"><thead><tr><th>Name</th><th>Prüflingsnummer</th><th>Nachteilsausgleich</th><th>Prüfungen (Zuordnung)</th></tr></thead><tbody>
-      ${list.map((x) => `<tr><td><b>${esc(personName(x))}</b></td><td>${esc(x.pnr || "–")}</td><td><select class="select sm" data-xnta="${x.id}" aria-label="Nachteilsausgleich ${esc(personName(x))}" style="width:auto">${[0, 10, 15, 20, 30, 45].map((m) => `<option value="${m}" ${m === (+x.nta || 0) ? "selected" : ""}>${m ? m + " Minuten" : "keiner"}</option>`).join("")}</select></td>
+      ${list.map((x) => `<tr><td><b>${esc(personName(x))}</b></td><td>${esc(x.pnr || "–")}</td><td><select class="select sm" ${ro ? "disabled" : ""} data-xnta="${x.id}" aria-label="Nachteilsausgleich ${esc(personName(x))}" style="width:auto">${[0, 10, 15, 20, 30, 45].map((m) => `<option value="${m}" ${m === (+x.nta || 0) ? "selected" : ""}>${m ? m + " Minuten" : "keiner"}</option>`).join("")}</select></td>
         <td class="small">${exams(x).map((c) => { const e = extOf(c, x.id); return `<div><a href="#/app/kurs/${c.id}/zuordnung">${esc(c.title)}</a> · ${e ? `Art ${e.art}${e.school ? " · " + esc(orgShort(e.school)) : ""} · ${esc(EXT_STATUS[e.status]?.[0] || e.status)}` : `<span class="badge gray">noch nicht versorgt</span>`}</div>`; }).join("") || `<span class="muted">keiner Prüfung zugeordnet</span>`}</td></tr>`).join("") || `<tr><td colspan="4"><div class="empty small">Keine Prüflinge gefunden.</div></td></tr>`}</tbody></table></div>
       <section class="card pad mt-l"><h3>${icon("users")} Korrektorenpool (Art 4)</h3>
         <p class="small muted">Lehrkräfte der Schulen, die sich ehrenamtlich zur Korrektur für die Kammer bereit erklärt haben. Die Bereitschaft wird im Vorfeld außerhalb der Plattform geklärt. Aus Datenschutzgründen sieht die Kammer nur diese Personen – mit Name, Schule und Fach. Sie korrigieren pseudonymisiert (nur Prüflingsnummer).</p>
@@ -242,11 +254,12 @@ export function tabSchoolExt(c, p) {
   const all = extForSchool(c, p.org);
   const open = all.filter((x) => x.e.status === "vorgeschlagen"); const acc = all.filter((x) => x.e.status === "angenommen"); const rej = all.filter((x) => x.e.status === "abgelehnt");
   const byK = new Map(); open.forEach((x) => byK.set(x.pe.org, [...(byK.get(x.pe.org) || []), x]));
-  return `<div class="notice info small mb">${icon("info")}<span>Kammern können ihre externen Prüfungsteilnehmenden zur Durchführung (und ggf. Korrektur) an Ihre Schule schicken. Die Absprache erfolgt vorab außerhalb der Plattform; jeder Vorschlag wird erst mit Ihrer <b>Annahme</b> wirksam. Vor der Annahme sehen Sie nur Anzahl, Art und Nachteilsausgleich. Angenommene Prüflinge stehen ausschließlich für diese Prüfung zur Verfügung; Zuordnungen ändert nur die Kammer.</span></div>
+  const L = isLeitung(p);
+  return `${L ? "" : `<div class="notice warn small mb">${icon("lock")}<span>Über die Annahme externer Prüflinge entscheidet die <b>Prüfungsleitung</b> Ihrer Schule. Sie sehen den Stand und die angenommenen Prüflinge für die Organisation.</span></div>`}<div class="notice info small mb">${icon("info")}<span>Kammern können ihre externen Prüfungsteilnehmenden zur Durchführung (und ggf. Korrektur) an Ihre Schule schicken. Die Absprache erfolgt vorab außerhalb der Plattform; jeder Vorschlag wird erst mit Ihrer <b>Annahme</b> wirksam. Vor der Annahme sehen Sie nur Anzahl, Art und Nachteilsausgleich. Angenommene Prüflinge stehen ausschließlich für diese Prüfung zur Verfügung; Zuordnungen ändert nur die Kammer.</span></div>
   <section class="card pad"><h3>${icon("user-round-plus")} Zur Annahme (${open.length})</h3>
-    ${open.length ? [...byK].map(([k, l]) => `<div class="kgroup mt-s"><div class="row between wrap"><b>${esc(orgName(k))}</b><div class="row" style="gap:6px"><button class="btn sm" data-xrej="${l.map((x) => x.pid).join(",")}">${icon("x")} Alle ablehnen</button><button class="btn primary sm" data-xacc="${l.map((x) => x.pid).join(",")}">${icon("check")} Alle ${l.length} annehmen</button></div></div>
+    ${open.length ? [...byK].map(([k, l]) => `<div class="kgroup mt-s"><div class="row between wrap"><b>${esc(orgName(k))}</b>${L ? `<div class="row" style="gap:6px"><button class="btn sm" data-xrej="${l.map((x) => x.pid).join(",")}">${icon("x")} Alle ablehnen</button><button class="btn primary sm" data-xacc="${l.map((x) => x.pid).join(",")}">${icon("check")} Alle ${l.length} annehmen</button></div>` : `<span class="badge yellowb">Annahme durch die Prüfungsleitung offen</span>`}</div>
       <div class="tablewrap mt-s"><table class="tbl compact"><thead><tr><th>#</th><th>Art</th><th>Nachteilsausgleich</th><th>vorgeschlagen</th><th></th></tr></thead><tbody>${l.map((x, i) => `<tr><td>Externer Prüfling ${i + 1}</td><td>${artBadge(x.e.art)}</td><td>${x.pe.nta ? x.pe.nta + " Minuten" : "keiner"}</td><td class="small">${fmtDateTime(parseDate(x.e.at))}</td>
-        <td class="nowrap"><button class="btn xs" data-xrej="${x.pid}">${icon("x")} Ablehnen</button><button class="btn primary xs" data-xacc="${x.pid}">${icon("check")} Annehmen</button></td></tr>`).join("")}</tbody></table></div></div>`).join("") : `<p class="small muted">Keine offenen Vorschläge.</p>`}</section>
+        <td class="nowrap">${L ? `<button class="btn xs" data-xrej="${x.pid}">${icon("x")} Ablehnen</button><button class="btn primary xs" data-xacc="${x.pid}">${icon("check")} Annehmen</button>` : ""}</td></tr>`).join("")}</tbody></table></div></div>`).join("") : `<p class="small muted">Keine offenen Vorschläge.</p>`}</section>
   <section class="card pad mt"><div class="row between wrap"><h3>${icon("graduation-cap")} Angenommene externe Prüflinge (${acc.length})</h3>${acc.length ? `<a class="btn sm" href="#/app/kurs/${c.id}/raumaufsichten">${icon("arrow-right")} Raumaufsichten</a>` : ""}</div>
     ${acc.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Name</th><th>Vorname</th><th>Prüflingsnummer</th><th>Nachteilsausgleich</th><th>Kammer</th><th>Art</th><th>Raumaufsicht</th></tr></thead><tbody>${acc.map((x) => { const pt = partOf(c, x.pid); const r = roomOf(pt);
       return `<tr><td><b>${esc(x.pe.lastname)}</b></td><td>${esc(x.pe.firstname)}</td><td>${esc(x.pe.pnr)}</td><td>${x.pe.nta ? x.pe.nta + " Min." : "–"} <span class="xs muted" title="gepflegt von der Kammer">${icon("lock")}</span></td><td>${esc(orgShort(x.pe.org))}</td><td>${artBadge(x.e.art)}</td><td class="small">${r && r.org === p.org ? `<a href="#/app/raum/${r.id}/teilnehmende">${esc(r.name)}</a> · ${statusChip(pt.status)}` : `<span class="muted">noch keiner Raumaufsicht zugeordnet</span>`}</td></tr>`; }).join("")}</tbody></table></div>
@@ -259,6 +272,7 @@ export function bindSchoolExt(el, c) {
 }
 export async function decide(c, pids, ok) {
   const p = me(); let reason = "";
+  if (!isLeitung(p)) { toast("Nur durch die Prüfungsleitung", "Über die Annahme externer Prüflinge entscheidet die Prüfungsleitung.", "error"); return; }
   if (!ok) {
     const v = await modal({ title: pids.length === 1 ? "Vorschlag ablehnen" : `${pids.length} Vorschläge ablehnen`, size: "narrow", body: `<p class="small">Die Kammer wird benachrichtigt und ordnet den Prüfling anderweitig zu.</p><div class="field"><label class="lbl" for="xr">Begründung (optional)</label><input id="xr" class="input" data-r placeholder="z. B. keine freien Plätze"></div>`,
       footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Ablehnen</button>`, onMount: (m, close) => (m.querySelector("[data-ok]").onclick = () => close(m.querySelector("[data-r]").value.trim() || "-")) });
@@ -286,4 +300,56 @@ export async function releaseProtocol(room) {
   const c = byId("courses", room.course);
   for (const k of [...new Set(ext.map((pe) => pe.org))]) await notify(k, "kammeradmin", c, `Protokoll freigegeben (${orgShort(room.org)})`, `${orgName(room.org)} hat das Prüfungsprotokoll „${room.name}“ freigegeben (${ext.filter((pe) => pe.org === k).length} externe Prüflinge). Die nachgelagerten Schritte liegen bei Ihnen.`, `#/app/kurs/${c.id}/durchfuehrung`, "protokoll");
   toast("Protokoll freigegeben", ext.length ? "Die Kammer wurde benachrichtigt." : "");
+}
+
+// ---------- Rollen der Organisation: Prüfungsleitung bestimmt die Prüfungsorganisation ----------
+const KIND_LABEL = { schuladmin: "Prüfungsleitung", kammeradmin: "Prüfungsleitung", lehrkraft: "Lehrkraft", verwaltung: "Verwaltung", kammer: "Kammer" };
+export function rolesView() {
+  return {
+    shell: "staff", rail: "rollen", title: "Rollen der Organisation",
+    render() {
+      const p = me();
+      if (!isLeitung(p)) return `<div class="empty">${icon("lock")}<h2>Kein Zugriff</h2><p>Die Prüfungsorganisation bestimmt die Prüfungsleitung.</p></div>`;
+      const org = p.org; const k = isKammerOrg(org);
+      const leads = D.persons.filter((x) => isLeitung(x) && x.org === org);
+      const list = (setting("orgrole:" + org, []) || []).map((r) => ({ ...r, pe: byId("persons", r.person) })).filter((r) => r.pe);
+      const exams = D.courses.filter((c) => c.kind === "pruefung" && (c.orgs || []).includes(org));
+      return `<div class="pagehead"><div><h1>Rollen ${k ? "der Kammer" : "der Schule"}</h1><div class="sub">${esc(orgName(org))} · Prüfungsleitung ${esc(personName(p))}</div></div><button class="btn primary" data-orgadd>${icon("user-round-plus")} Prüfungsorganisation bestimmen</button></div>
+      <div class="notice info small mb">${icon("info")}<span><b>Prüfungsleitung</b> (von der Koordinierungsstelle hinzugefügt): Annahme externer Prüflinge, Begutachtung vor Prüfungsstart, Drittkorrektur, Protokollfreigabe, Ergebnisse mit Noten. <b>Prüfungsorganisation</b> (von der Leitung bestimmt): ${k ? "externe Prüflinge und deren Zuordnung, Rollen in der Kammer, Räume, Raumaufsichten, Korrektoren" : "Teilnehmende, Räume, Raumaufsichten, Korrektoren"} – ohne Einsicht in Noten. Beide Rollen sind kombinierbar; die Organisation gilt für alle Prüfungen der Organisation oder nur für ausgewählte.</span></div>
+      <section class="card pad"><h3>${icon("building-2")} Prüfungsleitung</h3><div class="row wrap" style="gap:6px">${leads.map((x) => `<span class="badge gray">${icon("user")} ${esc(personName(x))}${list.some((r) => r.person === x.id) ? " · auch Organisation" : ""}</span>`).join("")}</div></section>
+      <section class="card pad mt"><h3>${icon("clipboard-list")} Prüfungsorganisation (${list.length})</h3>
+        ${list.length ? `<div class="tablewrap"><table class="tbl compact"><thead><tr><th>Name</th><th>Funktion</th><th>Umfang</th><th></th></tr></thead><tbody>${list.map((r) => `<tr><td><b>${esc(personName(r.pe))}</b></td><td>${esc(KIND_LABEL[r.pe.kind] || r.pe.kind)}</td><td class="small">${(r.courses || []).length ? r.courses.map((id) => esc(byId("courses", id)?.title || "–")).join("<br>") : "alle Prüfungen"}</td>
+          <td class="nowrap"><button class="iconbtn" data-orgedit="${r.person}" title="Bearbeiten" aria-label="Bearbeiten">${icon("pencil")}</button><button class="iconbtn" data-orgdel="${r.person}" title="Entfernen" aria-label="Entfernen">${icon("trash-2")}</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="small muted">Noch niemand bestimmt.</p>`}
+        <p class="xs muted mt-s">${exams.length} Prüfung(en) Ihrer Organisation.</p></section>`;
+    },
+    mount(el) {
+      const b = el.querySelector("[data-orgadd]"); if (b) b.onclick = () => orgDialog();
+      el.querySelectorAll("[data-orgedit]").forEach((x) => (x.onclick = () => orgDialog(x.dataset.orgedit)));
+      el.querySelectorAll("[data-orgdel]").forEach((x) => (x.onclick = async () => { const p = me(); const pe = byId("persons", x.dataset.orgdel); if (!(await confirmBox("Prüfungsorganisation entfernen", `<p>${esc(personName(pe))} verliert die Rolle Prüfungsorganisation.</p>`, "Entfernen"))) return; await saveRoles(p.org, (setting("orgrole:" + p.org, []) || []).filter((r) => r.person !== pe.id)); toast("Rolle entfernt", personName(pe)); }));
+    },
+  };
+}
+async function saveRoles(org, list) {
+  const rec = D.settings.find((s) => s.key === "orgrole:" + org);
+  return rec ? upd("settings", rec.id, { value: list }) : create("settings", { key: "orgrole:" + org, value: list });
+}
+async function orgDialog(pid = "") {
+  const p = me(); const org = p.org; const k = isKammerOrg(org);
+  const list = setting("orgrole:" + org, []) || []; const ex = list.find((r) => r.person === pid);
+  const kinds = k ? ["kammer", "kammeradmin"] : ["lehrkraft", "verwaltung", "schuladmin"];
+  const cand = D.persons.filter((x) => x.org === org && kinds.includes(x.kind) && (x.id === pid || !list.some((r) => r.person === x.id))).sort((a, b) => a.lastname.localeCompare(b.lastname));
+  const exams = D.courses.filter((c) => c.kind === "pruefung" && (c.orgs || []).includes(org));
+  const v = await modal({ title: ex ? "Prüfungsorganisation bearbeiten" : "Prüfungsorganisation bestimmen", size: "wide",
+    body: `<div class="field"><label class="lbl" for="orp">Person ${k ? "der Kammer" : "der Schule"}</label><select id="orp" class="select" data-op ${ex ? "disabled" : ""}>${cand.map((x) => `<option value="${x.id}" ${x.id === pid ? "selected" : ""}>${esc(personName(x))} · ${esc(KIND_LABEL[x.kind] || x.kind)}</option>`).join("")}</select></div>
+      <fieldset class="field" style="border:0;padding:0"><legend class="lbl">Umfang</legend><label class="checkbox" style="display:flex;margin:6px 0"><input type="radio" name="osc" value="all" ${!(ex?.courses || []).length ? "checked" : ""}> alle Prüfungen der Organisation</label><label class="checkbox" style="display:flex;margin:6px 0"><input type="radio" name="osc" value="some" ${(ex?.courses || []).length ? "checked" : ""}> nur ausgewählte Prüfungen</label></fieldset>
+      <div data-oex>${exams.map((c) => `<label class="checkbox" style="display:flex;margin:4px 0 4px 24px"><input type="checkbox" data-oc="${c.id}" ${(ex?.courses || []).includes(c.id) ? "checked" : ""}> ${esc(c.title)}</label>`).join("")}</div>`,
+    footer: `<button class="btn" data-close>Abbrechen</button><button class="btn primary" data-ok>Speichern</button>`,
+    onMount(m, close) {
+      const sync = () => (m.querySelector("[data-oex]").style.opacity = m.querySelector("[name=osc]:checked").value === "some" ? "1" : ".4");
+      m.querySelectorAll("[name=osc]").forEach((r) => (r.onchange = sync)); sync();
+      m.querySelector("[data-ok]").onclick = () => { const person = m.querySelector("[data-op]").value; const some = m.querySelector("[name=osc]:checked").value === "some"; const courses = some ? [...m.querySelectorAll("[data-oc]:checked")].map((x) => x.dataset.oc) : []; if (!person) return toast("Bitte eine Person wählen", "", "error"); if (some && !courses.length) return toast("Bitte mindestens eine Prüfung wählen", "", "error"); close({ person, courses }); };
+    } });
+  if (!v) return;
+  await saveRoles(org, [...list.filter((r) => r.person !== v.person), { person: v.person, courses: v.courses, by: personName(p), at: nowIso() }]);
+  toast("Prüfungsorganisation gespeichert", `${personName(byId("persons", v.person))} · ${v.courses.length ? v.courses.length + " Prüfung(en)" : "alle Prüfungen"}`);
 }

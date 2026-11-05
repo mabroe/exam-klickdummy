@@ -1,9 +1,9 @@
 // Datenschicht: PocketBase (lokaler Server) oder Browser-Datenbank (GitHub Pages) + Realtime-Spiegel aller Collections im Speicher
-import PocketBase from "./vendor/pocketbase.es.mjs?v=10.0";
-import { toPb } from "./ui.js?v=10.0";
-import CFG from "./config.js?v=10.0";
+import PocketBase from "./vendor/pocketbase.es.mjs?v=10.1";
+import { toPb } from "./ui.js?v=10.1";
+import CFG from "./config.js?v=10.1";
 
-export const APP_VERSION = "10.0";
+export const APP_VERSION = "10.1";
 // Backend ermitteln: PocketBase, wenn erreichbar, sonst Datenbank im Browser
 export const backend = { mode: "local", url: "" };
 async function probe(url) {
@@ -28,7 +28,7 @@ if (backend.mode === "pocketbase") {
     beacon: (col, id, data) => { try { fetch(`${backend.url}api/collections/${col}/records/${id}`, { method: "PATCH", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }); } catch {} },
   };
 } else {
-  const { createLocalBackend } = await import("./localdb.js?v=10.0");
+  const { createLocalBackend } = await import("./localdb.js?v=10.1");
   const lb = await createLocalBackend({ version: APP_VERSION });
   pb = lb.client; api = lb.api;
 }

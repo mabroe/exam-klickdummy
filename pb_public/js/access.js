@@ -3,8 +3,8 @@
 //    Besitzer/Mitbetreuung des Unterrichtskurses
 //  - Raumaufsicht (Prüfungsebene): sieht nur Raumaufsichten, in denen sie als Aufsichtsperson eingetragen ist
 //  - Schuladministration (Prüfungsebene): sieht die Prüfungs-Raumaufsichten ihrer Organisation
-import { D, byId } from "./data.js?v=10.0";
-import { store, isFinished } from "./ui.js?v=10.0";
+import { D, byId } from "./data.js?v=10.1";
+import { store, isFinished } from "./ui.js?v=10.1";
 
 export const me = () => byId("persons", store.get("person"));
 export const orgOf = (p) => byId("orgs", p?.org);
@@ -25,7 +25,18 @@ export const courseOf = (room) => byId("courses", room?.course);
 //    Art 1: Kammer prüft selbst · Art 2: Durchführung und Korrektur an der Schule · Art 3: nur Durchführung an der Schule, Korrektur durch die Kammer
 //    Art 4: Kammer prüft selbst, Korrektur durch bereite Lehrkräfte der Schulen (pseudonymisiert)
 //    Status bei Art 2/3: vorgeschlagen → angenommen | abgelehnt (Annahme immer durch die Schuladministration)
-export const isAdm = (p) => p?.kind === "schuladmin" || p?.kind === "kammeradmin";
+// Prüfungsleitung (Schul- bzw. Kammeradministration, von der Koordinierungsstelle hinzugefügt) und Prüfungsorganisation
+// (von der Leitung je Organisation bestimmt, optional auf einzelne Prüfungen beschränkt; settings "orgrole:<org>" = [{ person, courses }]).
+// Beide Rollen sind kombinierbar. Organisation: Teilnehmende, Räume, Raumaufsichten, Korrektoren, Zuordnung externer Prüflinge.
+// Leitung: Annahme externer Prüflinge, Begutachtung, Drittkorrektur, Protokollfreigabe, Ergebnisse mit Noten, Bestimmen der Organisation.
+export const isLeitung = (p) => p?.kind === "schuladmin" || p?.kind === "kammeradmin";
+export const orgRoles = (org) => D.settings.find((s) => s.key === "orgrole:" + org)?.value || [];
+export const orgRoleOf = (p) => (p ? orgRoles(p.org).find((x) => x.person === p.id) || null : null);
+export const isOrga = (p, c = null) => { const r = orgRoleOf(p); return !!r && (!c || !(r.courses || []).length || r.courses.includes(c.id)); };
+const EXAM_CTX = ["schuladmin", "kammeradmin", "orga"];
+// Prüfungsebene der Organisation (Leitung oder – im Kontext „Prüfungsorganisation“ angemeldet – Organisation)
+export const isAdm = (p) => isLeitung(p) || (isOrga(p) && EXAM_CTX.includes(store.get("role")));
+const examAllowed = (p, c) => isLeitung(p) || isOrga(p, c);
 export const isKammerOrg = (id) => byId("orgs", id)?.type === "kammer";
 export const isExtern = (pe) => pe?.kind === "extern";
 export const ART = {
@@ -46,7 +57,7 @@ export function correctionOrg(c, p) {
   const e = extOf(c, pe.id); return extAccepted(e) && +e.art === 2 ? e.school : pe.org;
 }
 // Pseudonymisierung (Art 4): Lehrkräfte der Schulen sehen externe Prüflinge nur mit Prüflingsnummer
-export const masked = (p, viewer = me()) => { const e = extEntryP(p); return !!e && +e.art === 4 && !!viewer && !isKammerOrg(viewer.org) && viewer.kind !== "kammeradmin"; };
+export const masked = (p, viewer = me()) => { const e = extEntryP(p); return !!e && +e.art === 4 && !!viewer && !isKammerOrg(viewer.org); };
 export const pnrOf = (p) => extPerson(p)?.pnr || "–";
 export const maskP = (p) => (p && masked(p) ? { ...p, lastname: "Prüfling", firstname: pnrOf(p), username: pnrOf(p), seat: "–", group_name: "", masked: true } : p);
 // Externe Prüflinge, die eine Schule für eine Prüfung angenommen hat
@@ -83,13 +94,13 @@ export const isTeacherOf = (c, pid) => c?.kind === "unterricht" && (c.owner === 
 // Kurse, die eine Person verwalten darf
 export function canManageCourse(c, p = me()) {
   if (!c || !p) return false;
-  if (isAdm(p)) return c.kind === "pruefung" && (c.orgs || []).includes(p.org);
+  if (isAdm(p)) return c.kind === "pruefung" && (c.orgs || []).includes(p.org) && examAllowed(p, c);
   if (p.kind === "lehrkraft") return isTeacherOf(c, p.id);
   return false;
 }
 export function visibleCourses(p = me()) {
   if (!p) return [];
-  if (isAdm(p)) return D.courses.filter((c) => c.kind === "pruefung" && (c.orgs || []).includes(p.org));
+  if (isAdm(p)) return D.courses.filter((c) => c.kind === "pruefung" && (c.orgs || []).includes(p.org) && examAllowed(p, c));
   if (p.kind === "lehrkraft") return D.courses.filter((c) => isTeacherOf(c, p.id));
   return [];
 }
@@ -98,7 +109,7 @@ export function canSeeRoom(room, p = me()) {
   if (!room) return false;
   if (!p) return false; // ohne Konto keine Raumaufsichten (Anmeldung über die Personenwahl)
   const c = courseOf(room);
-  if (isAdm(p)) return room.org === p.org && (!c || c.kind === "pruefung");
+  if (isAdm(p)) return room.org === p.org && (!c || (c.kind === "pruefung" && examAllowed(p, c)));
   if (p.kind === "kammer") return supervisesRoom(room, p.id);
   if (p.kind === "lehrkraft") return room.owner === p.id || supervisesRoom(room, p.id) || isTeacherOf(c, p.id);
   return false;
